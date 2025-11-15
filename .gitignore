@@ -1,0 +1,37 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+dist/
+
+# Go
+agent/clipboard-ai-agent
+
+# Node/Bun
+node_modules/
+cli/node_modules/
+actions/node_modules/
+
+# Build outputs
+*.out
+*.test
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Config (user-specific)
+*.local.toml
+
+# Runtime
+.clipboard-ai/
