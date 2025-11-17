@@ -1,0 +1,47 @@
+# clipboard-ai configuration
+# Place in ~/.clipboard-ai/config.toml
+
+[provider]
+# Provider type: ollama, openai, anthropic
+type = "ollama"
+
+# API endpoint (leave empty for provider defaults)
+endpoint = "http://localhost:11434/v1"
+
+# Model to use
+model = "mistral"
+
+# API key (required for openai/anthropic, optional for ollama)
+# api_key = "sk-..."
+
+[settings]
+# Polling interval in milliseconds
+poll_interval = 150
+
+# Safe mode: require confirmation before sending to cloud providers
+safe_mode = true
+
+# Show macOS notifications for triggered actions
+notifications = true
+
+# Log level: debug, info, warn, error
+log_level = "info"
+
+[actions.summarize]
+enabled = true
+# Trigger when clipboard content is longer than 200 characters
+trigger = "length > 200"
+
+[actions.explain]
+enabled = true
+# Trigger when clipboard looks like code
+trigger = "mime:code"
+
+# Additional actions (disabled by default)
+# [actions.translate]
+# enabled = false
+# trigger = ""
+
+# [actions.improve]
+# enabled = false
+# trigger = "length > 50"
