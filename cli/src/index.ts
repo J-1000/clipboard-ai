@@ -8,6 +8,7 @@ import { summaryCommand } from "./commands/summary.js";
 import { explainCommand } from "./commands/explain.js";
 import { translateCommand } from "./commands/translate.js";
 import { improveCommand } from "./commands/improve.js";
+import { extractCommand } from "./commands/extract.js";
 
 yargs(hideBin(process.argv))
   .scriptName("cbai")
@@ -80,6 +81,14 @@ yargs(hideBin(process.argv))
     () => {},
     async () => {
       await improveCommand();
+    }
+  )
+  .command(
+    "extract",
+    "Extract structured data from clipboard",
+    () => {},
+    async () => {
+      await extractCommand();
     }
   )
   .demandCommand(1, "Please specify a command")
