@@ -9,6 +9,7 @@ import { explainCommand } from "./commands/explain.js";
 import { translateCommand } from "./commands/translate.js";
 import { improveCommand } from "./commands/improve.js";
 import { extractCommand } from "./commands/extract.js";
+import { tldrCommand } from "./commands/tldr.js";
 
 yargs(hideBin(process.argv))
   .scriptName("cbai")
@@ -89,6 +90,14 @@ yargs(hideBin(process.argv))
     () => {},
     async () => {
       await extractCommand();
+    }
+  )
+  .command(
+    "tldr",
+    "Get a very brief summary (1-2 sentences)",
+    () => {},
+    async () => {
+      await tldrCommand();
     }
   )
   .demandCommand(1, "Please specify a command")
