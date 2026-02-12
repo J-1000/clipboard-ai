@@ -10,6 +10,7 @@ import { translateCommand } from "./commands/translate.js";
 import { improveCommand } from "./commands/improve.js";
 import { extractCommand } from "./commands/extract.js";
 import { tldrCommand } from "./commands/tldr.js";
+import { classifyCommand } from "./commands/classify.js";
 
 yargs(hideBin(process.argv))
   .scriptName("cbai")
@@ -98,6 +99,14 @@ yargs(hideBin(process.argv))
     () => {},
     async () => {
       await tldrCommand();
+    }
+  )
+  .command(
+    "classify",
+    "Classify clipboard content by type",
+    () => {},
+    async () => {
+      await classifyCommand();
     }
   )
   .demandCommand(1, "Please specify a command")
