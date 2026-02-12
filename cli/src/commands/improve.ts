@@ -1,8 +1,9 @@
 import { getClipboard, getConfig } from "../lib/client.js";
 import { AIClient } from "../lib/ai.js";
 import { copyToClipboard } from "../lib/clipboard.js";
+import { enforceSafeMode } from "../lib/safe-mode.js";
 
-export async function improveCommand(options: { copy?: boolean } = {}): Promise<void> {
+export async function improveCommand(options: { copy?: boolean; yes?: boolean } = {}): Promise<void> {
   try {
     const [clipboard, config] = await Promise.all([
       getClipboard(),
@@ -13,6 +14,8 @@ export async function improveCommand(options: { copy?: boolean } = {}): Promise<
       console.error("Error: Clipboard is empty");
       process.exit(1);
     }
+
+    await enforceSafeMode(config, { yes: options.yes });
 
     console.log("Improving writing...\n");
 
