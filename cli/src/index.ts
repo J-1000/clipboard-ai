@@ -133,9 +133,15 @@ yargs(hideBin(process.argv))
   .command(
     "tldr",
     "Get a very brief summary (1-2 sentences)",
-    () => {},
-    async () => {
-      await tldrCommand();
+    (yargs) =>
+      yargs.option("copy", {
+        alias: "c",
+        type: "boolean",
+        description: "Copy result to clipboard",
+        default: false,
+      }),
+    async (argv) => {
+      await tldrCommand({ copy: argv.copy });
     }
   )
   .command(
