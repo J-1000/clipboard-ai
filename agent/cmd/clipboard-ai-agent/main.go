@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/clipboard-ai/agent/internal/clipboard"
@@ -63,7 +64,11 @@ func main() {
 				if result.Error != nil {
 					log.Printf("Action %s failed: %v", actionName, result.Error)
 					if cfg.Settings.Notifications {
-						notify.SendWithSubtitle("clipboard-ai", actionName+" failed", result.Error.Error())
+						if strings.Contains(result.Output, "safe mode") {
+							notify.SendWithSubtitle("clipboard-ai", "Safe mode", actionName+" blocked — cloud provider not allowed")
+						} else {
+							notify.SendWithSubtitle("clipboard-ai", actionName+" failed", result.Error.Error())
+						}
 					}
 					return
 				}
