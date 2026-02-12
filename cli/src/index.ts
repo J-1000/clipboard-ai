@@ -42,17 +42,29 @@ yargs(hideBin(process.argv))
   .command(
     "summary",
     "Summarize clipboard content",
-    () => {},
-    async () => {
-      await summaryCommand();
+    (yargs) =>
+      yargs.option("copy", {
+        alias: "c",
+        type: "boolean",
+        description: "Copy result to clipboard",
+        default: false,
+      }),
+    async (argv) => {
+      await summaryCommand({ copy: argv.copy });
     }
   )
   .command(
     ["summarize", "sum"],
     false, // hidden alias
-    () => {},
-    async () => {
-      await summaryCommand();
+    (yargs) =>
+      yargs.option("copy", {
+        alias: "c",
+        type: "boolean",
+        description: "Copy result to clipboard",
+        default: false,
+      }),
+    async (argv) => {
+      await summaryCommand({ copy: argv.copy });
     }
   )
   .command(
