@@ -100,6 +100,24 @@ cbai explain -c
 cbai translate Spanish --copy
 ```
 
+### --yes Flag
+
+All AI commands support `--yes` (or `-y`) to skip safe mode confirmation prompts:
+
+```bash
+cbai summary --yes
+cbai explain -y
+```
+
+### Safe Mode
+
+When `safe_mode = true` in config, clipboard content won't be sent to cloud providers (OpenAI, Anthropic) without consent:
+
+- **Manual CLI usage**: Shows an interactive confirmation prompt before cloud calls
+- **Daemon-triggered (automatic)**: Blocks cloud calls entirely and sends a macOS notification
+- **Local providers** (Ollama, localhost endpoints): Always allowed regardless of safe mode
+- **`--yes` flag**: Skips the confirmation prompt
+
 ### Configuration
 
 Configuration file: `~/.clipboard-ai/config.toml`
@@ -183,7 +201,7 @@ clipboard-ai/
 ├── cli/                      # TypeScript CLI
 │   └── src/
 │       ├── commands/         # CLI commands
-│       └── lib/              # IPC client, AI client
+│       └── lib/              # IPC client, AI client, safe mode
 ├── actions/                  # Built-in AI actions
 ├── configs/                  # Default configuration
 └── scripts/                  # Install/uninstall scripts
