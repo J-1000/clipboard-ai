@@ -11,7 +11,9 @@ import (
 
 	"github.com/clipboard-ai/agent/internal/clipboard"
 	"github.com/clipboard-ai/agent/internal/config"
+	"github.com/clipboard-ai/agent/internal/executor"
 	"github.com/clipboard-ai/agent/internal/ipc"
+	"github.com/clipboard-ai/agent/internal/notify"
 	"github.com/clipboard-ai/agent/internal/rules"
 )
 
@@ -40,6 +42,10 @@ func main() {
 	log.Printf("Provider: %s (%s)", cfg.Provider.Type, cfg.Provider.Model)
 	log.Printf("Safe mode: %v", cfg.Settings.SafeMode)
 
+	// Set up context with cancellation (before handler so closure can capture ctx)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	// Create rules engine
 	rulesEngine := rules.NewEngine(cfg.Actions)
 
@@ -51,7 +57,25 @@ func main() {
 		matches := rulesEngine.Evaluate(content)
 		for _, match := range matches {
 			log.Printf("Triggered action: %s", match.ActionName)
-			// Action execution will be implemented later
+
+			go func(actionName string) {
+				result := executor.Execute(ctx, actionName)
+				if result.Error != nil {
+					log.Printf("Action %s failed: %v", actionName, result.Error)
+					if cfg.Settings.Notifications {
+						notify.SendWithSubtitle("clipboard-ai", actionName+" failed", result.Error.Error())
+					}
+					return
+				}
+				log.Printf("Action %s completed in %v", actionName, result.Elapsed)
+				if cfg.Settings.Notifications {
+					output := result.Output
+					if len(output) > 200 {
+						output = output[:200] + "..."
+					}
+					notify.SendWithSubtitle("clipboard-ai", actionName, output)
+				}
+			}(match.ActionName)
 		}
 	}
 
@@ -61,10 +85,6 @@ func main() {
 	// Create IPC server
 	socketPath := config.GetSocketPath()
 	server := ipc.NewServer(socketPath, monitor, cfg)
-
-	// Set up context with cancellation
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	// Handle shutdown signals
 	sigCh := make(chan os.Signal, 1)
