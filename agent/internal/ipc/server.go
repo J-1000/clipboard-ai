@@ -11,6 +11,7 @@ import (
 
 	"github.com/clipboard-ai/agent/internal/clipboard"
 	"github.com/clipboard-ai/agent/internal/config"
+	"github.com/clipboard-ai/agent/internal/executor"
 )
 
 // Server provides HTTP API over Unix socket
@@ -191,11 +192,20 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// For now, just acknowledge - actual action execution will be added
+	result := executor.Execute(r.Context(), req.Action)
+	if result.Error != nil {
+		writeJSON(w, ActionResponse{
+			Success: false,
+			Action:  req.Action,
+			Error:   result.Error.Error(),
+		})
+		return
+	}
+
 	writeJSON(w, ActionResponse{
 		Success: true,
 		Action:  req.Action,
-		Result:  "Action queued",
+		Result:  result.Output,
 	})
 }
 
