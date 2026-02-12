@@ -36,7 +36,8 @@ clipboard-ai/
 │   │   └── lib/
 │   │       ├── ai.ts         # LLM API abstraction
 │   │       ├── client.ts     # Unix socket IPC client
-│   │       └── clipboard.ts  # Clipboard copy utility (pbcopy)
+│   │       ├── clipboard.ts  # Clipboard copy utility (pbcopy)
+│   │       └── safe-mode.ts  # Cloud provider detection & safe mode enforcement
 │   └── package.json
 ├── actions/                  # Built-in AI actions
 │   ├── builtin/
@@ -82,7 +83,7 @@ clipboard-ai/
 2. ~~Content type detection (text, URL, code)~~
 3. ~~Auto-execute actions on clipboard change~~ (daemon spawns `cbai <action>` via executor)
 4. ~~macOS notifications via `osascript`~~
-5. Safe mode (block cloud calls without confirmation) — *not yet implemented*
+5. ~~Safe mode (block cloud calls without confirmation)~~
 
 ### Phase 5: Polish & Distribution [IN PROGRESS]
 1. ~~Installation scripts with LaunchAgent setup~~
