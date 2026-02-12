@@ -3,6 +3,7 @@ package executor
 import (
 	"bytes"
 	"context"
+	"os"
 	"os/exec"
 	"time"
 )
@@ -25,6 +26,7 @@ func Execute(ctx context.Context, action string) Result {
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "cbai", action)
+	cmd.Env = append(os.Environ(), "CBAI_DAEMON_MODE=true")
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
