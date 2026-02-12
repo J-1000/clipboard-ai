@@ -77,8 +77,27 @@ cbai translate Spanish
 # Improve writing
 cbai improve
 
+# Extract structured data
+cbai extract
+
+# Ultra-brief summary
+cbai tldr
+
+# Classify content type
+cbai classify
+
 # View configuration
 cbai config
+```
+
+### --copy Flag
+
+All AI commands support `--copy` (or `-c`) to copy the result to your clipboard:
+
+```bash
+cbai summary --copy
+cbai explain -c
+cbai translate Spanish --copy
 ```
 
 ### Configuration
@@ -135,6 +154,7 @@ trigger = "mime:code"
 │   Go Daemon (LaunchAgent)       │
 │   - Monitors clipboard          │
 │   - Evaluates trigger rules     │
+│   - Executes actions via CLI    │
 │   - Unix socket IPC server      │
 └─────────────────────────────────┘
                 │
@@ -156,6 +176,7 @@ clipboard-ai/
 │   └── internal/
 │       ├── clipboard/        # Clipboard monitoring
 │       ├── config/           # TOML config loading
+│       ├── executor/         # Action execution (spawns CLI)
 │       ├── ipc/              # Unix socket server
 │       ├── notify/           # macOS notifications
 │       └── rules/            # Trigger engine
@@ -181,6 +202,16 @@ go build ./cmd/clipboard-ai-agent/
 cd cli
 bun install
 bun run build
+```
+
+### Running Tests
+
+```bash
+# Go rule engine tests
+cd agent && go test ./internal/rules/
+
+# TypeScript AI client tests
+cd cli && bun test
 ```
 
 ### Running locally
