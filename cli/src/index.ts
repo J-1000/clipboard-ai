@@ -85,14 +85,21 @@ yargs(hideBin(process.argv))
     "translate <lang>",
     "Translate clipboard to target language",
     (yargs) => {
-      return yargs.positional("lang", {
-        describe: "Target language",
-        type: "string",
-        default: "English",
-      });
+      return yargs
+        .positional("lang", {
+          describe: "Target language",
+          type: "string",
+          default: "English",
+        })
+        .option("copy", {
+          alias: "c",
+          type: "boolean",
+          description: "Copy result to clipboard",
+          default: false,
+        });
     },
     async (argv) => {
-      await translateCommand(argv.lang as string);
+      await translateCommand(argv.lang as string, { copy: argv.copy });
     }
   )
   .command(
