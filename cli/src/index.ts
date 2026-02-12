@@ -15,6 +15,12 @@ import { classifyCommand } from "./commands/classify.js";
 yargs(hideBin(process.argv))
   .scriptName("cbai")
   .usage("$0 <command> [options]")
+  .option("yes", {
+    alias: "y",
+    type: "boolean",
+    description: "Skip safe mode confirmation prompts",
+    default: false,
+  })
   .command(
     "status",
     "Show agent status",
@@ -50,7 +56,7 @@ yargs(hideBin(process.argv))
         default: false,
       }),
     async (argv) => {
-      await summaryCommand({ copy: argv.copy });
+      await summaryCommand({ copy: argv.copy, yes: argv.yes });
     }
   )
   .command(
@@ -64,7 +70,7 @@ yargs(hideBin(process.argv))
         default: false,
       }),
     async (argv) => {
-      await summaryCommand({ copy: argv.copy });
+      await summaryCommand({ copy: argv.copy, yes: argv.yes });
     }
   )
   .command(
@@ -78,7 +84,7 @@ yargs(hideBin(process.argv))
         default: false,
       }),
     async (argv) => {
-      await explainCommand({ copy: argv.copy });
+      await explainCommand({ copy: argv.copy, yes: argv.yes });
     }
   )
   .command(
@@ -99,7 +105,7 @@ yargs(hideBin(process.argv))
         });
     },
     async (argv) => {
-      await translateCommand(argv.lang as string, { copy: argv.copy });
+      await translateCommand(argv.lang as string, { copy: argv.copy, yes: argv.yes });
     }
   )
   .command(
@@ -113,7 +119,7 @@ yargs(hideBin(process.argv))
         default: false,
       }),
     async (argv) => {
-      await improveCommand({ copy: argv.copy });
+      await improveCommand({ copy: argv.copy, yes: argv.yes });
     }
   )
   .command(
@@ -127,7 +133,7 @@ yargs(hideBin(process.argv))
         default: false,
       }),
     async (argv) => {
-      await extractCommand({ copy: argv.copy });
+      await extractCommand({ copy: argv.copy, yes: argv.yes });
     }
   )
   .command(
@@ -141,7 +147,7 @@ yargs(hideBin(process.argv))
         default: false,
       }),
     async (argv) => {
-      await tldrCommand({ copy: argv.copy });
+      await tldrCommand({ copy: argv.copy, yes: argv.yes });
     }
   )
   .command(
@@ -155,7 +161,7 @@ yargs(hideBin(process.argv))
         default: false,
       }),
     async (argv) => {
-      await classifyCommand({ copy: argv.copy });
+      await classifyCommand({ copy: argv.copy, yes: argv.yes });
     }
   )
   .demandCommand(1, "Please specify a command")
