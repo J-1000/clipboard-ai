@@ -129,11 +129,20 @@ cbai extract [--copy]    # extract structured data
 cbai tldr [--copy]       # ultra-brief summary
 cbai classify [--copy]   # classify content type
 cbai config              # view configuration
+
+# Global flags
+--copy, -c               # copy result to clipboard
+--yes, -y                # skip safe mode confirmation prompts
 ```
 
 ### 5. Safe mode
 
-Block outgoing calls without explicit user confirmation.
+Block outgoing calls to cloud providers without explicit user confirmation.
+
+- **Daemon-triggered**: Blocks cloud calls entirely, sends macOS notification
+- **Manual CLI**: Shows interactive confirmation prompt before cloud calls
+- **`--yes` flag**: Skips confirmation prompt
+- **Local providers**: Always allowed (Ollama, localhost endpoints)
 
 ## 6. Non-Goals (v1)
 
@@ -321,7 +330,7 @@ clipboard-ai/
  ├── cli/               # TypeScript CLI
  │   └── src/
  │       ├── commands/     # summary, explain, translate, improve, extract, tldr, classify
- │       └── lib/          # AI client, IPC client, clipboard utility
+ │       └── lib/          # AI client, IPC client, clipboard utility, safe mode
  ├── actions/           # Built-in AI actions
  │   ├── builtin/          # summarize, explain, translate, extract, classify
  │   └── lib/              # Action type definitions
