@@ -1,7 +1,8 @@
 import { getClipboard, getConfig } from "../lib/client.js";
 import { AIClient } from "../lib/ai.js";
+import { copyToClipboard } from "../lib/clipboard.js";
 
-export async function classifyCommand(): Promise<void> {
+export async function classifyCommand(options: { copy?: boolean } = {}): Promise<void> {
   try {
     const [clipboard, config] = await Promise.all([
       getClipboard(),
@@ -27,6 +28,11 @@ export async function classifyCommand(): Promise<void> {
     console.log("Classification:");
     console.log("───────────────");
     console.log(classification);
+
+    if (options.copy) {
+      copyToClipboard(classification);
+      console.log("\n(Copied to clipboard)");
+    }
   } catch (err) {
     console.error(`Error: ${(err as Error).message}`);
     process.exit(1);

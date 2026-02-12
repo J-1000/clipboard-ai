@@ -147,9 +147,15 @@ yargs(hideBin(process.argv))
   .command(
     "classify",
     "Classify clipboard content by type",
-    () => {},
-    async () => {
-      await classifyCommand();
+    (yargs) =>
+      yargs.option("copy", {
+        alias: "c",
+        type: "boolean",
+        description: "Copy result to clipboard",
+        default: false,
+      }),
+    async (argv) => {
+      await classifyCommand({ copy: argv.copy });
     }
   )
   .demandCommand(1, "Please specify a command")
