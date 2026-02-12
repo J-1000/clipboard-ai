@@ -118,4 +118,12 @@ export class AIClient {
     );
     return response.content;
   }
+
+  async classify(text: string): Promise<string> {
+    const response = await this.generate(
+      `Classify this content:\n\n${text}`,
+      'You are a content classifier. Categorize the given text into exactly one of these categories: email, code, url, log, article, chat, command, data, error, other. Respond with JSON only: {"category": "...", "confidence": 0.0-1.0, "reasoning": "..."}'
+    );
+    return response.content;
+  }
 }
