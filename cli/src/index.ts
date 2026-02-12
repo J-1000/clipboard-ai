@@ -70,9 +70,15 @@ yargs(hideBin(process.argv))
   .command(
     "explain",
     "Explain clipboard content (good for code)",
-    () => {},
-    async () => {
-      await explainCommand();
+    (yargs) =>
+      yargs.option("copy", {
+        alias: "c",
+        type: "boolean",
+        description: "Copy result to clipboard",
+        default: false,
+      }),
+    async (argv) => {
+      await explainCommand({ copy: argv.copy });
     }
   )
   .command(
