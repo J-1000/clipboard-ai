@@ -119,9 +119,15 @@ yargs(hideBin(process.argv))
   .command(
     "extract",
     "Extract structured data from clipboard",
-    () => {},
-    async () => {
-      await extractCommand();
+    (yargs) =>
+      yargs.option("copy", {
+        alias: "c",
+        type: "boolean",
+        description: "Copy result to clipboard",
+        default: false,
+      }),
+    async (argv) => {
+      await extractCommand({ copy: argv.copy });
     }
   )
   .command(
