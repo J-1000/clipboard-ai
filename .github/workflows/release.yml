@@ -30,3 +30,19 @@ jobs:
         with:
           name: agent-${{ matrix.goos }}-${{ matrix.goarch }}
           path: agent/clipboard-ai-agent-${{ matrix.goos }}-${{ matrix.goarch }}
+
+  build-cli:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install dependencies
+        run: bun install
+        working-directory: cli
+      - name: Build CLI
+        run: bun run build
+        working-directory: cli
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cli-dist
+          path: cli/dist/
