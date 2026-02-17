@@ -27,3 +27,9 @@ jobs:
       - name: Test CLI
         run: bun test
         working-directory: cli
+      - name: Build CLI
+        run: bun run build
+        working-directory: cli
+      - name: Build Actions
+        run: bun run build
+        working-directory: actions
