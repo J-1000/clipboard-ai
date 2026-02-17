@@ -47,3 +47,6 @@ jobs:
       - name: Test
         run: go test ./...
         working-directory: agent
+      - name: Build
+        run: go build ./cmd/clipboard-ai-agent/
+        working-directory: agent
