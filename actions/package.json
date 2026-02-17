@@ -6,6 +6,7 @@
   "main": "builtin/index.js",
   "scripts": {
     "build": "bun build builtin/*.ts --outdir dist",
+    "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
