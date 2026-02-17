@@ -18,3 +18,9 @@ jobs:
       - name: Install Actions dependencies
         run: bun install
         working-directory: actions
+      - name: Typecheck CLI
+        run: bun run typecheck
+        working-directory: cli
+      - name: Typecheck Actions
+        run: bun run typecheck
+        working-directory: actions
