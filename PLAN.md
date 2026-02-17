@@ -93,6 +93,11 @@ clipboard-ai/
 5. ~~`--copy` flag on all AI commands~~
 6. ~~Test suites for rule engine (Go) and AI client (Bun)~~
 
+### Phase 6: CI/CD [DONE]
+1. ~~GitHub Actions CI workflow (TypeScript: install, typecheck, test, build)~~
+2. ~~GitHub Actions CI workflow (Go: vet, test, build)~~
+3. ~~GitHub Actions release workflow (Go cross-compile macOS amd64+arm64, CLI bundle, GitHub Release)~~
+
 ## Key Implementation Details
 
 ### Clipboard Monitoring (Go)
