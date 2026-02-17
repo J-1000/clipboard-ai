@@ -44,3 +44,6 @@ jobs:
       - name: Vet
         run: go vet ./...
         working-directory: agent
+      - name: Test
+        run: go test ./...
+        working-directory: agent
