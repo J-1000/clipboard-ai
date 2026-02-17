@@ -24,3 +24,6 @@ jobs:
       - name: Typecheck Actions
         run: bun run typecheck
         working-directory: actions
+      - name: Test CLI
+        run: bun test
+        working-directory: cli
