@@ -1,5 +1,7 @@
 # clipboard-ai
 
+[![CI](https://github.com/J-1000/clipboard-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/J-1000/clipboard-ai/actions/workflows/ci.yml)
+
 **AI lookups & summaries triggered directly from your clipboard**
 
 clipboard-ai is a macOS-first lightweight agent that monitors your clipboard and performs real-time transformations using LLMs. Copy text, get AI-powered summaries, explanations, translations—automatically.
