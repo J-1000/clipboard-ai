@@ -12,3 +12,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
+      - name: Install CLI dependencies
+        run: bun install
+        working-directory: cli
+      - name: Install Actions dependencies
+        run: bun install
+        working-directory: actions
