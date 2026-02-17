@@ -85,7 +85,7 @@ clipboard-ai/
 4. ~~macOS notifications via `osascript`~~
 5. ~~Safe mode (block cloud calls without confirmation)~~
 
-### Phase 5: Polish & Distribution [IN PROGRESS]
+### Phase 5: Polish & Distribution [DONE]
 1. ~~Installation scripts with LaunchAgent setup~~
 2. ~~Additional actions: `translate`, `tldr`, `improve`, `extract`, `classify`~~
 3. ~~Error handling and logging~~
