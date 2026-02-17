@@ -244,6 +244,15 @@ cd cli && bun test
 bun run cli/src/index.ts status
 ```
 
+## CI/CD
+
+GitHub Actions runs on every push and PR to `main`:
+
+- **TypeScript**: install, typecheck, test, build (CLI + Actions)
+- **Go**: vet, test, build (agent)
+
+Releases are created automatically when a `v*` tag is pushed, producing macOS agent binaries (amd64 + arm64) and the CLI bundle.
+
 ## Uninstalling
 
 ```bash
