@@ -27,7 +27,7 @@ clipboard-ai is a macOS-first lightweight agent that monitors your clipboard and
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/clipboard-ai.git
+git clone https://github.com/J-1000/clipboard-ai.git
 cd clipboard-ai
 
 # Run the installer
