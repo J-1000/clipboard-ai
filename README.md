@@ -173,11 +173,14 @@ trigger = "mime:code"
 ### Trigger Expressions
 
 - `length > 200` - Content longer than 200 characters
+- `length >= 200`, `length <= 200`, `length != 0` - Extended comparisons
 - `contains:http` - Contains "http"
 - `regex:^ERROR:` - Matches regex pattern
 - `mime:code` - Detected as code
 - `A OR B` - Either condition
 - `A AND B` - Both conditions
+- `NOT A` - Negate a condition/expression
+- `(A OR B) AND C` - Grouped expressions with parentheses
 
 ### Reliability Controls
 
