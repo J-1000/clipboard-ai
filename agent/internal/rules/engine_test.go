@@ -220,6 +220,65 @@ func TestEvaluate_OR(t *testing.T) {
 	}
 }
 
+func TestEvaluate_NOT(t *testing.T) {
+	engine := NewEngine(map[string]config.ActionConfig{
+		"not_error": {Enabled: true, Trigger: "NOT contains:error"},
+	})
+
+	matches := engine.Evaluate(makeContent("all good", clipboard.ContentTypeText))
+	if len(matches) != 1 {
+		t.Fatalf("expected 1 match, got %d", len(matches))
+	}
+
+	matches = engine.Evaluate(makeContent("error found", clipboard.ContentTypeText))
+	if len(matches) != 0 {
+		t.Fatalf("expected 0 matches, got %d", len(matches))
+	}
+}
+
+func TestEvaluate_Parentheses(t *testing.T) {
+	engine := NewEngine(map[string]config.ActionConfig{
+		"grouped": {Enabled: true, Trigger: "(contains:error OR contains:warning) AND length > 6"},
+	})
+
+	matches := engine.Evaluate(makeContent("warning!", clipboard.ContentTypeText))
+	if len(matches) != 1 {
+		t.Fatalf("expected 1 match, got %d", len(matches))
+	}
+
+	matches = engine.Evaluate(makeContent("error", clipboard.ContentTypeText))
+	if len(matches) != 0 {
+		t.Fatalf("expected 0 matches, got %d", len(matches))
+	}
+}
+
+func TestEvaluate_NOTWithParentheses(t *testing.T) {
+	engine := NewEngine(map[string]config.ActionConfig{
+		"clean": {Enabled: true, Trigger: "NOT (contains:error OR contains:warning)"},
+	})
+
+	matches := engine.Evaluate(makeContent("hello world", clipboard.ContentTypeText))
+	if len(matches) != 1 {
+		t.Fatalf("expected 1 match, got %d", len(matches))
+	}
+
+	matches = engine.Evaluate(makeContent("warning: check this", clipboard.ContentTypeText))
+	if len(matches) != 0 {
+		t.Fatalf("expected 0 matches, got %d", len(matches))
+	}
+}
+
+func TestEvaluate_InvalidExpression(t *testing.T) {
+	engine := NewEngine(map[string]config.ActionConfig{
+		"invalid": {Enabled: true, Trigger: "(contains:error OR contains:warning"},
+	})
+
+	matches := engine.Evaluate(makeContent("error found", clipboard.ContentTypeText))
+	if len(matches) != 0 {
+		t.Fatalf("expected 0 matches for invalid expression, got %d", len(matches))
+	}
+}
+
 func TestEvaluate_DisabledAction(t *testing.T) {
 	engine := NewEngine(map[string]config.ActionConfig{
 		"disabled": {Enabled: false, Trigger: "length > 0"},
