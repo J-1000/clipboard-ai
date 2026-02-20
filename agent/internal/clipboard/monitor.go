@@ -23,6 +23,8 @@ const (
 	ContentTypeURL     ContentType = "url"
 	ContentTypeCode    ContentType = "code"
 	ContentTypeUnknown ContentType = "unknown"
+
+	defaultPollIntervalMs = 150
 )
 
 // Handler is called when clipboard content changes
@@ -39,6 +41,10 @@ type Monitor struct {
 
 // NewMonitor creates a new clipboard monitor
 func NewMonitor(pollIntervalMs int, handler Handler) *Monitor {
+	if pollIntervalMs <= 0 {
+		pollIntervalMs = defaultPollIntervalMs
+	}
+
 	return &Monitor{
 		pollInterval: time.Duration(pollIntervalMs) * time.Millisecond,
 		handler:      handler,

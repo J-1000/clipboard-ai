@@ -23,8 +23,8 @@ func TestNewMonitor(t *testing.T) {
 
 func TestNewMonitor_ZeroInterval(t *testing.T) {
 	m := NewMonitor(0, nil)
-	if m.pollInterval != 0 {
-		t.Fatalf("expected 0 poll interval, got %v", m.pollInterval)
+	if m.pollInterval.Milliseconds() != defaultPollIntervalMs {
+		t.Fatalf("expected %dms poll interval, got %v", defaultPollIntervalMs, m.pollInterval)
 	}
 }
 
