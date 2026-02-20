@@ -106,6 +106,9 @@ cbai history
 # Replay a previous run
 cbai rerun <run-id>
 
+# Show recent agent logs (tail)
+cbai logs --tail 100
+
 # View configuration
 cbai config
 ```
@@ -189,6 +192,15 @@ trigger = "mime:code"
 - History is stored locally at `~/.clipboard-ai/history.jsonl`
 - `cbai history` shows recent runs (newest first)
 - `cbai rerun <id>` replays a previous run with the recorded input and arguments
+
+### Observability
+
+- Agent logs are written by LaunchAgent to:
+  - `~/.clipboard-ai/agent.log` (stdout)
+  - `~/.clipboard-ai/agent.err` (stderr)
+- Use `cbai logs --tail <n>` to view recent entries
+- Use `cbai logs --file err --tail <n>` to inspect error logs
+- Agent log lines are JSON-structured for easier filtering/parsing
 
 ### Custom Plugin Actions
 
