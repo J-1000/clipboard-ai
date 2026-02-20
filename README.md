@@ -6,6 +6,13 @@
 
 clipboard-ai is a macOS-first lightweight agent that monitors your clipboard and performs real-time transformations using LLMs. Copy text, get AI-powered summaries, explanations, translations—automatically.
 
+## Current Status
+
+- Project status snapshot: see `STATUS.md`
+- Provider support: Ollama, OpenAI, and custom OpenAI-compatible endpoints
+- Safe mode: blocks daemon-triggered cloud calls and prompts on manual CLI calls (unless `--yes` is used)
+- Trigger/clipboard length behavior: character-based (UTF-8 rune-aware), not byte-based
+
 ## Features
 
 - **Automatic triggers**: Configure rules to run AI actions when clipboard content matches patterns
