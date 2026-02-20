@@ -4,7 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"strings"
@@ -34,16 +34,21 @@ func main() {
 	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
+		slog.Error("failed to load config", "error", err)
+		os.Exit(1)
 	}
 
-	// Set up logging
-	log.SetPrefix("[clipboard-ai] ")
-	log.SetFlags(log.Ltime)
+	// Set up structured logging
+	level := parseLogLevel(cfg.Settings.LogLevel)
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
+	slog.SetDefault(logger)
 
-	log.Printf("Starting clipboard-ai-agent %s", version)
-	log.Printf("Provider: %s (%s)", cfg.Provider.Type, cfg.Provider.Model)
-	log.Printf("Safe mode: %v", cfg.Settings.SafeMode)
+	logger.Info("agent starting",
+		"version", version,
+		"provider.type", cfg.Provider.Type,
+		"provider.model", cfg.Provider.Model,
+		"safe_mode", cfg.Settings.SafeMode,
+	)
 
 	// Set up context with cancellation (before handler so closure can capture ctx)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -55,11 +60,16 @@ func main() {
 
 	// Create clipboard handler
 	handler := func(content clipboard.Content) {
-		log.Printf("Clipboard changed: %s (%d chars)", content.Type, len(content.Text))
+		logger.Info("clipboard changed",
+			"type", content.Type,
+			"length_chars", len([]rune(content.Text)),
+		)
 		now := time.Now()
 
 		if controller.ShouldSkipClipboard(content.Text, now) {
-			log.Printf("Skipped duplicate clipboard content (window: %dms)", cfg.Settings.ClipboardDedupeWindow)
+			logger.Debug("skipped duplicate clipboard content",
+				"dedupe_window_ms", cfg.Settings.ClipboardDedupeWindow,
+			)
 			return
 		}
 
@@ -68,11 +78,14 @@ func main() {
 		for _, match := range matches {
 			cooldown := time.Duration(match.Config.CooldownMs) * time.Millisecond
 			if !controller.AllowAction(match.ActionName, cooldown, now) {
-				log.Printf("Skipped action %s due to cooldown (%dms)", match.ActionName, match.Config.CooldownMs)
+				logger.Debug("skipped action due to cooldown",
+					"action", match.ActionName,
+					"cooldown_ms", match.Config.CooldownMs,
+				)
 				continue
 			}
 
-			log.Printf("Triggered action: %s", match.ActionName)
+			logger.Info("action triggered", "action", match.ActionName)
 
 			go func(actionName string, actionCfg config.ActionConfig, text string) {
 				opts := executor.Options{Trigger: actionCfg.Trigger}
@@ -94,13 +107,12 @@ func main() {
 						break
 					}
 
-					log.Printf(
-						"Action %s attempt %d/%d failed: %v (retrying in %v)",
-						actionName,
-						attempt,
-						attempts,
-						result.Error,
-						backoff,
+					logger.Warn("action attempt failed",
+						"action", actionName,
+						"attempt", attempt,
+						"attempts_total", attempts,
+						"error", result.Error,
+						"retry_backoff", backoff.String(),
 					)
 
 					if backoff <= 0 {
@@ -115,7 +127,7 @@ func main() {
 				}
 
 				if result.Error != nil {
-					log.Printf("Action %s failed: %v", actionName, result.Error)
+					logger.Error("action failed", "action", actionName, "error", result.Error)
 					if cfg.Settings.Notifications {
 						if strings.Contains(result.Output, "safe mode") {
 							notify.SendWithSubtitle("clipboard-ai", "Safe mode", actionName+" blocked — cloud provider not allowed")
@@ -125,7 +137,10 @@ func main() {
 					}
 					return
 				}
-				log.Printf("Action %s completed in %v", actionName, result.Elapsed)
+				logger.Info("action completed",
+					"action", actionName,
+					"elapsed_ms", result.Elapsed.Milliseconds(),
+				)
 				if cfg.Settings.Notifications {
 					output := result.Output
 					if len(output) > 200 {
@@ -150,24 +165,37 @@ func main() {
 
 	// Start IPC server in goroutine
 	go func() {
-		log.Printf("IPC server listening on %s", socketPath)
+		logger.Info("ipc server listening", "socket_path", socketPath)
 		if err := server.Start(ctx); err != nil && ctx.Err() == nil {
-			log.Printf("IPC server error: %v", err)
+			logger.Error("ipc server error", "error", err)
 		}
 	}()
 
 	// Start clipboard monitor in goroutine
 	go func() {
-		log.Printf("Clipboard monitor started (poll interval: %dms)", cfg.Settings.PollInterval)
+		logger.Info("clipboard monitor started", "poll_interval_ms", cfg.Settings.PollInterval)
 		if err := monitor.Start(ctx); err != nil && ctx.Err() == nil {
-			log.Printf("Monitor error: %v", err)
+			logger.Error("clipboard monitor error", "error", err)
 		}
 	}()
 
 	// Wait for shutdown signal
 	sig := <-sigCh
-	log.Printf("Received signal %v, shutting down...", sig)
+	logger.Info("shutdown signal received", "signal", sig.String())
 	cancel()
 
-	log.Println("Goodbye!")
+	logger.Info("agent stopped")
+}
+
+func parseLogLevel(level string) slog.Level {
+	switch strings.ToLower(strings.TrimSpace(level)) {
+	case "debug":
+		return slog.LevelDebug
+	case "warn", "warning":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
 }
