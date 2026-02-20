@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/BurntSushi/toml"
@@ -147,6 +148,33 @@ func TestLoad_InvalidTOML(t *testing.T) {
 	_, err := toml.DecodeFile(configFile, cfg)
 	if err == nil {
 		t.Fatal("expected error for invalid TOML")
+	}
+}
+
+func TestLoad_InvalidPollInterval(t *testing.T) {
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+
+	configDir := filepath.Join(tmpHome, ".clipboard-ai")
+	if err := os.MkdirAll(configDir, 0700); err != nil {
+		t.Fatalf("failed to create config dir: %v", err)
+	}
+
+	configFile := filepath.Join(configDir, "config.toml")
+	content := `
+[settings]
+poll_interval = 0
+`
+	if err := os.WriteFile(configFile, []byte(content), 0600); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	_, err := Load()
+	if err == nil {
+		t.Fatal("expected error for invalid poll_interval")
+	}
+	if !strings.Contains(err.Error(), "settings.poll_interval") {
+		t.Fatalf("expected poll_interval error, got %v", err)
 	}
 }
 

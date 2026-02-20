@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -70,7 +71,19 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
+	if err := cfg.validate(); err != nil {
+		return nil, err
+	}
+
 	return cfg, nil
+}
+
+func (c *Config) validate() error {
+	if c.Settings.PollInterval <= 0 {
+		return fmt.Errorf("invalid settings.poll_interval %d: must be greater than 0", c.Settings.PollInterval)
+	}
+
+	return nil
 }
 
 // getConfigPath returns the path to the config file
