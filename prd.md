@@ -316,21 +316,26 @@ export const metadata = {
 
 ## 14.1 Next Implementation Priorities
 
+Completed (as of 2026-02-20):
+
 1. Custom actions/plugins
-   - Add filesystem plugin discovery from `~/.clipboard-ai/actions` so users can add actions without editing core code.
+   - Filesystem plugin discovery from `~/.clipboard-ai/actions` is implemented.
 2. Unified action execution path
-   - Route built-ins and future plugins through one `cbai run <action>` pipeline to avoid duplicated safe mode/input/output logic.
+   - Built-ins and plugins run through `cbai run <action>` with shared safe mode/input/output flow.
 3. Action history + replay
-   - Persist action runs (timestamp, trigger, model, latency, status) and add `cbai history` / `cbai rerun <id>`.
-4. Trigger DSL v2
+   - Action runs are persisted and CLI supports `cbai history` and `cbai rerun <id>`.
+4. Reliability controls
+   - Per-action timeout/retry/backoff plus clipboard dedupe/cooldown controls are implemented.
+
+Next:
+
+1. Trigger DSL v2
    - Expand parser support to include `NOT`, parentheses, and comparison operators like `>=`, `<=`, `!=`.
-5. Reliability controls
-   - Add per-action timeout/retry/backoff plus clipboard dedupe/cooldown controls.
-6. Observability
+2. Observability
    - Add structured logs and `cbai logs --tail`.
-7. Clipboard type expansion
+3. Clipboard type expansion
    - Extend from text-only handling to images/RTF with optional OCR/caption action.
-8. Integration surface
+4. Integration surface
    - Add optional authenticated local HTTP mode for Raycast/Alfred/editor integrations.
 
 ## 15. Repository Structure
