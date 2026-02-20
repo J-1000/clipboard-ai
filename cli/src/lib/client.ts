@@ -1,4 +1,5 @@
 import { request } from "http";
+import { existsSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
 
@@ -51,6 +52,11 @@ async function makeRequest<T>(
   body?: unknown
 ): Promise<T> {
   return new Promise((resolve, reject) => {
+    if (!existsSync(SOCKET_PATH)) {
+      reject(new Error("Agent not running. Start with: clipboard-ai-agent"));
+      return;
+    }
+
     const options = {
       socketPath: SOCKET_PATH,
       path,
