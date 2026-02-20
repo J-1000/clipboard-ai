@@ -68,6 +68,54 @@ func TestEvaluate_LengthEquals(t *testing.T) {
 	}
 }
 
+func TestEvaluate_LengthGreaterThanOrEqual(t *testing.T) {
+	engine := NewEngine(map[string]config.ActionConfig{
+		"gte": {Enabled: true, Trigger: "length >= 5"},
+	})
+
+	matches := engine.Evaluate(makeContent("hello", clipboard.ContentTypeText))
+	if len(matches) != 1 {
+		t.Fatalf("expected 1 match, got %d", len(matches))
+	}
+
+	matches = engine.Evaluate(makeContent("hi", clipboard.ContentTypeText))
+	if len(matches) != 0 {
+		t.Fatalf("expected 0 matches, got %d", len(matches))
+	}
+}
+
+func TestEvaluate_LengthLessThanOrEqual(t *testing.T) {
+	engine := NewEngine(map[string]config.ActionConfig{
+		"lte": {Enabled: true, Trigger: "length <= 5"},
+	})
+
+	matches := engine.Evaluate(makeContent("hello", clipboard.ContentTypeText))
+	if len(matches) != 1 {
+		t.Fatalf("expected 1 match, got %d", len(matches))
+	}
+
+	matches = engine.Evaluate(makeContent("hello world", clipboard.ContentTypeText))
+	if len(matches) != 0 {
+		t.Fatalf("expected 0 matches, got %d", len(matches))
+	}
+}
+
+func TestEvaluate_LengthNotEqual(t *testing.T) {
+	engine := NewEngine(map[string]config.ActionConfig{
+		"ne": {Enabled: true, Trigger: "length != 5"},
+	})
+
+	matches := engine.Evaluate(makeContent("hi", clipboard.ContentTypeText))
+	if len(matches) != 1 {
+		t.Fatalf("expected 1 match, got %d", len(matches))
+	}
+
+	matches = engine.Evaluate(makeContent("hello", clipboard.ContentTypeText))
+	if len(matches) != 0 {
+		t.Fatalf("expected 0 matches, got %d", len(matches))
+	}
+}
+
 func TestEvaluate_LengthUsesRuneCount(t *testing.T) {
 	engine := NewEngine(map[string]config.ActionConfig{
 		"unicode": {Enabled: true, Trigger: "length = 2"},

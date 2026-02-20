@@ -10,6 +10,8 @@ import (
 	"github.com/clipboard-ai/agent/internal/config"
 )
 
+var lengthExprRe = regexp.MustCompile(`^length\s*(>=|<=|!=|==|=|>|<)\s*(-?\d+)\s*$`)
+
 // Engine evaluates trigger rules against clipboard content
 type Engine struct {
 	actions map[string]config.ActionConfig
@@ -112,39 +114,31 @@ func (e *Engine) evaluateCondition(cond string, content clipboard.Content) bool 
 // checkLength evaluates length comparisons
 func (e *Engine) checkLength(cond string, text string) bool {
 	length := utf8.RuneCountInString(text)
-
-	// length > N
-	if strings.Contains(cond, ">") {
-		parts := strings.Split(cond, ">")
-		if len(parts) == 2 {
-			n, err := strconv.Atoi(strings.TrimSpace(parts[1]))
-			if err == nil {
-				return length > n
-			}
-		}
+	matches := lengthExprRe.FindStringSubmatch(strings.TrimSpace(cond))
+	if len(matches) != 3 {
+		return false
 	}
 
-	// length < N
-	if strings.Contains(cond, "<") {
-		parts := strings.Split(cond, "<")
-		if len(parts) == 2 {
-			n, err := strconv.Atoi(strings.TrimSpace(parts[1]))
-			if err == nil {
-				return length < n
-			}
-		}
+	op := matches[1]
+	n, err := strconv.Atoi(matches[2])
+	if err != nil {
+		return false
 	}
 
-	// length = N
-	if strings.Contains(cond, "=") {
-		parts := strings.Split(cond, "=")
-		if len(parts) == 2 {
-			n, err := strconv.Atoi(strings.TrimSpace(parts[1]))
-			if err == nil {
-				return length == n
-			}
-		}
+	switch op {
+	case ">":
+		return length > n
+	case "<":
+		return length < n
+	case ">=":
+		return length >= n
+	case "<=":
+		return length <= n
+	case "=", "==":
+		return length == n
+	case "!=":
+		return length != n
+	default:
+		return false
 	}
-
-	return false
 }
