@@ -52,6 +52,9 @@ func TestDefault(t *testing.T) {
 	if cfg.Settings.LogLevel != "info" {
 		t.Fatalf("expected log level 'info', got %q", cfg.Settings.LogLevel)
 	}
+	if cfg.Settings.ClipboardDedupeWindow != 1000 {
+		t.Fatalf("expected clipboard dedupe window 1000, got %d", cfg.Settings.ClipboardDedupeWindow)
+	}
 }
 
 func TestLoad_MissingFile(t *testing.T) {
@@ -85,12 +88,17 @@ api_key = "sk-test"
 [actions.translate]
 enabled = true
 trigger = "contains:translate"
+timeout_ms = 12000
+retry_count = 2
+retry_backoff_ms = 250
+cooldown_ms = 1000
 
 [settings]
 poll_interval = 300
 safe_mode = false
 notifications = false
 log_level = "debug"
+clipboard_dedupe_window_ms = 2000
 `
 	os.WriteFile(configFile, []byte(content), 0600)
 
@@ -123,6 +131,18 @@ log_level = "debug"
 	if cfg.Actions["translate"].Trigger != "contains:translate" {
 		t.Fatalf("expected translate trigger, got %q", cfg.Actions["translate"].Trigger)
 	}
+	if cfg.Actions["translate"].TimeoutMs != 12000 {
+		t.Fatalf("expected timeout_ms 12000, got %d", cfg.Actions["translate"].TimeoutMs)
+	}
+	if cfg.Actions["translate"].RetryCount != 2 {
+		t.Fatalf("expected retry_count 2, got %d", cfg.Actions["translate"].RetryCount)
+	}
+	if cfg.Actions["translate"].RetryBackoffMs != 250 {
+		t.Fatalf("expected retry_backoff_ms 250, got %d", cfg.Actions["translate"].RetryBackoffMs)
+	}
+	if cfg.Actions["translate"].CooldownMs != 1000 {
+		t.Fatalf("expected cooldown_ms 1000, got %d", cfg.Actions["translate"].CooldownMs)
+	}
 
 	// Settings should be overridden
 	if cfg.Settings.PollInterval != 300 {
@@ -136,6 +156,9 @@ log_level = "debug"
 	}
 	if cfg.Settings.LogLevel != "debug" {
 		t.Fatalf("expected log level 'debug', got %q", cfg.Settings.LogLevel)
+	}
+	if cfg.Settings.ClipboardDedupeWindow != 2000 {
+		t.Fatalf("expected clipboard dedupe window 2000, got %d", cfg.Settings.ClipboardDedupeWindow)
 	}
 }
 
@@ -175,6 +198,35 @@ poll_interval = 0
 	}
 	if !strings.Contains(err.Error(), "settings.poll_interval") {
 		t.Fatalf("expected poll_interval error, got %v", err)
+	}
+}
+
+func TestLoad_InvalidActionReliabilitySettings(t *testing.T) {
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+
+	configDir := filepath.Join(tmpHome, ".clipboard-ai")
+	if err := os.MkdirAll(configDir, 0700); err != nil {
+		t.Fatalf("failed to create config dir: %v", err)
+	}
+
+	configFile := filepath.Join(configDir, "config.toml")
+	content := `
+[actions.summarize]
+enabled = true
+trigger = "length > 200"
+retry_count = -1
+`
+	if err := os.WriteFile(configFile, []byte(content), 0600); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	_, err := Load()
+	if err == nil {
+		t.Fatal("expected error for invalid retry_count")
+	}
+	if !strings.Contains(err.Error(), "actions.summarize.retry_count") {
+		t.Fatalf("expected retry_count error, got %v", err)
 	}
 }
 

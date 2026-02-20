@@ -25,16 +25,21 @@ type ProviderConfig struct {
 
 // ActionConfig configures an individual action
 type ActionConfig struct {
-	Enabled bool   `toml:"enabled"`
-	Trigger string `toml:"trigger"` // trigger expression
+	Enabled        bool   `toml:"enabled"`
+	Trigger        string `toml:"trigger"`          // trigger expression
+	TimeoutMs      int    `toml:"timeout_ms"`       // action execution timeout override
+	RetryCount     int    `toml:"retry_count"`      // retries after initial attempt
+	RetryBackoffMs int    `toml:"retry_backoff_ms"` // delay between retries
+	CooldownMs     int    `toml:"cooldown_ms"`      // minimum delay between invocations
 }
 
 // SettingsConfig contains general settings
 type SettingsConfig struct {
-	PollInterval  int  `toml:"poll_interval"`  // ms between clipboard checks
-	SafeMode      bool `toml:"safe_mode"`      // require confirmation for cloud
-	Notifications bool `toml:"notifications"`  // show macOS notifications
-	LogLevel      string `toml:"log_level"`    // debug, info, warn, error
+	PollInterval          int    `toml:"poll_interval"`             // ms between clipboard checks
+	SafeMode              bool   `toml:"safe_mode"`                 // require confirmation for cloud
+	Notifications         bool   `toml:"notifications"`             // show macOS notifications
+	LogLevel              string `toml:"log_level"`                 // debug, info, warn, error
+	ClipboardDedupeWindow int    `toml:"clipboard_dedupe_window_ms"` // suppress duplicate clipboard events for this duration
 }
 
 // Default returns a config with sensible defaults
@@ -50,10 +55,11 @@ func Default() *Config {
 			"explain":   {Enabled: true, Trigger: "mime:code"},
 		},
 		Settings: SettingsConfig{
-			PollInterval:  150,
-			SafeMode:      true,
-			Notifications: true,
-			LogLevel:      "info",
+			PollInterval:          150,
+			SafeMode:              true,
+			Notifications:         true,
+			LogLevel:              "info",
+			ClipboardDedupeWindow: 1000,
 		},
 	}
 }
@@ -81,6 +87,31 @@ func Load() (*Config, error) {
 func (c *Config) validate() error {
 	if c.Settings.PollInterval <= 0 {
 		return fmt.Errorf("invalid settings.poll_interval %d: must be greater than 0", c.Settings.PollInterval)
+	}
+	if c.Settings.ClipboardDedupeWindow < 0 {
+		return fmt.Errorf(
+			"invalid settings.clipboard_dedupe_window_ms %d: must be greater than or equal to 0",
+			c.Settings.ClipboardDedupeWindow,
+		)
+	}
+
+	for name, action := range c.Actions {
+		if action.TimeoutMs < 0 {
+			return fmt.Errorf("invalid actions.%s.timeout_ms %d: must be greater than or equal to 0", name, action.TimeoutMs)
+		}
+		if action.RetryCount < 0 {
+			return fmt.Errorf("invalid actions.%s.retry_count %d: must be greater than or equal to 0", name, action.RetryCount)
+		}
+		if action.RetryBackoffMs < 0 {
+			return fmt.Errorf(
+				"invalid actions.%s.retry_backoff_ms %d: must be greater than or equal to 0",
+				name,
+				action.RetryBackoffMs,
+			)
+		}
+		if action.CooldownMs < 0 {
+			return fmt.Errorf("invalid actions.%s.cooldown_ms %d: must be greater than or equal to 0", name, action.CooldownMs)
+		}
 	}
 
 	return nil
