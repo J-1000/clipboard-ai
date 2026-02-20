@@ -19,7 +19,7 @@ type Result struct {
 }
 
 // Execute spawns `cbai <action>` and captures its output
-func Execute(ctx context.Context, action string) Result {
+func Execute(ctx context.Context, action string, text string) Result {
 	start := time.Now()
 
 	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
@@ -27,6 +27,9 @@ func Execute(ctx context.Context, action string) Result {
 
 	cmd := exec.CommandContext(ctx, "cbai", action)
 	cmd.Env = append(os.Environ(), "CBAI_DAEMON_MODE=true")
+	if text != "" {
+		cmd.Env = append(cmd.Env, "CBAI_INPUT_TEXT="+text)
+	}
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

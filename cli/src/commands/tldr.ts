@@ -1,16 +1,14 @@
-import { getClipboard, getConfig } from "../lib/client.js";
+import { getConfig } from "../lib/client.js";
 import { AIClient } from "../lib/ai.js";
 import { copyToClipboard } from "../lib/clipboard.js";
 import { enforceSafeMode } from "../lib/safe-mode.js";
+import { getInputText } from "../lib/input.js";
 
 export async function tldrCommand(options: { copy?: boolean; yes?: boolean } = {}): Promise<void> {
   try {
-    const [clipboard, config] = await Promise.all([
-      getClipboard(),
-      getConfig(),
-    ]);
+    const [text, config] = await Promise.all([getInputText(), getConfig()]);
 
-    if (!clipboard.text) {
+    if (!text) {
       console.error("Error: Clipboard is empty");
       process.exit(1);
     }
@@ -25,7 +23,7 @@ export async function tldrCommand(options: { copy?: boolean; yes?: boolean } = {
     });
 
     const response = await ai.generate(
-      `Give a very brief TL;DR (1-2 sentences max) of this:\n\n${clipboard.text}`,
+      `Give a very brief TL;DR (1-2 sentences max) of this:\n\n${text}`,
       "You provide extremely brief summaries. Be concise."
     );
 

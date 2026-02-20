@@ -59,8 +59,8 @@ func main() {
 		for _, match := range matches {
 			log.Printf("Triggered action: %s", match.ActionName)
 
-			go func(actionName string) {
-				result := executor.Execute(ctx, actionName)
+			go func(actionName string, text string) {
+				result := executor.Execute(ctx, actionName, text)
 				if result.Error != nil {
 					log.Printf("Action %s failed: %v", actionName, result.Error)
 					if cfg.Settings.Notifications {
@@ -80,7 +80,7 @@ func main() {
 					}
 					notify.SendWithSubtitle("clipboard-ai", actionName, output)
 				}
-			}(match.ActionName)
+			}(match.ActionName, content.Text)
 		}
 	}
 

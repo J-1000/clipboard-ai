@@ -1,16 +1,14 @@
-import { getClipboard, getConfig } from "../lib/client.js";
+import { getConfig } from "../lib/client.js";
 import { AIClient } from "../lib/ai.js";
 import { copyToClipboard } from "../lib/clipboard.js";
 import { enforceSafeMode } from "../lib/safe-mode.js";
+import { getInputText } from "../lib/input.js";
 
 export async function extractCommand(options: { copy?: boolean; yes?: boolean } = {}): Promise<void> {
   try {
-    const [clipboard, config] = await Promise.all([
-      getClipboard(),
-      getConfig(),
-    ]);
+    const [text, config] = await Promise.all([getInputText(), getConfig()]);
 
-    if (!clipboard.text) {
+    if (!text) {
       console.error("Error: Clipboard is empty");
       process.exit(1);
     }
@@ -26,7 +24,7 @@ export async function extractCommand(options: { copy?: boolean; yes?: boolean } 
       apiKey: config.provider.api_key,
     });
 
-    const extracted = await ai.extractData(clipboard.text);
+    const extracted = await ai.extractData(text);
 
     console.log("Extracted Data:");
     console.log("───────────────");

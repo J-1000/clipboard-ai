@@ -192,7 +192,7 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result := executor.Execute(r.Context(), req.Action)
+	result := executor.Execute(r.Context(), req.Action, text)
 	if result.Error != nil {
 		writeJSON(w, ActionResponse{
 			Success: false,
