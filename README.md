@@ -95,6 +95,11 @@ cbai tldr
 # Classify content type
 cbai classify
 
+# Run any registered action (built-in or plugin)
+cbai run summary
+cbai run translate Spanish
+cbai run my_plugin_action arg1 arg2
+
 # View configuration
 cbai config
 ```
@@ -159,6 +164,34 @@ trigger = "mime:code"
 - `mime:code` - Detected as code
 - `A OR B` - Either condition
 - `A AND B` - Both conditions
+
+### Custom Plugin Actions
+
+Plugin directory: `~/.clipboard-ai/actions`
+
+Supported plugin file extensions:
+- `.js`
+- `.mjs`
+- `.cjs`
+
+Example plugin (`~/.clipboard-ai/actions/reverse.mjs`):
+
+```js
+export default {
+  id: "reverse",
+  aliases: ["rev"],
+  description: "Reverse clipboard text",
+  outputTitle: "Reversed",
+  run: async ({ text }) => text.split("").reverse().join(""),
+};
+```
+
+Then run:
+
+```bash
+cbai run reverse
+cbai run rev
+```
 
 ### Supported Providers
 
