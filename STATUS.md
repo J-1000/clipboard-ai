@@ -27,6 +27,12 @@ Last updated: 2026-02-20
 - Invalid poll interval handling:
   - Config validation rejects `settings.poll_interval <= 0`
   - Clipboard monitor also guards against non-positive intervals with a safe default
+- Reliability controls:
+  - `settings.clipboard_dedupe_window_ms` suppresses duplicate clipboard events inside a window
+  - Per-action controls: `timeout_ms`, `retry_count`, `retry_backoff_ms`, `cooldown_ms`
+- Action history:
+  - Runs are persisted to `~/.clipboard-ai/history.jsonl`
+  - CLI supports `cbai history` and `cbai rerun <id>`
 
 ## Test Health
 

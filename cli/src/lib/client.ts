@@ -30,12 +30,23 @@ export interface ConfigResponse {
     model: string;
     api_key?: string;
   };
-  actions: Record<string, { enabled: boolean; trigger: string }>;
+  actions: Record<
+    string,
+    {
+      enabled: boolean;
+      trigger: string;
+      timeout_ms?: number;
+      retry_count?: number;
+      retry_backoff_ms?: number;
+      cooldown_ms?: number;
+    }
+  >;
   settings: {
     poll_interval: number;
     safe_mode: boolean;
     notifications: boolean;
     log_level: string;
+    clipboard_dedupe_window_ms?: number;
   };
 }
 

@@ -100,6 +100,12 @@ cbai run summary
 cbai run translate Spanish
 cbai run my_plugin_action arg1 arg2
 
+# Show recent action history
+cbai history
+
+# Replay a previous run
+cbai rerun <run-id>
+
 # View configuration
 cbai config
 ```
@@ -146,10 +152,15 @@ model = "mistral"
 poll_interval = 150
 safe_mode = true
 notifications = true
+clipboard_dedupe_window_ms = 1000
 
 [actions.summarize]
 enabled = true
 trigger = "length > 200"
+timeout_ms = 15000
+retry_count = 1
+retry_backoff_ms = 300
+cooldown_ms = 1000
 
 [actions.explain]
 enabled = true
@@ -164,6 +175,20 @@ trigger = "mime:code"
 - `mime:code` - Detected as code
 - `A OR B` - Either condition
 - `A AND B` - Both conditions
+
+### Reliability Controls
+
+- `settings.clipboard_dedupe_window_ms`: suppresses duplicate clipboard text reprocessing within a time window
+- `actions.<name>.timeout_ms`: per-action execution timeout override
+- `actions.<name>.retry_count`: retry attempts after first failure
+- `actions.<name>.retry_backoff_ms`: wait time between retries
+- `actions.<name>.cooldown_ms`: minimum interval between action invocations
+
+### Action History
+
+- History is stored locally at `~/.clipboard-ai/history.jsonl`
+- `cbai history` shows recent runs (newest first)
+- `cbai rerun <id>` replays a previous run with the recorded input and arguments
 
 ### Custom Plugin Actions
 
