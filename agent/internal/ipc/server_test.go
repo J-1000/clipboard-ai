@@ -265,6 +265,19 @@ func TestTruncate(t *testing.T) {
 	}
 }
 
+func TestTruncate_UnicodeBoundary(t *testing.T) {
+	got := truncate("你好世界", 2)
+	if got != "你好..." {
+		t.Fatalf("truncate should preserve rune boundaries, got %q", got)
+	}
+}
+
+func TestTextLength_Unicode(t *testing.T) {
+	if got := textLength("你好"); got != 2 {
+		t.Fatalf("expected rune length 2, got %d", got)
+	}
+}
+
 func TestWriteJSON(t *testing.T) {
 	w := httptest.NewRecorder()
 	writeJSON(w, map[string]string{"key": "value"})

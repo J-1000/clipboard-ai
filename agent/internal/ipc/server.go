@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+	"unicode/utf8"
 
 	"github.com/clipboard-ai/agent/internal/clipboard"
 	"github.com/clipboard-ai/agent/internal/config"
@@ -130,7 +131,7 @@ func (s *Server) handleClipboard(w http.ResponseWriter, r *http.Request) {
 		Text:      current.Text,
 		Type:      string(current.Type),
 		Timestamp: current.Timestamp.Format(time.RFC3339),
-		Length:    len(current.Text),
+		Length:    textLength(current.Text),
 	}
 
 	writeJSON(w, resp)
@@ -219,8 +220,13 @@ func writeJSON(w http.ResponseWriter, v interface{}) {
 
 // truncate shortens a string
 func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
+	runes := []rune(s)
+	if len(runes) <= maxLen {
 		return s
 	}
-	return s[:maxLen] + "..."
+	return string(runes[:maxLen]) + "..."
+}
+
+func textLength(s string) int {
+	return utf8.RuneCountInString(s)
 }
