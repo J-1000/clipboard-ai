@@ -1,13 +1,13 @@
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test";
 import { createServer, type Server } from "http";
-import { unlinkSync, existsSync } from "fs";
-import { join } from "path";
-import { tmpdir } from "os";
+import { unlinkSync, existsSync, mkdirSync } from "fs";
+import { join, dirname } from "path";
 
 // We need to test the client against a real Unix socket server
 // since the module uses Node's http.request with socketPath
 
-const TEST_SOCKET = join(tmpdir(), `client-test-${process.pid}.sock`);
+const TEST_ROOT = join("/tmp", `clipboard-ai-client-${process.pid}`);
+const TEST_SOCKET = join(TEST_ROOT, ".clipboard-ai", "agent.sock");
 
 function startMockServer(
   handler: (req: { method: string; url: string; body: string }) => {
@@ -32,6 +32,7 @@ function startMockServer(
       });
     });
 
+    mkdirSync(dirname(TEST_SOCKET), { recursive: true });
     if (existsSync(TEST_SOCKET)) {
       unlinkSync(TEST_SOCKET);
     }
@@ -42,22 +43,7 @@ function startMockServer(
 // We need to mock the SOCKET_PATH constant used in client.ts
 // Since it's a const derived from homedir(), we mock the module
 mock.module("os", () => ({
-  homedir: () => tmpdir(),
-}));
-
-mock.module("path", () => ({
-  join: (...parts: string[]) => {
-    // When client.ts calls join(homedir(), ".clipboard-ai", "agent.sock"),
-    // redirect to our test socket
-    if (
-      parts.length === 3 &&
-      parts[1] === ".clipboard-ai" &&
-      parts[2] === "agent.sock"
-    ) {
-      return TEST_SOCKET;
-    }
-    return parts.join("/");
-  },
+  homedir: () => TEST_ROOT,
 }));
 
 const { getStatus, getClipboard, getConfig, runAction } = await import(
