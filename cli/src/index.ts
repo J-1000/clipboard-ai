@@ -12,6 +12,7 @@ import { extractCommand } from "./commands/extract.js";
 import { tldrCommand } from "./commands/tldr.js";
 import { classifyCommand } from "./commands/classify.js";
 import { runCommand } from "./commands/run.js";
+import { historyCommand } from "./commands/history.js";
 import pkg from "../package.json" assert { type: "json" };
 
 yargs(hideBin(process.argv))
@@ -72,6 +73,20 @@ yargs(hideBin(process.argv))
         copy: argv.copy,
         yes: argv.yes,
       });
+    }
+  )
+  .command(
+    "history",
+    "Show recent action history",
+    (yargs) =>
+      yargs.option("limit", {
+        alias: "n",
+        type: "number",
+        description: "Maximum number of history rows to show",
+        default: 20,
+      }),
+    async (argv) => {
+      await historyCommand({ limit: argv.limit });
     }
   )
   .command(
