@@ -1,10 +1,10 @@
 import type { AIClient } from "./ai.js";
-import type { AppConfig } from "./client.js";
+import type { ConfigResponse } from "./client.js";
 
 export interface ActionContext {
   text: string;
   ai: AIClient;
-  config: AppConfig;
+  config: ConfigResponse;
   args: string[];
 }
 

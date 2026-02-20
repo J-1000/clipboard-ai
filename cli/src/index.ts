@@ -11,6 +11,7 @@ import { improveCommand } from "./commands/improve.js";
 import { extractCommand } from "./commands/extract.js";
 import { tldrCommand } from "./commands/tldr.js";
 import { classifyCommand } from "./commands/classify.js";
+import { runCommand } from "./commands/run.js";
 import pkg from "../package.json" assert { type: "json" };
 
 yargs(hideBin(process.argv))
@@ -44,6 +45,33 @@ yargs(hideBin(process.argv))
     () => {},
     async () => {
       await configCommand();
+    }
+  )
+  .command(
+    "run <action> [args..]",
+    "Run an action by name",
+    (yargs) =>
+      yargs
+        .positional("action", {
+          describe: "Action id or alias",
+          type: "string",
+        })
+        .positional("args", {
+          describe: "Action arguments",
+          type: "string",
+        })
+        .option("copy", {
+          alias: "c",
+          type: "boolean",
+          description: "Copy result to clipboard",
+          default: false,
+        }),
+    async (argv) => {
+      await runCommand(argv.action as string, {
+        args: (argv.args as string[] | undefined) ?? [],
+        copy: argv.copy,
+        yes: argv.yes,
+      });
     }
   )
   .command(
