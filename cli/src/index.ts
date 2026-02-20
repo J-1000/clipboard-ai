@@ -14,6 +14,7 @@ import { classifyCommand } from "./commands/classify.js";
 import { runCommand } from "./commands/run.js";
 import { historyCommand } from "./commands/history.js";
 import { rerunCommand } from "./commands/rerun.js";
+import { logsCommand } from "./commands/logs.js";
 import pkg from "../package.json" assert { type: "json" };
 
 yargs(hideBin(process.argv))
@@ -107,6 +108,27 @@ yargs(hideBin(process.argv))
         }),
     async (argv) => {
       await rerunCommand(argv.id as string, { copy: argv.copy, yes: argv.yes });
+    }
+  )
+  .command(
+    "logs",
+    "Show agent logs",
+    (yargs) =>
+      yargs
+        .option("tail", {
+          alias: "n",
+          type: "number",
+          description: "Number of recent log lines to show",
+          default: 100,
+        })
+        .option("file", {
+          choices: ["out", "err"] as const,
+          type: "string",
+          description: "Select output or error log file",
+          default: "out",
+        }),
+    async (argv) => {
+      await logsCommand({ tail: argv.tail, file: argv.file });
     }
   )
   .command(
