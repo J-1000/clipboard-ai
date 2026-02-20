@@ -13,6 +13,7 @@ import { tldrCommand } from "./commands/tldr.js";
 import { classifyCommand } from "./commands/classify.js";
 import { runCommand } from "./commands/run.js";
 import { historyCommand } from "./commands/history.js";
+import { rerunCommand } from "./commands/rerun.js";
 import pkg from "../package.json" assert { type: "json" };
 
 yargs(hideBin(process.argv))
@@ -87,6 +88,25 @@ yargs(hideBin(process.argv))
       }),
     async (argv) => {
       await historyCommand({ limit: argv.limit });
+    }
+  )
+  .command(
+    "rerun <id>",
+    "Replay a previous action run from history",
+    (yargs) =>
+      yargs
+        .positional("id", {
+          describe: "History run id",
+          type: "string",
+        })
+        .option("copy", {
+          alias: "c",
+          type: "boolean",
+          description: "Copy result to clipboard",
+          default: false,
+        }),
+    async (argv) => {
+      await rerunCommand(argv.id as string, { copy: argv.copy, yes: argv.yes });
     }
   )
   .command(
