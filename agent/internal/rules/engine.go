@@ -4,6 +4,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/clipboard-ai/agent/internal/clipboard"
 	"github.com/clipboard-ai/agent/internal/config"
@@ -110,7 +111,7 @@ func (e *Engine) evaluateCondition(cond string, content clipboard.Content) bool 
 
 // checkLength evaluates length comparisons
 func (e *Engine) checkLength(cond string, text string) bool {
-	length := len(text)
+	length := utf8.RuneCountInString(text)
 
 	// length > N
 	if strings.Contains(cond, ">") {

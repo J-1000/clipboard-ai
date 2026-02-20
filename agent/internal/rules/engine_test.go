@@ -68,6 +68,17 @@ func TestEvaluate_LengthEquals(t *testing.T) {
 	}
 }
 
+func TestEvaluate_LengthUsesRuneCount(t *testing.T) {
+	engine := NewEngine(map[string]config.ActionConfig{
+		"unicode": {Enabled: true, Trigger: "length = 2"},
+	})
+
+	matches := engine.Evaluate(makeContent("你好", clipboard.ContentTypeText))
+	if len(matches) != 1 {
+		t.Fatalf("expected 1 match for two-rune string, got %d", len(matches))
+	}
+}
+
 func TestEvaluate_Contains(t *testing.T) {
 	engine := NewEngine(map[string]config.ActionConfig{
 		"finder": {Enabled: true, Trigger: "contains:error"},
