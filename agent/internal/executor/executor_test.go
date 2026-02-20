@@ -85,3 +85,33 @@ func TestDefaultTimeout(t *testing.T) {
 		t.Fatalf("expected default timeout 30s, got %v", defaultTimeout)
 	}
 }
+
+func TestExecuteWithOptions_UsesOverride(t *testing.T) {
+	defer ResetExecuteFunc()
+
+	var gotTrigger string
+	var gotTimeout time.Duration
+	SetExecuteWithOptionsFunc(func(ctx context.Context, action string, text string, opts Options) Result {
+		gotTrigger = opts.Trigger
+		gotTimeout = opts.Timeout
+		return Result{Action: action, Output: text}
+	})
+
+	result := ExecuteWithOptions(context.Background(), "summary", "input", Options{
+		Trigger: "length > 200",
+		Timeout: 5 * time.Second,
+	})
+
+	if result.Action != "summary" {
+		t.Fatalf("expected action 'summary', got %q", result.Action)
+	}
+	if result.Output != "input" {
+		t.Fatalf("expected output 'input', got %q", result.Output)
+	}
+	if gotTrigger != "length > 200" {
+		t.Fatalf("expected trigger 'length > 200', got %q", gotTrigger)
+	}
+	if gotTimeout != 5*time.Second {
+		t.Fatalf("expected timeout 5s, got %v", gotTimeout)
+	}
+}
