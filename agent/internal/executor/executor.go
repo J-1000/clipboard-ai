@@ -10,6 +10,11 @@ import (
 
 const defaultTimeout = 30 * time.Second
 
+// ExecuteFunc allows tests to override the executor behavior.
+type ExecuteFunc func(ctx context.Context, action string, text string) Result
+
+var executeFn ExecuteFunc = runExecute
+
 // Result holds the outcome of an action execution
 type Result struct {
 	Action  string
@@ -20,6 +25,20 @@ type Result struct {
 
 // Execute spawns `cbai <action>` and captures its output
 func Execute(ctx context.Context, action string, text string) Result {
+	return executeFn(ctx, action, text)
+}
+
+// SetExecuteFunc overrides the executor implementation (useful for tests).
+func SetExecuteFunc(fn ExecuteFunc) {
+	executeFn = fn
+}
+
+// ResetExecuteFunc restores the default executor implementation.
+func ResetExecuteFunc() {
+	executeFn = runExecute
+}
+
+func runExecute(ctx context.Context, action string, text string) Result {
 	start := time.Now()
 
 	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
