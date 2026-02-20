@@ -314,6 +314,25 @@ export const metadata = {
 - Multi-model routing
 - Sync via iCloud
 
+## 14.1 Next Implementation Priorities
+
+1. Custom actions/plugins
+   - Add filesystem plugin discovery from `~/.clipboard-ai/actions` so users can add actions without editing core code.
+2. Unified action execution path
+   - Route built-ins and future plugins through one `cbai run <action>` pipeline to avoid duplicated safe mode/input/output logic.
+3. Action history + replay
+   - Persist action runs (timestamp, trigger, model, latency, status) and add `cbai history` / `cbai rerun <id>`.
+4. Trigger DSL v2
+   - Expand parser support to include `NOT`, parentheses, and comparison operators like `>=`, `<=`, `!=`.
+5. Reliability controls
+   - Add per-action timeout/retry/backoff plus clipboard dedupe/cooldown controls.
+6. Observability
+   - Add structured logs and `cbai logs --tail`.
+7. Clipboard type expansion
+   - Extend from text-only handling to images/RTF with optional OCR/caption action.
+8. Integration surface
+   - Add optional authenticated local HTTP mode for Raycast/Alfred/editor integrations.
+
 ## 15. Repository Structure
 
 ```
