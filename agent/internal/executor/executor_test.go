@@ -31,7 +31,7 @@ func TestResult_Fields(t *testing.T) {
 func TestExecute_NonexistentCommand(t *testing.T) {
 	// Execute with a nonexistent command should return an error
 	ctx := context.Background()
-	result := Execute(ctx, "nonexistent-action-xyz")
+	result := Execute(ctx, "nonexistent-action-xyz", "")
 
 	if result.Error == nil {
 		t.Fatal("expected error for nonexistent command")
@@ -48,7 +48,7 @@ func TestExecute_CancelledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // cancel immediately
 
-	result := Execute(ctx, "echo")
+	result := Execute(ctx, "echo", "")
 	// With cancelled context, command should fail
 	if result.Error == nil {
 		t.Fatal("expected error for cancelled context")
@@ -62,7 +62,7 @@ func TestExecute_SetsEnvironment(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
-	result := Execute(ctx, "version")
+	result := Execute(ctx, "version", "")
 	// Whether the command succeeds or fails depends on whether cbai is installed,
 	// but the function should not panic
 	_ = result
@@ -72,7 +72,7 @@ func TestExecute_CapturesStdout(t *testing.T) {
 	// Use echo as a simple command — but Execute runs "cbai <action>"
 	// so we test that the output field is populated (even if from stderr)
 	ctx := context.Background()
-	result := Execute(ctx, "help")
+	result := Execute(ctx, "help", "")
 
 	// cbai may or may not be installed, so we just verify structure
 	if result.Action != "help" {
