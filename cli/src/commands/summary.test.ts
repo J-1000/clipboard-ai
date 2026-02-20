@@ -66,4 +66,20 @@ describe("summaryCommand", () => {
     await summaryCommand();
     expect(mockCopyToClipboard).not.toHaveBeenCalled();
   });
+
+  it("uses CBAI_INPUT_TEXT when provided", async () => {
+    const previous = process.env.CBAI_INPUT_TEXT;
+    process.env.CBAI_INPUT_TEXT = "from env";
+
+    await summaryCommand();
+
+    expect(mockGetClipboard).not.toHaveBeenCalled();
+    expect(mockSummarize).toHaveBeenCalledWith("from env");
+
+    if (previous === undefined) {
+      delete process.env.CBAI_INPUT_TEXT;
+    } else {
+      process.env.CBAI_INPUT_TEXT = previous;
+    }
+  });
 });
