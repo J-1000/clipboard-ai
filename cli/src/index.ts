@@ -11,6 +11,7 @@ import { improveCommand } from "./commands/improve.js";
 import { extractCommand } from "./commands/extract.js";
 import { tldrCommand } from "./commands/tldr.js";
 import { classifyCommand } from "./commands/classify.js";
+import pkg from "../package.json" assert { type: "json" };
 
 yargs(hideBin(process.argv))
   .scriptName("cbai")
@@ -166,6 +167,6 @@ yargs(hideBin(process.argv))
   )
   .demandCommand(1, "Please specify a command")
   .help()
-  .version("0.1.0")
+  .version(pkg.version)
   .strict()
   .parse();

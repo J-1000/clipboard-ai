@@ -19,6 +19,7 @@ type Server struct {
 	socketPath string
 	monitor    *clipboard.Monitor
 	config     *config.Config
+	version    string
 	startTime  time.Time
 	listener   net.Listener
 }
@@ -51,11 +52,12 @@ type ConfigResponse struct {
 }
 
 // NewServer creates a new IPC server
-func NewServer(socketPath string, monitor *clipboard.Monitor, cfg *config.Config) *Server {
+func NewServer(socketPath string, monitor *clipboard.Monitor, cfg *config.Config, version string) *Server {
 	return &Server{
 		socketPath: socketPath,
 		monitor:    monitor,
 		config:     cfg,
+		version:    version,
 		startTime:  time.Now(),
 	}
 }
@@ -107,7 +109,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	resp := StatusResponse{
 		Status:  "running",
 		Uptime:  time.Since(s.startTime).Round(time.Second).String(),
-		Version: "0.1.0",
+		Version: s.version,
 	}
 	resp.Clipboard.Text = truncate(current.Text, 100)
 	resp.Clipboard.Type = string(current.Type)

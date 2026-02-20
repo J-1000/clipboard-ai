@@ -89,7 +89,7 @@ func main() {
 
 	// Create IPC server
 	socketPath := config.GetSocketPath()
-	server := ipc.NewServer(socketPath, monitor, cfg)
+	server := ipc.NewServer(socketPath, monitor, cfg, version)
 
 	// Handle shutdown signals
 	sigCh := make(chan os.Signal, 1)
