@@ -44,7 +44,7 @@ func runExecute(ctx context.Context, action string, text string) Result {
 	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "cbai", action)
+	cmd := exec.CommandContext(ctx, "cbai", "run", action)
 	cmd.Env = append(os.Environ(), "CBAI_DAEMON_MODE=true")
 	if text != "" {
 		cmd.Env = append(cmd.Env, "CBAI_INPUT_TEXT="+text)
