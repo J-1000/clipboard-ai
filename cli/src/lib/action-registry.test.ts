@@ -31,4 +31,22 @@ describe("action-registry", () => {
     const registry = createActionRegistry(actions);
     expect(resolveAction(registry, "unknown")).toBeUndefined();
   });
+
+  it("throws on duplicate action ids", () => {
+    const actions: ActionDefinition[] = [
+      { id: "summary", description: "", outputTitle: "", run: noop },
+      { id: "summary", description: "", outputTitle: "", run: noop },
+    ];
+
+    expect(() => createActionRegistry(actions)).toThrow("Duplicate action id: summary");
+  });
+
+  it("throws on conflicting aliases", () => {
+    const actions: ActionDefinition[] = [
+      { id: "summary", aliases: ["sum"], description: "", outputTitle: "", run: noop },
+      { id: "stats", aliases: ["sum"], description: "", outputTitle: "", run: noop },
+    ];
+
+    expect(() => createActionRegistry(actions)).toThrow("Duplicate action name or alias: sum");
+  });
 });

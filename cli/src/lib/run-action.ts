@@ -1,5 +1,5 @@
 import { AIClient } from "./ai.js";
-import { resolveAction, defaultActionRegistry, type ActionRegistry } from "./action-registry.js";
+import { resolveAction, getActionRegistry, type ActionRegistry } from "./action-registry.js";
 import { copyToClipboard } from "./clipboard.js";
 import { getConfig } from "./client.js";
 import { getInputText } from "./input.js";
@@ -14,7 +14,7 @@ export interface RunActionOptions {
 
 export async function runActionCommand(actionName: string, options: RunActionOptions = {}): Promise<void> {
   try {
-    const registry = options.registry ?? defaultActionRegistry;
+    const registry = options.registry ?? (await getActionRegistry());
     const action = resolveAction(registry, actionName);
 
     if (!action) {
