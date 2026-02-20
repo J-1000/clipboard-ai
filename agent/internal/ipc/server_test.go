@@ -13,18 +13,19 @@ import (
 
 	"github.com/clipboard-ai/agent/internal/clipboard"
 	"github.com/clipboard-ai/agent/internal/config"
+	"github.com/clipboard-ai/agent/internal/executor"
 )
 
 func newTestServer() *Server {
 	cfg := config.Default()
 	mon := clipboard.NewMonitor(100, nil)
-	return NewServer("/tmp/test.sock", mon, cfg)
+	return NewServer("/tmp/test.sock", mon, cfg, "test-version")
 }
 
 func TestNewServer(t *testing.T) {
 	cfg := config.Default()
 	mon := clipboard.NewMonitor(100, nil)
-	s := NewServer("/tmp/test.sock", mon, cfg)
+	s := NewServer("/tmp/test.sock", mon, cfg, "test-version")
 
 	if s == nil {
 		t.Fatal("expected non-nil server")
@@ -37,6 +38,9 @@ func TestNewServer(t *testing.T) {
 	}
 	if s.config != cfg {
 		t.Fatal("expected config to be set")
+	}
+	if s.version != "test-version" {
+		t.Fatalf("expected version 'test-version', got %q", s.version)
 	}
 }
 
@@ -61,8 +65,8 @@ func TestHandleStatus_GET(t *testing.T) {
 	if resp.Status != "running" {
 		t.Fatalf("expected status 'running', got %q", resp.Status)
 	}
-	if resp.Version != "0.1.0" {
-		t.Fatalf("expected version '0.1.0', got %q", resp.Version)
+	if resp.Version != "test-version" {
+		t.Fatalf("expected version 'test-version', got %q", resp.Version)
 	}
 	if resp.Uptime == "" {
 		t.Fatal("expected non-empty uptime")
@@ -202,6 +206,44 @@ func TestHandleAction_NoText(t *testing.T) {
 	}
 }
 
+func TestHandleAction_UsesRequestText(t *testing.T) {
+	s := newTestServer()
+
+	var gotText string
+	executor.SetExecuteFunc(func(ctx context.Context, action string, text string) executor.Result {
+		gotText = text
+		return executor.Result{
+			Action: action,
+			Output: "ok",
+		}
+	})
+	defer executor.ResetExecuteFunc()
+
+	body, _ := json.Marshal(ActionRequest{
+		Action: "summarize",
+		Text:   "hello from request",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/action", bytes.NewBuffer(body))
+	w := httptest.NewRecorder()
+
+	s.handleAction(w, req)
+
+	var resp ActionResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if !resp.Success {
+		t.Fatalf("expected success=true, got error %q", resp.Error)
+	}
+	if gotText != "hello from request" {
+		t.Fatalf("expected text 'hello from request', got %q", gotText)
+	}
+	if resp.Result != "ok" {
+		t.Fatalf("expected result 'ok', got %q", resp.Result)
+	}
+}
+
 func TestTruncate(t *testing.T) {
 	tests := []struct {
 		input  string
@@ -246,7 +288,7 @@ func TestStart_ListensOnSocket(t *testing.T) {
 
 	cfg := config.Default()
 	mon := clipboard.NewMonitor(100, nil)
-	s := NewServer(socketPath, mon, cfg)
+	s := NewServer(socketPath, mon, cfg, "test-version")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
