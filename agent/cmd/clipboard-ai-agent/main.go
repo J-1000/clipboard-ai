@@ -9,7 +9,9 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
+	"github.com/clipboard-ai/agent/internal/automation"
 	"github.com/clipboard-ai/agent/internal/clipboard"
 	"github.com/clipboard-ai/agent/internal/config"
 	"github.com/clipboard-ai/agent/internal/executor"
@@ -49,18 +51,69 @@ func main() {
 
 	// Create rules engine
 	rulesEngine := rules.NewEngine(cfg.Actions)
+	controller := automation.NewController(time.Duration(cfg.Settings.ClipboardDedupeWindow) * time.Millisecond)
 
 	// Create clipboard handler
 	handler := func(content clipboard.Content) {
 		log.Printf("Clipboard changed: %s (%d chars)", content.Type, len(content.Text))
+		now := time.Now()
+
+		if controller.ShouldSkipClipboard(content.Text, now) {
+			log.Printf("Skipped duplicate clipboard content (window: %dms)", cfg.Settings.ClipboardDedupeWindow)
+			return
+		}
 
 		// Evaluate rules
 		matches := rulesEngine.Evaluate(content)
 		for _, match := range matches {
+			cooldown := time.Duration(match.Config.CooldownMs) * time.Millisecond
+			if !controller.AllowAction(match.ActionName, cooldown, now) {
+				log.Printf("Skipped action %s due to cooldown (%dms)", match.ActionName, match.Config.CooldownMs)
+				continue
+			}
+
 			log.Printf("Triggered action: %s", match.ActionName)
 
-			go func(actionName string, text string) {
-				result := executor.Execute(ctx, actionName, text)
+			go func(actionName string, actionCfg config.ActionConfig, text string) {
+				opts := executor.Options{Trigger: actionCfg.Trigger}
+				if actionCfg.TimeoutMs > 0 {
+					opts.Timeout = time.Duration(actionCfg.TimeoutMs) * time.Millisecond
+				}
+
+				attempts := actionCfg.RetryCount + 1
+				backoff := time.Duration(actionCfg.RetryBackoffMs) * time.Millisecond
+				var result executor.Result
+
+				for attempt := 1; attempt <= attempts; attempt++ {
+					result = executor.ExecuteWithOptions(ctx, actionName, text, opts)
+					if result.Error == nil {
+						break
+					}
+
+					if attempt == attempts {
+						break
+					}
+
+					log.Printf(
+						"Action %s attempt %d/%d failed: %v (retrying in %v)",
+						actionName,
+						attempt,
+						attempts,
+						result.Error,
+						backoff,
+					)
+
+					if backoff <= 0 {
+						continue
+					}
+
+					select {
+					case <-ctx.Done():
+						return
+					case <-time.After(backoff):
+					}
+				}
+
 				if result.Error != nil {
 					log.Printf("Action %s failed: %v", actionName, result.Error)
 					if cfg.Settings.Notifications {
@@ -80,7 +133,7 @@ func main() {
 					}
 					notify.SendWithSubtitle("clipboard-ai", actionName, output)
 				}
-			}(match.ActionName, content.Text)
+			}(match.ActionName, match.Config, content.Text)
 		}
 	}
 
