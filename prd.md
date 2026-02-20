@@ -326,16 +326,16 @@ Completed (as of 2026-02-20):
    - Action runs are persisted and CLI supports `cbai history` and `cbai rerun <id>`.
 4. Reliability controls
    - Per-action timeout/retry/backoff plus clipboard dedupe/cooldown controls are implemented.
+5. Trigger DSL v2
+   - Parser now supports `NOT`, parentheses, and comparison operators `>=`, `<=`, `!=`.
+6. Observability
+   - Structured JSON logs are emitted by the agent and CLI supports `cbai logs --tail` (with `--file out|err`).
 
 Next:
 
-1. Trigger DSL v2
-   - Expand parser support to include `NOT`, parentheses, and comparison operators like `>=`, `<=`, `!=`.
-2. Observability
-   - Add structured logs and `cbai logs --tail`.
-3. Clipboard type expansion
+1. Clipboard type expansion
    - Extend from text-only handling to images/RTF with optional OCR/caption action.
-4. Integration surface
+2. Integration surface
    - Add optional authenticated local HTTP mode for Raycast/Alfred/editor integrations.
 
 ## 15. Repository Structure
