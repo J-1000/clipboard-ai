@@ -64,6 +64,25 @@ async function makeRequest<T>(
       let data = "";
       res.on("data", (chunk) => (data += chunk));
       res.on("end", () => {
+        const statusCode = res.statusCode || 0;
+        const isSuccess = statusCode >= 200 && statusCode < 300;
+
+        if (!isSuccess) {
+          let message = data;
+          try {
+            const parsed = JSON.parse(data) as { error?: string; message?: string };
+            message = parsed.error || parsed.message || data;
+          } catch {
+            // ignore parse errors
+          }
+          reject(
+            new Error(
+              `Request failed (${statusCode}): ${message || "Unknown error"}`
+            )
+          );
+          return;
+        }
+
         try {
           resolve(JSON.parse(data) as T);
         } catch {
