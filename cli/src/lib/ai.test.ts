@@ -50,6 +50,12 @@ describe("AIClient", () => {
       const c = new AIClient({ type: "unknown", endpoint: "", model: "m" });
       expect(c).toBeDefined();
     });
+
+    it("throws for anthropic provider", () => {
+      expect(
+        () => new AIClient({ type: "anthropic", endpoint: "", model: "m" })
+      ).toThrow('Provider type "anthropic" is not supported');
+    });
   });
 
   describe("summarize", () => {
