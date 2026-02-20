@@ -1,5 +1,9 @@
 import type { Action, ActionContext, ActionResult } from "../lib/types.js";
 import OpenAI from "openai";
+import {
+  isOpenAICompatibleProvider,
+  openAICompatibilityError,
+} from "../lib/provider.js";
 
 export const summarize: Action = {
   metadata: {
@@ -10,6 +14,13 @@ export const summarize: Action = {
   },
 
   async execute(ctx: ActionContext): Promise<ActionResult> {
+    if (!isOpenAICompatibleProvider(ctx.config.provider.type)) {
+      return {
+        success: false,
+        error: openAICompatibilityError(ctx.config.provider.type),
+      };
+    }
+
     try {
       const client = new OpenAI({
         baseURL: ctx.config.provider.endpoint,

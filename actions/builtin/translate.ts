@@ -1,5 +1,9 @@
 import type { Action, ActionContext, ActionResult } from "../lib/types.js";
 import OpenAI from "openai";
+import {
+  isOpenAICompatibleProvider,
+  openAICompatibilityError,
+} from "../lib/provider.js";
 
 export const translate: Action = {
   metadata: {
@@ -13,6 +17,13 @@ export const translate: Action = {
     ctx: ActionContext & { targetLang?: string }
   ): Promise<ActionResult> {
     const targetLang = ctx.targetLang || "English";
+
+    if (!isOpenAICompatibleProvider(ctx.config.provider.type)) {
+      return {
+        success: false,
+        error: openAICompatibilityError(ctx.config.provider.type),
+      };
+    }
 
     try {
       const client = new OpenAI({

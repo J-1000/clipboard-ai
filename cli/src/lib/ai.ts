@@ -21,6 +21,12 @@ export class AIClient {
   private model: string;
 
   constructor(config: AIConfig) {
+    if (config.type === "anthropic") {
+      throw new Error(
+        'Provider type "anthropic" is not supported. Use an OpenAI-compatible endpoint or switch providers.'
+      );
+    }
+
     this.model = config.model;
 
     // Configure for different providers
