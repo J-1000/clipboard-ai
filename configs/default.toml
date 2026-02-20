@@ -27,10 +27,18 @@ notifications = true
 # Log level: debug, info, warn, error
 log_level = "info"
 
+# Dedupe identical clipboard text seen inside this window (milliseconds)
+clipboard_dedupe_window_ms = 1000
+
 [actions.summarize]
 enabled = true
 # Trigger when clipboard content is longer than 200 characters
 trigger = "length > 200"
+# Optional reliability controls (all default to 0 when omitted)
+timeout_ms = 15000
+retry_count = 1
+retry_backoff_ms = 300
+cooldown_ms = 1000
 
 [actions.explain]
 enabled = true
