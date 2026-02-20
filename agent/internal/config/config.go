@@ -16,7 +16,7 @@ type Config struct {
 
 // ProviderConfig configures the LLM provider
 type ProviderConfig struct {
-	Type     string `toml:"type"`     // ollama, openai, anthropic
+	Type     string `toml:"type"`     // ollama, openai
 	Endpoint string `toml:"endpoint"` // API endpoint
 	Model    string `toml:"model"`    // model name
 	APIKey   string `toml:"api_key"`  // API key (optional for local)

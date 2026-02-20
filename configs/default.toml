@@ -2,7 +2,7 @@
 # Place in ~/.clipboard-ai/config.toml
 
 [provider]
-# Provider type: ollama, openai, anthropic
+# Provider type: ollama, openai, or custom endpoint via `endpoint`
 type = "ollama"
 
 # API endpoint (leave empty for provider defaults)
@@ -11,7 +11,7 @@ endpoint = "http://localhost:11434/v1"
 # Model to use
 model = "mistral"
 
-# API key (required for openai/anthropic, optional for ollama)
+# API key (required for openai, optional for local providers)
 # api_key = "sk-..."
 
 [settings]

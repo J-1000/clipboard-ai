@@ -113,7 +113,7 @@ cbai explain -y
 
 ### Safe Mode
 
-When `safe_mode = true` in config, clipboard content won't be sent to cloud providers (OpenAI, Anthropic) without consent:
+When `safe_mode = true` in config, clipboard content won't be sent to cloud providers (OpenAI or remote custom endpoints) without consent:
 
 - **Manual CLI usage**: Shows an interactive confirmation prompt before cloud calls
 - **Daemon-triggered (automatic)**: Blocks cloud calls entirely and sends a macOS notification
@@ -159,7 +159,6 @@ trigger = "mime:code"
 |----------|--------|-------|
 | Ollama | `type = "ollama"` | Local, no API key needed |
 | OpenAI | `type = "openai"` | Requires `api_key` |
-| Anthropic | `type = "anthropic"` | Requires `api_key` |
 | Custom | Set `endpoint` | Any OpenAI-compatible API |
 
 ## Architecture
