@@ -7,7 +7,15 @@ const mockGetConfig = mock(() =>
       summarize: { enabled: true, trigger: "length > 200" },
       explain: { enabled: false, trigger: "mime:code" },
     },
-    settings: { poll_interval: 150, safe_mode: true, notifications: true, log_level: "info" },
+    settings: {
+      poll_interval: 150,
+      safe_mode: true,
+      notifications: true,
+      log_level: "info",
+      http_enabled: true,
+      http_addr: "127.0.0.1:9159",
+      http_auth_token: "secret-token",
+    },
   })
 );
 
@@ -45,6 +53,9 @@ describe("configCommand", () => {
     expect(output).toContain("Safe mode:      true");
     expect(output).toContain("Notifications:  true");
     expect(output).toContain("Log level:      info");
+    expect(output).toContain("HTTP enabled:   true");
+    expect(output).toContain("HTTP address:   127.0.0.1:9159");
+    expect(output).toContain("HTTP token:     [set]");
   });
 
   it("displays actions with enabled/disabled status", async () => {

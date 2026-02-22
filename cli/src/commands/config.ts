@@ -17,6 +17,13 @@ export async function configCommand(): Promise<void> {
     console.log(`  Safe mode:      ${config.settings.safe_mode}`);
     console.log(`  Notifications:  ${config.settings.notifications}`);
     console.log(`  Log level:      ${config.settings.log_level}`);
+    console.log(`  HTTP enabled:   ${config.settings.http_enabled ?? false}`);
+    if (config.settings.http_enabled) {
+      console.log(`  HTTP address:   ${config.settings.http_addr ?? ""}`);
+      console.log(
+        `  HTTP token:     ${config.settings.http_auth_token ? "[set]" : "[missing]"}`
+      );
+    }
     console.log();
     console.log("Actions:");
     for (const [name, action] of Object.entries(config.actions)) {
