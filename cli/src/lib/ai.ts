@@ -85,6 +85,47 @@ export class AIClient {
     };
   }
 
+  async generateWithImage(
+    prompt: string,
+    imageBase64: string,
+    imageMime = "image/png",
+    systemPrompt?: string
+  ): Promise<AIResponse> {
+    const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
+
+    if (systemPrompt) {
+      messages.push({ role: "system", content: systemPrompt });
+    }
+
+    const imageUrl = `data:${imageMime};base64,${imageBase64}`;
+    messages.push({
+      role: "user",
+      content: [
+        { type: "text", text: prompt },
+        { type: "image_url", image_url: { url: imageUrl } },
+      ],
+    });
+
+    const response = await this.client.chat.completions.create({
+      model: this.model,
+      messages,
+      temperature: 0.2,
+      max_tokens: 1024,
+    });
+
+    const choice = response.choices[0];
+    return {
+      content: choice.message.content || "",
+      model: response.model,
+      usage: response.usage
+        ? {
+            promptTokens: response.usage.prompt_tokens,
+            completionTokens: response.usage.completion_tokens,
+          }
+        : undefined,
+    };
+  }
+
   async summarize(text: string): Promise<string> {
     const response = await this.generate(
       `Summarize the following text concisely:\n\n${text}`,
@@ -129,6 +170,26 @@ export class AIClient {
     const response = await this.generate(
       `Classify this content:\n\n${text}`,
       'You are a content classifier. Categorize the given text into exactly one of these categories: email, code, url, log, article, chat, command, data, error, other. Respond with JSON only: {"category": "...", "confidence": 0.0-1.0, "reasoning": "..."}'
+    );
+    return response.content;
+  }
+
+  async captionImage(imageBase64: string, imageMime?: string): Promise<string> {
+    const response = await this.generateWithImage(
+      "Write a concise caption for this image.",
+      imageBase64,
+      imageMime,
+      "You are a helpful assistant that captions images clearly and concisely."
+    );
+    return response.content;
+  }
+
+  async ocrImage(imageBase64: string, imageMime?: string): Promise<string> {
+    const response = await this.generateWithImage(
+      "Extract all readable text from this image. Return only the text.",
+      imageBase64,
+      imageMime,
+      "You are an OCR assistant. Extract text exactly as it appears. Do not add commentary."
     );
     return response.content;
   }
