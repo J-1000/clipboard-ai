@@ -330,12 +330,13 @@ Completed (as of 2026-02-22):
    - Parser now supports `NOT`, parentheses, and comparison operators `>=`, `<=`, `!=`.
 6. Observability
    - Structured JSON logs are emitted by the agent and CLI supports `cbai logs --tail` (with `--file out|err`).
+7. Integration surface hardening
+   - Local HTTP API documentation and integration examples (Raycast/Alfred/editor) are now included.
+   - HTTP auth contract tests cover accepted auth headers and unauthorized cases.
 
 Next:
 
-1. Integration surface hardening
-   - Document the local HTTP API and add example clients (Raycast/Alfred/editor integrations).
-2. Clipboard image UX
+1. Clipboard image UX
    - Add clearer user messaging for vision model requirements and error handling.
 
 ## 15. Repository Structure
