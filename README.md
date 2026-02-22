@@ -190,6 +190,14 @@ trigger = "mime:code"
 # trigger = "mime:image"
 ```
 
+### Local HTTP API
+
+When `settings.http_enabled = true`, the agent also exposes a localhost HTTP API.
+
+- Full endpoint reference: `docs/http-api.md`
+- Integration snippets (Raycast, Alfred, editor shell): `docs/integrations/local-http-clients.md`
+- Example script: `scripts/examples/http-action.sh`
+
 ### Trigger Expressions
 
 - `length > 200` - Content longer than 200 characters
