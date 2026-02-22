@@ -8,7 +8,7 @@ const mockGetConfig = mock(() =>
     settings: { poll_interval: 150, safe_mode: false, notifications: false, log_level: "info" },
   })
 );
-const mockGetInputText = mock(() => Promise.resolve("clipboard text"));
+const mockGetInput = mock(() => Promise.resolve({ text: "clipboard text" }));
 const mockEnforceSafeMode = mock(() => Promise.resolve());
 const mockCopyToClipboard = mock(() => undefined);
 const mockAppendHistoryRecord = mock(() => Promise.resolve(undefined));
@@ -17,7 +17,7 @@ mock.module("./client.js", () => ({
   getConfig: mockGetConfig,
 }));
 mock.module("./input.js", () => ({
-  getInputText: mockGetInputText,
+  getInput: mockGetInput,
 }));
 mock.module("./safe-mode.js", () => ({
   enforceSafeMode: mockEnforceSafeMode,
@@ -46,7 +46,7 @@ describe("runActionCommand history", () => {
 
   beforeEach(() => {
     mockGetConfig.mockClear();
-    mockGetInputText.mockClear();
+    mockGetInput.mockClear();
     mockEnforceSafeMode.mockClear();
     mockCopyToClipboard.mockClear();
     mockAppendHistoryRecord.mockClear();
