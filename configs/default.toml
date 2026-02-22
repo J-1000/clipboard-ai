@@ -45,6 +45,14 @@ enabled = true
 # Trigger when clipboard looks like code
 trigger = "mime:code"
 
+# [actions.caption]
+# enabled = false
+# trigger = "mime:image"
+
+# [actions.ocr]
+# enabled = false
+# trigger = "mime:image"
+
 # Additional actions (disabled by default)
 # [actions.translate]
 # enabled = false

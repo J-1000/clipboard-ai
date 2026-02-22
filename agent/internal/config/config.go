@@ -10,9 +10,9 @@ import (
 
 // Config represents the application configuration
 type Config struct {
-	Provider ProviderConfig           `toml:"provider"`
-	Actions  map[string]ActionConfig  `toml:"actions"`
-	Settings SettingsConfig           `toml:"settings"`
+	Provider ProviderConfig          `toml:"provider"`
+	Actions  map[string]ActionConfig `toml:"actions"`
+	Settings SettingsConfig          `toml:"settings"`
 }
 
 // ProviderConfig configures the LLM provider
@@ -35,10 +35,10 @@ type ActionConfig struct {
 
 // SettingsConfig contains general settings
 type SettingsConfig struct {
-	PollInterval          int    `toml:"poll_interval"`             // ms between clipboard checks
-	SafeMode              bool   `toml:"safe_mode"`                 // require confirmation for cloud
-	Notifications         bool   `toml:"notifications"`             // show macOS notifications
-	LogLevel              string `toml:"log_level"`                 // debug, info, warn, error
+	PollInterval          int    `toml:"poll_interval"`              // ms between clipboard checks
+	SafeMode              bool   `toml:"safe_mode"`                  // require confirmation for cloud
+	Notifications         bool   `toml:"notifications"`              // show macOS notifications
+	LogLevel              string `toml:"log_level"`                  // debug, info, warn, error
 	ClipboardDedupeWindow int    `toml:"clipboard_dedupe_window_ms"` // suppress duplicate clipboard events for this duration
 }
 
@@ -53,6 +53,8 @@ func Default() *Config {
 		Actions: map[string]ActionConfig{
 			"summarize": {Enabled: true, Trigger: "length > 200"},
 			"explain":   {Enabled: true, Trigger: "mime:code"},
+			"caption":   {Enabled: false, Trigger: "mime:image"},
+			"ocr":       {Enabled: false, Trigger: "mime:image"},
 		},
 		Settings: SettingsConfig{
 			PollInterval:          150,

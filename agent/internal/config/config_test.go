@@ -23,8 +23,8 @@ func TestDefault(t *testing.T) {
 	}
 
 	// Check default actions
-	if len(cfg.Actions) != 2 {
-		t.Fatalf("expected 2 default actions, got %d", len(cfg.Actions))
+	if len(cfg.Actions) != 4 {
+		t.Fatalf("expected 4 default actions, got %d", len(cfg.Actions))
 	}
 	if !cfg.Actions["summarize"].Enabled {
 		t.Fatal("expected summarize action to be enabled")
@@ -37,6 +37,18 @@ func TestDefault(t *testing.T) {
 	}
 	if cfg.Actions["explain"].Trigger != "mime:code" {
 		t.Fatalf("expected explain trigger 'mime:code', got %q", cfg.Actions["explain"].Trigger)
+	}
+	if cfg.Actions["caption"].Enabled {
+		t.Fatal("expected caption action to be disabled by default")
+	}
+	if cfg.Actions["caption"].Trigger != "mime:image" {
+		t.Fatalf("expected caption trigger 'mime:image', got %q", cfg.Actions["caption"].Trigger)
+	}
+	if cfg.Actions["ocr"].Enabled {
+		t.Fatal("expected ocr action to be disabled by default")
+	}
+	if cfg.Actions["ocr"].Trigger != "mime:image" {
+		t.Fatalf("expected ocr trigger 'mime:image', got %q", cfg.Actions["ocr"].Trigger)
 	}
 
 	// Check default settings
