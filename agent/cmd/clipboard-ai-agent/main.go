@@ -60,10 +60,14 @@ func main() {
 
 	// Create clipboard handler
 	handler := func(content clipboard.Content) {
-		logger.Info("clipboard changed",
+		logFields := []any{
 			"type", content.Type,
 			"length_chars", len([]rune(content.Text)),
-		)
+		}
+		if content.Type == clipboard.ContentTypeImage {
+			logFields = append(logFields, "image_bytes", len(content.Image))
+		}
+		logger.Info("clipboard changed", logFields...)
 		now := time.Now()
 
 		if controller.ShouldSkipClipboard(content.Signature, now) {
@@ -87,10 +91,25 @@ func main() {
 
 			logger.Info("action triggered", "action", match.ActionName)
 
-			go func(actionName string, actionCfg config.ActionConfig, text string) {
+			go func(actionName string, actionCfg config.ActionConfig, content clipboard.Content) {
 				opts := executor.Options{Trigger: actionCfg.Trigger}
 				if actionCfg.TimeoutMs > 0 {
 					opts.Timeout = time.Duration(actionCfg.TimeoutMs) * time.Millisecond
+				}
+				opts.InputType = string(content.Type)
+				if content.RTF != "" {
+					opts.InputRTF = content.RTF
+				}
+
+				if content.Type == clipboard.ContentTypeImage && len(content.Image) > 0 {
+					path, err := executor.WriteTempImage(content.Image)
+					if err != nil {
+						logger.Error("failed to write image temp file", "action", actionName, "error", err)
+						return
+					}
+					defer os.Remove(path)
+					opts.InputImagePath = path
+					opts.InputImageMime = content.ImageMime
 				}
 
 				attempts := actionCfg.RetryCount + 1
@@ -98,7 +117,7 @@ func main() {
 				var result executor.Result
 
 				for attempt := 1; attempt <= attempts; attempt++ {
-					result = executor.ExecuteWithOptions(ctx, actionName, text, opts)
+					result = executor.ExecuteWithOptions(ctx, actionName, content.Text, opts)
 					if result.Error == nil {
 						break
 					}
@@ -148,7 +167,7 @@ func main() {
 					}
 					notify.SendWithSubtitle("clipboard-ai", actionName, output)
 				}
-			}(match.ActionName, match.Config, content.Text)
+			}(match.ActionName, match.Config, content)
 		}
 	}
 
