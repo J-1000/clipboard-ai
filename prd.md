@@ -316,7 +316,7 @@ export const metadata = {
 
 ## 14.1 Next Implementation Priorities
 
-Completed (as of 2026-02-20):
+Completed (as of 2026-02-22):
 
 1. Custom actions/plugins
    - Filesystem plugin discovery from `~/.clipboard-ai/actions` is implemented.
@@ -333,10 +333,10 @@ Completed (as of 2026-02-20):
 
 Next:
 
-1. Clipboard type expansion
-   - Extend from text-only handling to images/RTF with optional OCR/caption action.
-2. Integration surface
-   - Add optional authenticated local HTTP mode for Raycast/Alfred/editor integrations.
+1. Integration surface hardening
+   - Document the local HTTP API and add example clients (Raycast/Alfred/editor integrations).
+2. Clipboard image UX
+   - Add clearer user messaging for vision model requirements and error handling.
 
 ## 15. Repository Structure
 
