@@ -2,6 +2,7 @@ package ipc
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"net"
 	"net/http"
@@ -39,10 +40,13 @@ type StatusResponse struct {
 
 // ClipboardResponse is returned by /clipboard endpoint
 type ClipboardResponse struct {
-	Text      string `json:"text"`
-	Type      string `json:"type"`
-	Timestamp string `json:"timestamp"`
-	Length    int    `json:"length"`
+	Text        string `json:"text"`
+	RTF         string `json:"rtf,omitempty"`
+	ImageBase64 string `json:"image_base64,omitempty"`
+	ImageMime   string `json:"image_mime,omitempty"`
+	Type        string `json:"type"`
+	Timestamp   string `json:"timestamp"`
+	Length      int    `json:"length"`
 }
 
 // ConfigResponse is returned by /config endpoint
@@ -107,12 +111,18 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	current := s.monitor.Current()
+	displayText := current.Text
+	if current.Type == clipboard.ContentTypeImage {
+		displayText = "[image]"
+	} else if current.Type == clipboard.ContentTypeRTF && displayText == "" {
+		displayText = "[rtf]"
+	}
 	resp := StatusResponse{
 		Status:  "running",
 		Uptime:  time.Since(s.startTime).Round(time.Second).String(),
 		Version: s.version,
 	}
-	resp.Clipboard.Text = truncate(current.Text, 100)
+	resp.Clipboard.Text = truncate(displayText, 100)
 	resp.Clipboard.Type = string(current.Type)
 	resp.Clipboard.Timestamp = current.Timestamp.Format(time.RFC3339)
 
@@ -132,6 +142,13 @@ func (s *Server) handleClipboard(w http.ResponseWriter, r *http.Request) {
 		Type:      string(current.Type),
 		Timestamp: current.Timestamp.Format(time.RFC3339),
 		Length:    textLength(current.Text),
+	}
+	if current.Type == clipboard.ContentTypeRTF {
+		resp.RTF = current.RTF
+	}
+	if current.Type == clipboard.ContentTypeImage && len(current.Image) > 0 {
+		resp.ImageBase64 = base64.StdEncoding.EncodeToString(current.Image)
+		resp.ImageMime = current.ImageMime
 	}
 
 	writeJSON(w, resp)
