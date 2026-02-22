@@ -12,6 +12,8 @@ clipboard-ai is a macOS-first lightweight agent that monitors your clipboard and
 - Provider support: Ollama, OpenAI, and custom OpenAI-compatible endpoints
 - Safe mode: blocks daemon-triggered cloud calls and prompts on manual CLI calls (unless `--yes` is used)
 - Trigger/clipboard length behavior: character-based (UTF-8 rune-aware), not byte-based
+- Clipboard types: text, RTF, images (image actions require vision-capable models)
+- Local HTTP API: optional authenticated localhost server for integrations
 
 ## Features
 
@@ -79,6 +81,12 @@ cbai summary
 
 # Explain clipboard (great for code)
 cbai explain
+
+# Caption clipboard image
+cbai caption
+
+# Extract text from clipboard image
+cbai ocr
 
 # Translate clipboard
 cbai translate Spanish
@@ -156,6 +164,9 @@ poll_interval = 150
 safe_mode = true
 notifications = true
 clipboard_dedupe_window_ms = 1000
+http_enabled = false
+http_addr = "127.0.0.1:9159"
+# http_auth_token = "set-a-long-random-token"
 
 [actions.summarize]
 enabled = true
@@ -168,6 +179,15 @@ cooldown_ms = 1000
 [actions.explain]
 enabled = true
 trigger = "mime:code"
+
+# Image actions (disabled by default)
+# [actions.caption]
+# enabled = false
+# trigger = "mime:image"
+
+# [actions.ocr]
+# enabled = false
+# trigger = "mime:image"
 ```
 
 ### Trigger Expressions
@@ -177,6 +197,8 @@ trigger = "mime:code"
 - `contains:http` - Contains "http"
 - `regex:^ERROR:` - Matches regex pattern
 - `mime:code` - Detected as code
+- `mime:image` - Detected as image
+- `mime:rtf` - Detected as RTF
 - `A OR B` - Either condition
 - `A AND B` - Both conditions
 - `NOT A` - Negate a condition/expression
@@ -221,6 +243,7 @@ export default {
   id: "reverse",
   aliases: ["rev"],
   description: "Reverse clipboard text",
+  inputTypes: ["text"],
   outputTitle: "Reversed",
   run: async ({ text }) => text.split("").reverse().join(""),
 };
@@ -255,6 +278,7 @@ cbai run rev
 │   - Evaluates trigger rules     │
 │   - Executes actions via CLI    │
 │   - Unix socket IPC server      │
+│   - Optional local HTTP server  │
 └─────────────────────────────────┘
                 │
                 ▼
