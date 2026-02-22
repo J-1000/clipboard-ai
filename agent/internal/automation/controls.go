@@ -7,11 +7,11 @@ import (
 
 // Controller applies clipboard dedupe and per-action cooldown policies.
 type Controller struct {
-	dedupeWindow      time.Duration
-	lastClipboardText string
-	lastClipboardAt   time.Time
-	actionLastRunAt   map[string]time.Time
-	mu                sync.Mutex
+	dedupeWindow           time.Duration
+	lastClipboardSignature string
+	lastClipboardAt        time.Time
+	actionLastRunAt        map[string]time.Time
+	mu                     sync.Mutex
 }
 
 // NewController creates a controller with the given dedupe window.
@@ -22,17 +22,17 @@ func NewController(dedupeWindow time.Duration) *Controller {
 	}
 }
 
-// ShouldSkipClipboard returns true when the clipboard text is a duplicate inside the dedupe window.
-func (c *Controller) ShouldSkipClipboard(text string, now time.Time) bool {
+// ShouldSkipClipboard returns true when the clipboard signature is a duplicate inside the dedupe window.
+func (c *Controller) ShouldSkipClipboard(signature string, now time.Time) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	isDuplicate := c.dedupeWindow > 0 &&
-		text == c.lastClipboardText &&
+		signature == c.lastClipboardSignature &&
 		!c.lastClipboardAt.IsZero() &&
 		now.Sub(c.lastClipboardAt) <= c.dedupeWindow
 
-	c.lastClipboardText = text
+	c.lastClipboardSignature = signature
 	c.lastClipboardAt = now
 
 	return isDuplicate

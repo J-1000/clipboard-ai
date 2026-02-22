@@ -66,7 +66,7 @@ func main() {
 		)
 		now := time.Now()
 
-		if controller.ShouldSkipClipboard(content.Text, now) {
+		if controller.ShouldSkipClipboard(content.Signature, now) {
 			logger.Debug("skipped duplicate clipboard content",
 				"dedupe_window_ms", cfg.Settings.ClipboardDedupeWindow,
 			)
