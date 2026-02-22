@@ -18,6 +18,9 @@ export interface StatusResponse {
 
 export interface ClipboardResponse {
   text: string;
+  rtf?: string;
+  image_base64?: string;
+  image_mime?: string;
   type: string;
   timestamp: string;
   length: number;
