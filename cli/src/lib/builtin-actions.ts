@@ -5,6 +5,7 @@ export const builtinActions: ActionDefinition[] = [
     id: "summary",
     aliases: ["summarize", "sum"],
     description: "Summarize clipboard content",
+    inputTypes: ["text"],
     progressMessage: "Summarizing clipboard content...",
     outputTitle: "Summary",
     run: ({ ai, text }) => ai.summarize(text),
@@ -12,6 +13,7 @@ export const builtinActions: ActionDefinition[] = [
   {
     id: "explain",
     description: "Explain clipboard content (good for code)",
+    inputTypes: ["text"],
     progressMessage: "Explaining clipboard content...",
     outputTitle: "Explanation",
     run: ({ ai, text }) => ai.explain(text),
@@ -19,6 +21,7 @@ export const builtinActions: ActionDefinition[] = [
   {
     id: "translate",
     description: "Translate clipboard to target language",
+    inputTypes: ["text"],
     progressMessage: "Translating clipboard content...",
     outputTitle: "Translation",
     run: ({ ai, text, args }) => ai.translate(text, args[0] ?? "English"),
@@ -26,6 +29,7 @@ export const builtinActions: ActionDefinition[] = [
   {
     id: "improve",
     description: "Improve writing in clipboard",
+    inputTypes: ["text"],
     progressMessage: "Improving writing...",
     outputTitle: "Improved",
     run: ({ ai, text }) => ai.improve(text),
@@ -33,6 +37,7 @@ export const builtinActions: ActionDefinition[] = [
   {
     id: "extract",
     description: "Extract structured data from clipboard",
+    inputTypes: ["text"],
     progressMessage: "Extracting structured data...",
     outputTitle: "Extracted Data",
     run: ({ ai, text }) => ai.extractData(text),
@@ -40,6 +45,7 @@ export const builtinActions: ActionDefinition[] = [
   {
     id: "tldr",
     description: "Get a very brief summary (1-2 sentences)",
+    inputTypes: ["text"],
     outputTitle: "TL;DR",
     run: async ({ ai, text }) => {
       const response = await ai.generate(
@@ -52,8 +58,37 @@ export const builtinActions: ActionDefinition[] = [
   {
     id: "classify",
     description: "Classify clipboard content by type",
+    inputTypes: ["text"],
     progressMessage: "Classifying clipboard content...",
     outputTitle: "Classification",
     run: ({ ai, text }) => ai.classify(text),
+  },
+  {
+    id: "caption",
+    aliases: ["describe", "describe-image"],
+    description: "Generate a caption for a clipboard image",
+    inputTypes: ["image"],
+    progressMessage: "Captioning clipboard image...",
+    outputTitle: "Caption",
+    run: ({ ai, imageBase64, imageMime }) => {
+      if (!imageBase64) {
+        throw new Error("No image available on clipboard");
+      }
+      return ai.captionImage(imageBase64, imageMime);
+    },
+  },
+  {
+    id: "ocr",
+    aliases: ["extract-text"],
+    description: "Extract text from a clipboard image",
+    inputTypes: ["image"],
+    progressMessage: "Extracting text from image...",
+    outputTitle: "OCR",
+    run: ({ ai, imageBase64, imageMime }) => {
+      if (!imageBase64) {
+        throw new Error("No image available on clipboard");
+      }
+      return ai.ocrImage(imageBase64, imageMime);
+    },
   },
 ];
