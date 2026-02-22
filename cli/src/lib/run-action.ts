@@ -3,7 +3,7 @@ import { resolveAction, getActionRegistry, type ActionRegistry } from "./action-
 import { copyToClipboard } from "./clipboard.js";
 import { getConfig } from "./client.js";
 import { appendHistoryRecord, type RunSource } from "./history.js";
-import { getInputText } from "./input.js";
+import { getInput, type InputPayload } from "./input.js";
 import { enforceSafeMode } from "./safe-mode.js";
 
 export interface RunActionOptions {
@@ -12,6 +12,7 @@ export interface RunActionOptions {
   yes?: boolean;
   registry?: ActionRegistry;
   inputText?: string;
+  input?: InputPayload;
   source?: RunSource;
   trigger?: string;
   replayOf?: string;
@@ -28,6 +29,7 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
   let output: string | undefined;
   let runError: string | undefined;
   let shouldRecord = false;
+  let input: InputPayload | null = null;
 
   try {
     const registry = options.registry ?? (await getActionRegistry());
@@ -41,10 +43,24 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
     }
 
     const config = await getConfig();
-    const text = options.inputText ?? (await getInputText());
+    input = options.input ?? (options.inputText ? { text: options.inputText } : await getInput());
+    const text = input.text;
+    const acceptedInputs = action.inputTypes ?? ["text"];
+    const hasText = text.length > 0;
+    const hasRTF = !!input.rtf;
+    const hasImage = !!input.imageBase64;
 
-    if (!text) {
+    if (!hasText && !hasRTF && !hasImage) {
       console.error("Error: Clipboard is empty");
+      process.exit(1);
+    }
+
+    const acceptsText = acceptedInputs.includes("text") && hasText;
+    const acceptsRTF = acceptedInputs.includes("rtf") && hasRTF;
+    const acceptsImage = acceptedInputs.includes("image") && hasImage;
+
+    if (!acceptsText && !acceptsRTF && !acceptsImage) {
+      console.error(`Error: Action "${action.id}" does not support clipboard type "${input.type ?? "unknown"}"`);
       process.exit(1);
     }
 
@@ -53,7 +69,7 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
     providerType = config.provider.type;
     providerModel = config.provider.model;
     resolvedActionName = action.id;
-    inputText = text;
+    inputText = text || input.rtf || (input.imageBase64 ? "[image]" : "");
     shouldRecord = true;
 
     await enforceSafeMode(config, { yes: options.yes });
@@ -73,6 +89,10 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
     try {
       output = await action.run({
         text,
+        rtf: input.rtf,
+        imageBase64: input.imageBase64,
+        imageMime: input.imageMime,
+        contentType: input.type,
         ai,
         config,
         args: options.args ?? [],
