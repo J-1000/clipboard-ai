@@ -11,6 +11,7 @@ interface RawPluginAction {
   id?: unknown;
   aliases?: unknown;
   description?: unknown;
+  inputTypes?: unknown;
   progressMessage?: unknown;
   outputTitle?: unknown;
   run?: unknown;
@@ -94,6 +95,12 @@ function normalizeRawPlugin(value: unknown): ActionDefinition | null {
   const aliases = Array.isArray(plugin.aliases)
     ? plugin.aliases.filter((alias): alias is string => typeof alias === "string")
     : undefined;
+  const inputTypes = Array.isArray(plugin.inputTypes)
+    ? plugin.inputTypes.filter(
+        (input): input is "text" | "image" | "rtf" =>
+          input === "text" || input === "image" || input === "rtf"
+      )
+    : undefined;
 
   const runFn = plugin.run as (ctx: ActionContext) => Promise<string> | string;
 
@@ -104,6 +111,7 @@ function normalizeRawPlugin(value: unknown): ActionDefinition | null {
       typeof plugin.description === "string" && plugin.description.length > 0
         ? plugin.description
         : `Plugin action: ${plugin.id}`,
+    inputTypes: inputTypes && inputTypes.length > 0 ? inputTypes : undefined,
     progressMessage: typeof plugin.progressMessage === "string" ? plugin.progressMessage : undefined,
     outputTitle:
       typeof plugin.outputTitle === "string" && plugin.outputTitle.length > 0
