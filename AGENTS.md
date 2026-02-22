@@ -19,10 +19,11 @@ multiple commits and report the planned commit list before
 committing.
 - Do not squash unrelated changes into the same commit.
 - Before creating any commits for multi-part work, the agent
-must provide a numbered planned commit list and wait for
-confirmation.
-- The agent may only execute that approved commit plan; any
-change requires posting an updated plan and re-confirmation.
+must provide a numbered planned commit list, then execute it
+without waiting for additional user approval.
+- The agent must follow the posted commit plan exactly. If the
+plan changes, the agent must post an updated numbered plan
+before continuing.
 
 If you want, I can create this exactly as-is now, or adjust
 wording/strictness first.
