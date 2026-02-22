@@ -67,6 +67,15 @@ func TestDefault(t *testing.T) {
 	if cfg.Settings.ClipboardDedupeWindow != 1000 {
 		t.Fatalf("expected clipboard dedupe window 1000, got %d", cfg.Settings.ClipboardDedupeWindow)
 	}
+	if cfg.Settings.HTTPEnabled {
+		t.Fatal("expected http_enabled to be false by default")
+	}
+	if cfg.Settings.HTTPAddress != "127.0.0.1:9159" {
+		t.Fatalf("expected http_addr '127.0.0.1:9159', got %q", cfg.Settings.HTTPAddress)
+	}
+	if cfg.Settings.HTTPAuthToken != "" {
+		t.Fatal("expected http_auth_token to be empty by default")
+	}
 }
 
 func TestLoad_MissingFile(t *testing.T) {
@@ -210,6 +219,34 @@ poll_interval = 0
 	}
 	if !strings.Contains(err.Error(), "settings.poll_interval") {
 		t.Fatalf("expected poll_interval error, got %v", err)
+	}
+}
+
+func TestLoad_HTTPEnabledMissingToken(t *testing.T) {
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+
+	configDir := filepath.Join(tmpHome, ".clipboard-ai")
+	if err := os.MkdirAll(configDir, 0700); err != nil {
+		t.Fatalf("failed to create config dir: %v", err)
+	}
+
+	configFile := filepath.Join(configDir, "config.toml")
+	content := `
+[settings]
+http_enabled = true
+http_addr = "127.0.0.1:9159"
+`
+	if err := os.WriteFile(configFile, []byte(content), 0600); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	_, err := Load()
+	if err == nil {
+		t.Fatal("expected error for missing http_auth_token")
+	}
+	if !strings.Contains(err.Error(), "http_auth_token") {
+		t.Fatalf("expected http_auth_token error, got %v", err)
 	}
 }
 

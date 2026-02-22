@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 )
@@ -40,6 +41,9 @@ type SettingsConfig struct {
 	Notifications         bool   `toml:"notifications"`              // show macOS notifications
 	LogLevel              string `toml:"log_level"`                  // debug, info, warn, error
 	ClipboardDedupeWindow int    `toml:"clipboard_dedupe_window_ms"` // suppress duplicate clipboard events for this duration
+	HTTPEnabled           bool   `toml:"http_enabled"`               // enable local HTTP server
+	HTTPAddress           string `toml:"http_addr"`                  // local HTTP address
+	HTTPAuthToken         string `toml:"http_auth_token"`            // auth token for HTTP API
 }
 
 // Default returns a config with sensible defaults
@@ -62,6 +66,8 @@ func Default() *Config {
 			Notifications:         true,
 			LogLevel:              "info",
 			ClipboardDedupeWindow: 1000,
+			HTTPEnabled:           false,
+			HTTPAddress:           "127.0.0.1:9159",
 		},
 	}
 }
@@ -95,6 +101,14 @@ func (c *Config) validate() error {
 			"invalid settings.clipboard_dedupe_window_ms %d: must be greater than or equal to 0",
 			c.Settings.ClipboardDedupeWindow,
 		)
+	}
+	if c.Settings.HTTPEnabled {
+		if strings.TrimSpace(c.Settings.HTTPAddress) == "" {
+			return fmt.Errorf("invalid settings.http_addr: must be non-empty when http_enabled is true")
+		}
+		if strings.TrimSpace(c.Settings.HTTPAuthToken) == "" {
+			return fmt.Errorf("invalid settings.http_auth_token: must be non-empty when http_enabled is true")
+		}
 	}
 
 	for name, action := range c.Actions {
