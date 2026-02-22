@@ -50,6 +50,9 @@ export interface ConfigResponse {
     notifications: boolean;
     log_level: string;
     clipboard_dedupe_window_ms?: number;
+    http_enabled?: boolean;
+    http_addr?: string;
+    http_auth_token?: string;
   };
 }
 
