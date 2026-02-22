@@ -52,3 +52,7 @@ Last updated: 2026-02-22
 - Provider docs/runtime consistency: removed Anthropic support claims from user docs/config comments
 - Poll interval hardening: validation and runtime fallback for invalid values
 - Unicode length correctness: rules and IPC length/truncation updated to rune-based behavior
+- Local HTTP API docs: added endpoint/auth reference and cURL examples in `docs/http-api.md`
+- Integration examples: added Raycast/Alfred/editor snippets in `docs/integrations/local-http-clients.md`
+- HTTP API helper env/script: added `.env.example` and `scripts/examples/http-action.sh`
+- IPC auth contract tests: added coverage for Bearer, `X-API-Key`, `X-Clipboard-AI-Token`, and unauthorized cases
