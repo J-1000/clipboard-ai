@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -172,8 +173,12 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 
 // ActionRequest for triggering an action
 type ActionRequest struct {
-	Action string `json:"action"`
-	Text   string `json:"text"` // optional, uses clipboard if empty
+	Action      string `json:"action"`
+	Text        string `json:"text,omitempty"` // optional, uses clipboard if empty
+	RTF         string `json:"rtf,omitempty"`
+	ImageBase64 string `json:"image_base64,omitempty"`
+	ImageMime   string `json:"image_mime,omitempty"`
+	Type        string `json:"type,omitempty"`
 }
 
 // ActionResponse from triggering an action
@@ -197,22 +202,67 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Use clipboard content if text not provided
-	text := req.Text
-	if text == "" {
-		text = s.monitor.Current().Text
+	// Use clipboard content if payload not provided
+	inputText := req.Text
+	inputRTF := req.RTF
+	inputType := strings.TrimSpace(req.Type)
+	imageMime := req.ImageMime
+	var imageBytes []byte
+
+	if inputText == "" && inputRTF == "" && req.ImageBase64 == "" {
+		current := s.monitor.Current()
+		inputText = current.Text
+		inputRTF = current.RTF
+		imageBytes = current.Image
+		imageMime = current.ImageMime
+		inputType = string(current.Type)
 	}
 
-	if text == "" {
+	if req.ImageBase64 != "" {
+		decoded, err := base64.StdEncoding.DecodeString(req.ImageBase64)
+		if err != nil {
+			http.Error(w, "Invalid image_base64", http.StatusBadRequest)
+			return
+		}
+		imageBytes = decoded
+	}
+
+	if inputType == "" {
+		switch {
+		case len(imageBytes) > 0:
+			inputType = string(clipboard.ContentTypeImage)
+		case inputRTF != "":
+			inputType = string(clipboard.ContentTypeRTF)
+		default:
+			inputType = string(clipboard.ContentTypeText)
+		}
+	}
+
+	if inputText == "" && inputRTF == "" && len(imageBytes) == 0 {
 		writeJSON(w, ActionResponse{
 			Success: false,
 			Action:  req.Action,
-			Error:   "No text available",
+			Error:   "No content available",
 		})
 		return
 	}
 
-	result := executor.Execute(r.Context(), req.Action, text)
+	opts := executor.Options{
+		InputType: inputType,
+		InputRTF:  inputRTF,
+	}
+	if len(imageBytes) > 0 {
+		path, err := executor.WriteTempImage(imageBytes)
+		if err != nil {
+			http.Error(w, "Failed to store image", http.StatusInternalServerError)
+			return
+		}
+		defer os.Remove(path)
+		opts.InputImagePath = path
+		opts.InputImageMime = imageMime
+	}
+
+	result := executor.ExecuteWithOptions(r.Context(), req.Action, inputText, opts)
 	if result.Error != nil {
 		writeJSON(w, ActionResponse{
 			Success: false,

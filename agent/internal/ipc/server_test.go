@@ -201,8 +201,8 @@ func TestHandleAction_NoText(t *testing.T) {
 	if resp.Success {
 		t.Fatal("expected success=false when no text available")
 	}
-	if resp.Error != "No text available" {
-		t.Fatalf("expected 'No text available' error, got %q", resp.Error)
+	if resp.Error != "No content available" {
+		t.Fatalf("expected 'No content available' error, got %q", resp.Error)
 	}
 }
 
@@ -210,7 +210,7 @@ func TestHandleAction_UsesRequestText(t *testing.T) {
 	s := newTestServer()
 
 	var gotText string
-	executor.SetExecuteFunc(func(ctx context.Context, action string, text string) executor.Result {
+	executor.SetExecuteWithOptionsFunc(func(ctx context.Context, action string, text string, _ executor.Options) executor.Result {
 		gotText = text
 		return executor.Result{
 			Action: action,
