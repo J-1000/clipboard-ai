@@ -88,13 +88,7 @@ func (s *Server) Start(ctx context.Context) error {
 	// Set socket permissions
 	os.Chmod(s.socketPath, 0600)
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/status", s.handleStatus)
-	mux.HandleFunc("/clipboard", s.handleClipboard)
-	mux.HandleFunc("/config", s.handleConfig)
-	mux.HandleFunc("/action", s.handleAction)
-
-	server := &http.Server{Handler: mux}
+	server := &http.Server{Handler: s.Handler()}
 
 	go func() {
 		<-ctx.Done()
@@ -102,6 +96,16 @@ func (s *Server) Start(ctx context.Context) error {
 	}()
 
 	return server.Serve(listener)
+}
+
+// Handler returns the HTTP handler for the IPC API.
+func (s *Server) Handler() http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/status", s.handleStatus)
+	mux.HandleFunc("/clipboard", s.handleClipboard)
+	mux.HandleFunc("/config", s.handleConfig)
+	mux.HandleFunc("/action", s.handleAction)
+	return mux
 }
 
 // handleStatus returns agent status
