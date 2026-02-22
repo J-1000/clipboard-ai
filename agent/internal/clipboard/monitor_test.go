@@ -175,6 +175,12 @@ func TestContentTypeConstants(t *testing.T) {
 	if ContentTypeCode != "code" {
 		t.Fatalf("expected 'code', got %q", ContentTypeCode)
 	}
+	if ContentTypeImage != "image" {
+		t.Fatalf("expected 'image', got %q", ContentTypeImage)
+	}
+	if ContentTypeRTF != "rtf" {
+		t.Fatalf("expected 'rtf', got %q", ContentTypeRTF)
+	}
 	if ContentTypeUnknown != "unknown" {
 		t.Fatalf("expected 'unknown', got %q", ContentTypeUnknown)
 	}

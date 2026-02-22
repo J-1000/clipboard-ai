@@ -2,6 +2,10 @@ package clipboard
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"os/exec"
+	"strings"
 	"sync"
 	"time"
 
@@ -11,8 +15,12 @@ import (
 // Content represents clipboard content
 type Content struct {
 	Text      string
+	RTF       string
+	Image     []byte
+	ImageMime string
 	Timestamp time.Time
 	Type      ContentType
+	Signature string
 }
 
 // ContentType indicates the type of clipboard content
@@ -22,6 +30,8 @@ const (
 	ContentTypeText    ContentType = "text"
 	ContentTypeURL     ContentType = "url"
 	ContentTypeCode    ContentType = "code"
+	ContentTypeImage   ContentType = "image"
+	ContentTypeRTF     ContentType = "rtf"
 	ContentTypeUnknown ContentType = "unknown"
 
 	defaultPollIntervalMs = 150
@@ -32,11 +42,11 @@ type Handler func(content Content)
 
 // Monitor watches the clipboard for changes
 type Monitor struct {
-	pollInterval time.Duration
-	handler      Handler
-	lastContent  string
-	mu           sync.RWMutex
-	current      Content
+	pollInterval  time.Duration
+	handler       Handler
+	lastSignature string
+	mu            sync.RWMutex
+	current       Content
 }
 
 // NewMonitor creates a new clipboard monitor
@@ -73,22 +83,63 @@ func (m *Monitor) Start(ctx context.Context) error {
 
 // check reads the clipboard and fires handler if changed
 func (m *Monitor) check() {
+	if content, ok := m.readImage(); ok {
+		m.update(content)
+		return
+	}
+
 	data := clipboard.Read(clipboard.FmtText)
 	if data == nil {
 		return
 	}
 
 	text := string(data)
-	if text == m.lastContent {
+	rtf := readRTF()
+	contentType := detectContentType(text)
+	signature := text
+
+	if rtf != "" {
+		signature = rtf
+		contentType = ContentTypeRTF
+	}
+
+	if signature == m.lastSignature {
 		return
 	}
 
-	m.lastContent = text
 	content := Content{
 		Text:      text,
+		RTF:       rtf,
 		Timestamp: time.Now(),
-		Type:      detectContentType(text),
+		Type:      contentType,
+		Signature: signature,
 	}
+
+	m.update(content)
+}
+
+func (m *Monitor) readImage() (Content, bool) {
+	data := clipboard.Read(clipboard.FmtImage)
+	if len(data) == 0 {
+		return Content{}, false
+	}
+
+	signature := hashBytes(data)
+	if signature == m.lastSignature {
+		return Content{}, false
+	}
+
+	return Content{
+		Image:     data,
+		ImageMime: "image/png",
+		Timestamp: time.Now(),
+		Type:      ContentTypeImage,
+		Signature: signature,
+	}, true
+}
+
+func (m *Monitor) update(content Content) {
+	m.lastSignature = content.Signature
 
 	m.mu.Lock()
 	m.current = content
@@ -97,6 +148,24 @@ func (m *Monitor) check() {
 	if m.handler != nil {
 		m.handler(content)
 	}
+}
+
+func hashBytes(data []byte) string {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
+}
+
+func readRTF() string {
+	cmd := exec.Command("pbpaste", "-Prefer", "rtf")
+	output, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	rtf := strings.TrimSpace(string(output))
+	if !strings.HasPrefix(rtf, "{\\rtf") {
+		return ""
+	}
+	return rtf
 }
 
 // Current returns the current clipboard content
