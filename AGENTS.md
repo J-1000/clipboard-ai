@@ -24,6 +24,3 @@ without waiting for additional user approval.
 - The agent must follow the posted commit plan exactly. If the
 plan changes, the agent must post an updated numbered plan
 before continuing.
-
-If you want, I can create this exactly as-is now, or adjust
-wording/strictness first.
