@@ -48,6 +48,7 @@ func main() {
 		"provider.type", cfg.Provider.Type,
 		"provider.model", cfg.Provider.Model,
 		"safe_mode", cfg.Settings.SafeMode,
+		"http_enabled", cfg.Settings.HTTPEnabled,
 	)
 
 	// Set up context with cancellation (before handler so closure can capture ctx)
@@ -177,6 +178,17 @@ func main() {
 	// Create IPC server
 	socketPath := config.GetSocketPath()
 	server := ipc.NewServer(socketPath, monitor, cfg, version)
+
+	// Start optional local HTTP server
+	if cfg.Settings.HTTPEnabled {
+		httpServer := ipc.NewHTTPServer(cfg.Settings.HTTPAddress, cfg.Settings.HTTPAuthToken, server)
+		go func() {
+			logger.Info("http server listening", "address", cfg.Settings.HTTPAddress)
+			if err := httpServer.Start(ctx); err != nil && ctx.Err() == nil {
+				logger.Error("http server error", "error", err)
+			}
+		}()
+	}
 
 	// Handle shutdown signals
 	sigCh := make(chan os.Signal, 1)
