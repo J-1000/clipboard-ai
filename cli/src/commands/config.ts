@@ -11,6 +11,7 @@ export async function configCommand(): Promise<void> {
     console.log(`  Type:     ${config.provider.type}`);
     console.log(`  Model:    ${config.provider.model}`);
     console.log(`  Endpoint: ${config.provider.endpoint}`);
+    console.log(`  API key:  ${config.provider.api_key ? "[set]" : "[not set]"}`);
     console.log();
     console.log("Settings:");
     console.log(`  Poll interval:  ${config.settings.poll_interval}ms`);

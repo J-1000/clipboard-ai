@@ -2,7 +2,12 @@ import { describe, it, expect, mock, beforeEach, spyOn } from "bun:test";
 
 const mockGetConfig = mock(() =>
   Promise.resolve({
-    provider: { type: "ollama", endpoint: "http://localhost:11434/v1", model: "mistral" },
+    provider: {
+      type: "ollama",
+      endpoint: "http://localhost:11434/v1",
+      model: "mistral",
+      api_key: "<redacted>",
+    },
     actions: {
       summarize: { enabled: true, trigger: "length > 200" },
       explain: { enabled: false, trigger: "mime:code" },
@@ -44,6 +49,7 @@ describe("configCommand", () => {
     expect(output).toContain("Type:     ollama");
     expect(output).toContain("Model:    mistral");
     expect(output).toContain("Endpoint: http://localhost:11434/v1");
+    expect(output).toContain("API key:  [set]");
   });
 
   it("displays settings", async () => {
@@ -56,6 +62,13 @@ describe("configCommand", () => {
     expect(output).toContain("HTTP enabled:   true");
     expect(output).toContain("HTTP address:   127.0.0.1:9159");
     expect(output).toContain("HTTP token:     [set]");
+  });
+
+  it("does not display secret values", async () => {
+    await configCommand();
+    const output = logSpy.mock.calls.map((c) => c[0]).join("\n");
+    expect(output).not.toContain("<redacted>");
+    expect(output).not.toContain("secret-token");
   });
 
   it("displays actions with enabled/disabled status", async () => {
