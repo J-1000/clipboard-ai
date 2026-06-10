@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -143,6 +144,39 @@ func TestHandleConfig_GET(t *testing.T) {
 	}
 	if resp.Settings.PollInterval != 150 {
 		t.Fatalf("expected poll interval 150, got %d", resp.Settings.PollInterval)
+	}
+}
+
+func TestHandleConfig_RedactsSecrets(t *testing.T) {
+	s := newTestServer()
+	s.config.Provider.APIKey = "sk-test-secret"
+	s.config.Settings.HTTPAuthToken = "http-test-secret"
+
+	req := httptest.NewRequest(http.MethodGet, "/config", nil)
+	w := httptest.NewRecorder()
+
+	s.handleConfig(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	for _, leaked := range []string{"sk-test-secret", "http-test-secret"} {
+		if bytes.Contains([]byte(body), []byte(leaked)) {
+			t.Fatalf("response leaked secret %q: %s", leaked, body)
+		}
+	}
+
+	var resp ConfigResponse
+	if err := json.NewDecoder(strings.NewReader(body)).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp.Provider.APIKey != "<redacted>" {
+		t.Fatalf("expected redacted api key, got %q", resp.Provider.APIKey)
+	}
+	if resp.Settings.HTTPAuthToken != "<redacted>" {
+		t.Fatalf("expected redacted http auth token, got %q", resp.Settings.HTTPAuthToken)
 	}
 }
 

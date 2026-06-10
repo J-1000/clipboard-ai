@@ -1,9 +1,14 @@
 package ipc
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"github.com/clipboard-ai/agent/internal/clipboard"
+	"github.com/clipboard-ai/agent/internal/config"
 )
 
 func TestIsAuthorized(t *testing.T) {
@@ -117,4 +122,40 @@ func TestAuthMiddleware(t *testing.T) {
 			t.Fatalf("expected 204, got %d", w.Code)
 		}
 	})
+}
+
+func TestHTTPConfigDoesNotLeakCredentials(t *testing.T) {
+	cfg := config.Default()
+	cfg.Provider.APIKey = "sk-http-secret"
+	cfg.Settings.HTTPAuthToken = "http-auth-secret"
+	api := NewServer("/tmp/test.sock", clipboard.NewMonitor(100, nil), cfg, "test-version")
+	httpServer := NewHTTPServer("127.0.0.1:0", cfg.Settings.HTTPAuthToken, api)
+	handler := httpServer.authMiddleware(api.Handler())
+
+	req := httptest.NewRequest(http.MethodGet, "/config", nil)
+	req.Header.Set("X-API-Key", "http-auth-secret")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	for _, leaked := range []string{"sk-http-secret", "http-auth-secret"} {
+		if strings.Contains(body, leaked) {
+			t.Fatalf("response leaked secret %q: %s", leaked, body)
+		}
+	}
+	var resp ConfigResponse
+	if err := json.NewDecoder(strings.NewReader(body)).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp.Provider.APIKey != "<redacted>" {
+		t.Fatalf("expected redacted api key, got %q", resp.Provider.APIKey)
+	}
+	if resp.Settings.HTTPAuthToken != "<redacted>" {
+		t.Fatalf("expected redacted http auth token, got %q", resp.Settings.HTTPAuthToken)
+	}
 }
