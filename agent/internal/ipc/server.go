@@ -166,13 +166,25 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := ConfigResponse{
-		Provider: s.config.Provider,
-		Actions:  s.config.Actions,
-		Settings: s.config.Settings,
+	writeJSON(w, redactedConfigResponse(s.config))
+}
+
+func redactedConfigResponse(cfg *config.Config) ConfigResponse {
+	provider := cfg.Provider
+	settings := cfg.Settings
+
+	if provider.APIKey != "" {
+		provider.APIKey = "<redacted>"
+	}
+	if settings.HTTPAuthToken != "" {
+		settings.HTTPAuthToken = "<redacted>"
 	}
 
-	writeJSON(w, resp)
+	return ConfigResponse{
+		Provider: provider,
+		Actions:  cfg.Actions,
+		Settings: settings,
+	}
 }
 
 // ActionRequest for triggering an action
