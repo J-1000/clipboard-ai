@@ -53,6 +53,9 @@ export interface ConfigResponse {
     http_enabled?: boolean;
     http_addr?: string;
     http_auth_token?: string;
+    history_enabled?: boolean;
+    history_max_entries?: number;
+    history_truncate_chars?: number;
   };
 }
 

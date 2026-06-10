@@ -44,6 +44,9 @@ type SettingsConfig struct {
 	HTTPEnabled           bool   `toml:"http_enabled"`               // enable local HTTP server
 	HTTPAddress           string `toml:"http_addr"`                  // local HTTP address
 	HTTPAuthToken         string `toml:"http_auth_token"`            // auth token for HTTP API
+	HistoryEnabled        bool   `toml:"history_enabled"`            // write action history
+	HistoryMaxEntries     int    `toml:"history_max_entries"`        // maximum retained history records
+	HistoryTruncateChars  int    `toml:"history_truncate_chars"`     // max input/output chars per record, 0 disables truncation
 }
 
 // Default returns a config with sensible defaults
@@ -68,6 +71,9 @@ func Default() *Config {
 			ClipboardDedupeWindow: 1000,
 			HTTPEnabled:           false,
 			HTTPAddress:           "127.0.0.1:9159",
+			HistoryEnabled:        true,
+			HistoryMaxEntries:     1000,
+			HistoryTruncateChars:  2000,
 		},
 	}
 }
@@ -109,6 +115,12 @@ func (c *Config) validate() error {
 		if strings.TrimSpace(c.Settings.HTTPAuthToken) == "" {
 			return fmt.Errorf("invalid settings.http_auth_token: must be non-empty when http_enabled is true")
 		}
+	}
+	if c.Settings.HistoryMaxEntries < 0 {
+		return fmt.Errorf("invalid settings.history_max_entries %d: must be greater than or equal to 0", c.Settings.HistoryMaxEntries)
+	}
+	if c.Settings.HistoryTruncateChars < 0 {
+		return fmt.Errorf("invalid settings.history_truncate_chars %d: must be greater than or equal to 0", c.Settings.HistoryTruncateChars)
 	}
 
 	for name, action := range c.Actions {

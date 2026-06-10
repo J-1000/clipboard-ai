@@ -76,6 +76,15 @@ func TestDefault(t *testing.T) {
 	if cfg.Settings.HTTPAuthToken != "" {
 		t.Fatal("expected http_auth_token to be empty by default")
 	}
+	if !cfg.Settings.HistoryEnabled {
+		t.Fatal("expected history_enabled to be true by default")
+	}
+	if cfg.Settings.HistoryMaxEntries != 1000 {
+		t.Fatalf("expected history_max_entries 1000, got %d", cfg.Settings.HistoryMaxEntries)
+	}
+	if cfg.Settings.HistoryTruncateChars != 2000 {
+		t.Fatalf("expected history_truncate_chars 2000, got %d", cfg.Settings.HistoryTruncateChars)
+	}
 }
 
 func TestLoad_MissingFile(t *testing.T) {
@@ -120,6 +129,9 @@ safe_mode = false
 notifications = false
 log_level = "debug"
 clipboard_dedupe_window_ms = 2000
+history_enabled = false
+history_max_entries = 500
+history_truncate_chars = 100
 `
 	os.WriteFile(configFile, []byte(content), 0600)
 
@@ -180,6 +192,15 @@ clipboard_dedupe_window_ms = 2000
 	}
 	if cfg.Settings.ClipboardDedupeWindow != 2000 {
 		t.Fatalf("expected clipboard dedupe window 2000, got %d", cfg.Settings.ClipboardDedupeWindow)
+	}
+	if cfg.Settings.HistoryEnabled {
+		t.Fatal("expected history_enabled to be false")
+	}
+	if cfg.Settings.HistoryMaxEntries != 500 {
+		t.Fatalf("expected history_max_entries 500, got %d", cfg.Settings.HistoryMaxEntries)
+	}
+	if cfg.Settings.HistoryTruncateChars != 100 {
+		t.Fatalf("expected history_truncate_chars 100, got %d", cfg.Settings.HistoryTruncateChars)
 	}
 }
 
@@ -276,6 +297,33 @@ retry_count = -1
 	}
 	if !strings.Contains(err.Error(), "actions.summarize.retry_count") {
 		t.Fatalf("expected retry_count error, got %v", err)
+	}
+}
+
+func TestLoad_InvalidHistoryRetentionSettings(t *testing.T) {
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+
+	configDir := filepath.Join(tmpHome, ".clipboard-ai")
+	if err := os.MkdirAll(configDir, 0700); err != nil {
+		t.Fatalf("failed to create config dir: %v", err)
+	}
+
+	configFile := filepath.Join(configDir, "config.toml")
+	content := `
+[settings]
+history_max_entries = -1
+`
+	if err := os.WriteFile(configFile, []byte(content), 0600); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	_, err := Load()
+	if err == nil {
+		t.Fatal("expected error for invalid history_max_entries")
+	}
+	if !strings.Contains(err.Error(), "settings.history_max_entries") {
+		t.Fatalf("expected history_max_entries error, got %v", err)
 	}
 }
 

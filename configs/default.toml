@@ -35,6 +35,12 @@ http_enabled = false
 http_addr = "127.0.0.1:9159"
 # http_auth_token = "set-a-long-random-token"
 
+# Action history retention
+history_enabled = true
+history_max_entries = 1000
+# Maximum input/output characters stored per record; 0 disables truncation
+history_truncate_chars = 2000
+
 [actions.summarize]
 enabled = true
 # Trigger when clipboard content is longer than 200 characters
