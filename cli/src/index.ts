@@ -86,9 +86,22 @@ yargs(hideBin(process.argv))
         type: "number",
         description: "Maximum number of history rows to show",
         default: 20,
-      }),
+      })
+        .option("clear", {
+          type: "boolean",
+          description: "Delete all history records",
+          default: false,
+        })
+        .option("before", {
+          type: "string",
+          description: "Delete history records before an ISO date",
+        }),
     async (argv) => {
-      await historyCommand({ limit: argv.limit });
+      await historyCommand({
+        limit: argv.limit,
+        clear: argv.clear,
+        before: argv.before,
+      });
     }
   )
   .command(

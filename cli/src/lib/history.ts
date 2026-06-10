@@ -1,4 +1,4 @@
-import { mkdir, appendFile, chmod, readFile, writeFile } from "fs/promises";
+import { mkdir, appendFile, chmod, readFile, unlink, writeFile } from "fs/promises";
 import { existsSync } from "fs";
 import { homedir } from "os";
 import { dirname, join } from "path";
@@ -85,6 +85,51 @@ export async function readHistoryRecords(limit?: number): Promise<ActionRunRecor
 export async function getHistoryRecordById(id: string): Promise<ActionRunRecord | null> {
   const records = await readHistoryRecords();
   return records.find((record) => record.id === id) ?? null;
+}
+
+export async function clearHistoryRecords(): Promise<void> {
+  const historyFile = getHistoryFile();
+  if (!existsSync(historyFile)) {
+    return;
+  }
+  await unlink(historyFile);
+}
+
+export async function pruneHistoryBefore(before: Date): Promise<number> {
+  const historyFile = getHistoryFile();
+  if (!existsSync(historyFile)) {
+    return 0;
+  }
+
+  const data = await readFile(historyFile, "utf8");
+  const cutoff = before.getTime();
+  const kept: string[] = [];
+  let removed = 0;
+
+  for (const line of data.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed.length === 0) {
+      continue;
+    }
+
+    try {
+      const record = JSON.parse(trimmed) as ActionRunRecord;
+      const timestamp = Date.parse(record.timestamp);
+      if (!Number.isNaN(timestamp) && timestamp < cutoff) {
+        removed += 1;
+        continue;
+      }
+    } catch {
+      // Corrupt-line handling is covered separately; pruning preserves unknown lines.
+    }
+
+    kept.push(trimmed);
+  }
+
+  const nextData = kept.length === 0 ? "" : `${kept.join("\n")}\n`;
+  await writeFile(historyFile, nextData, { encoding: "utf8", mode: 0o600 });
+  await chmod(historyFile, 0o600);
+  return removed;
 }
 
 function generateId(): string {
