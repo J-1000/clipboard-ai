@@ -1,9 +1,13 @@
 import { beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
 
 const mockReadHistoryRecords = mock(() => Promise.resolve([]));
+const mockClearHistoryRecords = mock(() => Promise.resolve());
+const mockPruneHistoryBefore = mock(() => Promise.resolve(0));
 
 mock.module("../lib/history.js", () => ({
   readHistoryRecords: mockReadHistoryRecords,
+  clearHistoryRecords: mockClearHistoryRecords,
+  pruneHistoryBefore: mockPruneHistoryBefore,
 }));
 
 const { historyCommand } = await import("./history.js");
@@ -13,6 +17,8 @@ describe("historyCommand", () => {
 
   beforeEach(() => {
     mockReadHistoryRecords.mockClear();
+    mockClearHistoryRecords.mockClear();
+    mockPruneHistoryBefore.mockClear();
     logSpy = spyOn(console, "log").mockImplementation(() => {});
   });
 
@@ -51,5 +57,26 @@ describe("historyCommand", () => {
     expect(output).toContain("run-1");
     expect(output).toContain("summary");
     expect(output).toContain("25ms");
+  });
+
+  it("clears history when requested", async () => {
+    await historyCommand({ clear: true });
+
+    expect(mockClearHistoryRecords).toHaveBeenCalledTimes(1);
+    expect(mockReadHistoryRecords).not.toHaveBeenCalled();
+    const output = logSpy.mock.calls.map((call) => call[0]).join("\n");
+    expect(output).toContain("History cleared.");
+  });
+
+  it("prunes history before a date", async () => {
+    mockPruneHistoryBefore.mockResolvedValueOnce(2);
+
+    await historyCommand({ before: "2026-01-15T00:00:00.000Z" });
+
+    expect(mockPruneHistoryBefore).toHaveBeenCalledTimes(1);
+    const cutoff = mockPruneHistoryBefore.mock.calls[0][0] as Date;
+    expect(cutoff.toISOString()).toBe("2026-01-15T00:00:00.000Z");
+    const output = logSpy.mock.calls.map((call) => call[0]).join("\n");
+    expect(output).toContain("Pruned 2 history entries.");
   });
 });
