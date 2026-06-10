@@ -1,4 +1,4 @@
-import { mkdir, appendFile, readFile } from "fs/promises";
+import { mkdir, appendFile, chmod, readFile, writeFile } from "fs/promises";
 import { existsSync } from "fs";
 import { homedir } from "os";
 import { dirname, join } from "path";
@@ -29,17 +29,36 @@ export type ActionRunRecordInput = Omit<ActionRunRecord, "id" | "timestamp"> & {
   timestamp?: string;
 };
 
-export async function appendHistoryRecord(input: ActionRunRecordInput): Promise<ActionRunRecord> {
+export interface HistoryRetentionSettings {
+  history_enabled?: boolean;
+  history_max_entries?: number;
+  history_truncate_chars?: number;
+}
+
+export async function appendHistoryRecord(
+  input: ActionRunRecordInput,
+  settings: HistoryRetentionSettings = {}
+): Promise<ActionRunRecord> {
   const record: ActionRunRecord = {
     ...input,
     id: input.id ?? generateId(),
     timestamp: input.timestamp ?? new Date().toISOString(),
   };
 
+  if (settings.history_enabled === false) {
+    return record;
+  }
+
+  const storedRecord = truncateRecord(record, settings.history_truncate_chars);
   const historyFile = getHistoryFile();
-  await mkdir(dirname(historyFile), { recursive: true });
-  await appendFile(historyFile, `${JSON.stringify(record)}\n`, "utf8");
-  return record;
+  await mkdir(dirname(historyFile), { recursive: true, mode: 0o700 });
+  await appendFile(historyFile, `${JSON.stringify(storedRecord)}\n`, {
+    encoding: "utf8",
+    mode: 0o600,
+  });
+  await chmod(historyFile, 0o600);
+  await compactHistoryFile(historyFile, settings.history_max_entries);
+  return storedRecord;
 }
 
 export async function readHistoryRecords(limit?: number): Promise<ActionRunRecord[]> {
@@ -75,4 +94,56 @@ function generateId(): string {
 
 function getHistoryFile(): string {
   return process.env.CBAI_HISTORY_FILE ?? join(homedir(), ".clipboard-ai", "history.jsonl");
+}
+
+function truncateRecord(
+  record: ActionRunRecord,
+  truncateChars: number | undefined
+): ActionRunRecord {
+  if (truncateChars === undefined || truncateChars === 0) {
+    return record;
+  }
+
+  return {
+    ...record,
+    input: truncateCharsFromString(record.input, truncateChars),
+    output:
+      record.output === undefined
+        ? undefined
+        : truncateCharsFromString(record.output, truncateChars),
+  };
+}
+
+function truncateCharsFromString(value: string, maxChars: number): string {
+  if (maxChars < 0) {
+    return value;
+  }
+
+  const chars = Array.from(value);
+  if (chars.length <= maxChars) {
+    return value;
+  }
+
+  return chars.slice(0, maxChars).join("");
+}
+
+async function compactHistoryFile(
+  historyFile: string,
+  maxEntries: number | undefined
+): Promise<void> {
+  if (maxEntries === undefined || maxEntries < 0 || !existsSync(historyFile)) {
+    return;
+  }
+
+  const data = await readFile(historyFile, "utf8");
+  const lines = data.split("\n").filter((line) => line.trim().length > 0);
+  const compactThreshold = Math.floor(maxEntries * 1.1);
+  if (lines.length <= compactThreshold) {
+    return;
+  }
+
+  const kept = maxEntries === 0 ? [] : lines.slice(-maxEntries);
+  const nextData = kept.length === 0 ? "" : `${kept.join("\n")}\n`;
+  await writeFile(historyFile, nextData, { encoding: "utf8", mode: 0o600 });
+  await chmod(historyFile, 0o600);
 }

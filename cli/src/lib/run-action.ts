@@ -2,7 +2,7 @@ import { AIClient } from "./ai.js";
 import { resolveAction, getActionRegistry, type ActionRegistry } from "./action-registry.js";
 import { copyToClipboard } from "./clipboard.js";
 import { getConfig } from "./client.js";
-import { appendHistoryRecord, type RunSource } from "./history.js";
+import { appendHistoryRecord, type HistoryRetentionSettings, type RunSource } from "./history.js";
 import { getInput, type InputPayload } from "./input.js";
 import { enforceSafeMode } from "./safe-mode.js";
 
@@ -30,6 +30,7 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
   let runError: string | undefined;
   let shouldRecord = false;
   let input: InputPayload | null = null;
+  let historySettings: HistoryRetentionSettings | undefined;
 
   try {
     const registry = options.registry ?? (await getActionRegistry());
@@ -43,6 +44,7 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
     }
 
     const config = await getConfig();
+    historySettings = config.settings;
     input = options.input ?? (options.inputText ? { text: options.inputText } : await getInput());
     const text = input.text;
     const acceptedInputs = action.inputTypes ?? ["text"];
@@ -118,21 +120,24 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
     }
 
     try {
-      await appendHistoryRecord({
-        action: resolvedActionName,
-        args: options.args ?? [],
-        source,
-        trigger,
-        provider: providerType,
-        model: providerModel,
-        latency_ms: latencyMs,
-        status: runError ? "error" : "success",
-        copy: options.copy ?? false,
-        input: inputText,
-        output,
-        error: runError,
-        replay_of: options.replayOf,
-      });
+      await appendHistoryRecord(
+        {
+          action: resolvedActionName,
+          args: options.args ?? [],
+          source,
+          trigger,
+          provider: providerType,
+          model: providerModel,
+          latency_ms: latencyMs,
+          status: runError ? "error" : "success",
+          copy: options.copy ?? false,
+          input: inputText,
+          output,
+          error: runError,
+          replay_of: options.replayOf,
+        },
+        historySettings
+      );
     } catch (historyErr) {
       console.error(`Warning: Failed to write history: ${(historyErr as Error).message}`);
     }
