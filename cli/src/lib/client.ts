@@ -57,6 +57,7 @@ export interface ConfigResponse {
     history_enabled?: boolean;
     history_max_entries?: number;
     history_truncate_chars?: number;
+    sensitive_guard?: "block" | "warn" | "off";
   };
 }
 

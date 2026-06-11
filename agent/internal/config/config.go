@@ -47,6 +47,7 @@ type SettingsConfig struct {
 	HistoryEnabled        bool   `toml:"history_enabled"`            // write action history
 	HistoryMaxEntries     int    `toml:"history_max_entries"`        // maximum retained history records
 	HistoryTruncateChars  int    `toml:"history_truncate_chars"`     // max input/output chars per record, 0 disables truncation
+	SensitiveGuard        string `toml:"sensitive_guard"`            // block, warn, off
 }
 
 // Default returns a config with sensible defaults
@@ -74,6 +75,7 @@ func Default() *Config {
 			HistoryEnabled:        true,
 			HistoryMaxEntries:     1000,
 			HistoryTruncateChars:  2000,
+			SensitiveGuard:        "warn",
 		},
 	}
 }
@@ -121,6 +123,16 @@ func (c *Config) validate() error {
 	}
 	if c.Settings.HistoryTruncateChars < 0 {
 		return fmt.Errorf("invalid settings.history_truncate_chars %d: must be greater than or equal to 0", c.Settings.HistoryTruncateChars)
+	}
+	switch strings.ToLower(strings.TrimSpace(c.Settings.SensitiveGuard)) {
+	case "", "block", "warn", "off":
+		if strings.TrimSpace(c.Settings.SensitiveGuard) == "" {
+			c.Settings.SensitiveGuard = "warn"
+		} else {
+			c.Settings.SensitiveGuard = strings.ToLower(strings.TrimSpace(c.Settings.SensitiveGuard))
+		}
+	default:
+		return fmt.Errorf("invalid settings.sensitive_guard %q: must be block, warn, or off", c.Settings.SensitiveGuard)
 	}
 
 	for name, action := range c.Actions {

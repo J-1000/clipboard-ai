@@ -41,6 +41,9 @@ history_max_entries = 1000
 # Maximum input/output characters stored per record; 0 disables truncation
 history_truncate_chars = 2000
 
+# Sensitive-data guard: "block", "warn", or "off"
+sensitive_guard = "warn"
+
 [actions.summarize]
 enabled = true
 # Trigger when clipboard content is longer than 200 characters

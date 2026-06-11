@@ -85,6 +85,9 @@ func TestDefault(t *testing.T) {
 	if cfg.Settings.HistoryTruncateChars != 2000 {
 		t.Fatalf("expected history_truncate_chars 2000, got %d", cfg.Settings.HistoryTruncateChars)
 	}
+	if cfg.Settings.SensitiveGuard != "warn" {
+		t.Fatalf("expected sensitive_guard warn, got %q", cfg.Settings.SensitiveGuard)
+	}
 }
 
 func TestLoad_MissingFile(t *testing.T) {
@@ -132,6 +135,7 @@ clipboard_dedupe_window_ms = 2000
 history_enabled = false
 history_max_entries = 500
 history_truncate_chars = 100
+sensitive_guard = "block"
 `
 	os.WriteFile(configFile, []byte(content), 0600)
 
@@ -201,6 +205,9 @@ history_truncate_chars = 100
 	}
 	if cfg.Settings.HistoryTruncateChars != 100 {
 		t.Fatalf("expected history_truncate_chars 100, got %d", cfg.Settings.HistoryTruncateChars)
+	}
+	if cfg.Settings.SensitiveGuard != "block" {
+		t.Fatalf("expected sensitive_guard block, got %q", cfg.Settings.SensitiveGuard)
 	}
 }
 
@@ -324,6 +331,33 @@ history_max_entries = -1
 	}
 	if !strings.Contains(err.Error(), "settings.history_max_entries") {
 		t.Fatalf("expected history_max_entries error, got %v", err)
+	}
+}
+
+func TestLoad_InvalidSensitiveGuard(t *testing.T) {
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+
+	configDir := filepath.Join(tmpHome, ".clipboard-ai")
+	if err := os.MkdirAll(configDir, 0700); err != nil {
+		t.Fatalf("failed to create config dir: %v", err)
+	}
+
+	configFile := filepath.Join(configDir, "config.toml")
+	content := `
+[settings]
+sensitive_guard = "maybe"
+`
+	if err := os.WriteFile(configFile, []byte(content), 0600); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	_, err := Load()
+	if err == nil {
+		t.Fatal("expected error for invalid sensitive_guard")
+	}
+	if !strings.Contains(err.Error(), "settings.sensitive_guard") {
+		t.Fatalf("expected sensitive_guard error, got %v", err)
 	}
 }
 
