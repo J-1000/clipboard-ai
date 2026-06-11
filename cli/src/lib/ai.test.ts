@@ -150,4 +150,28 @@ describe("AIClient", () => {
       expect(messages[1].content).toContain("func main() {}");
     });
   });
+
+  describe("empty choices", () => {
+    it("throws a descriptive error for text generation", async () => {
+      mockCreate.mockResolvedValueOnce({
+        choices: [],
+        model: "test-model",
+      });
+
+      await expect(client.generate("hello")).rejects.toThrow(
+        "provider returned no completion choices"
+      );
+    });
+
+    it("throws a descriptive error for image generation", async () => {
+      mockCreate.mockResolvedValueOnce({
+        choices: [],
+        model: "test-model",
+      });
+
+      await expect(client.generateWithImage("describe", "aW1hZ2U=")).rejects.toThrow(
+        "provider returned no completion choices"
+      );
+    });
+  });
 });
