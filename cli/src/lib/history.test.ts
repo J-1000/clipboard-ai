@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it } from "bun:test";
-import { existsSync, readFileSync, statSync } from "fs";
+import { beforeEach, describe, expect, it, spyOn } from "bun:test";
+import { existsSync, readFileSync, statSync, writeFileSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import { mkdtempSync } from "fs";
@@ -297,5 +297,51 @@ describe("history store", () => {
     const records = await readHistoryRecords();
     expect(removed).toBe(1);
     expect(records.map((record) => record.id)).toEqual(["new"]);
+  });
+
+  it("skips corrupt lines and warns once", async () => {
+    const { readHistoryRecords } = await loadHistoryModule();
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    writeFileSync(
+      historyFile,
+      [
+        JSON.stringify({
+          id: "valid-1",
+          timestamp: "2026-01-01T00:00:00.000Z",
+          action: "summary",
+          args: [],
+          source: "manual",
+          trigger: "cli",
+          provider: "ollama",
+          model: "mistral",
+          latency_ms: 10,
+          status: "success",
+          copy: false,
+          input: "one",
+        }),
+        "{bad json",
+        JSON.stringify({
+          id: "valid-2",
+          timestamp: "2026-01-02T00:00:00.000Z",
+          action: "explain",
+          args: [],
+          source: "manual",
+          trigger: "cli",
+          provider: "ollama",
+          model: "mistral",
+          latency_ms: 20,
+          status: "success",
+          copy: false,
+          input: "two",
+        }),
+      ].join("\n") + "\n",
+      "utf8"
+    );
+
+    const records = await readHistoryRecords();
+
+    expect(records.map((record) => record.id)).toEqual(["valid-2", "valid-1"]);
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    expect(errorSpy.mock.calls[0][0]).toContain("skipped 1 corrupt history entry");
   });
 });
