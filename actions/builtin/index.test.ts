@@ -13,25 +13,27 @@ mock.module("openai", () => ({
   },
 }));
 
-const { builtinActions, summarize, explain, translate, extract, classify } =
+const { builtinActions, summarize, explain, translate, extract, classify, summarizeUrl } =
   await import("./index.js");
 
 describe("builtin actions index", () => {
-  it("exports all five actions individually", () => {
+  it("exports all builtin actions individually", () => {
     expect(summarize).toBeDefined();
     expect(explain).toBeDefined();
     expect(translate).toBeDefined();
     expect(extract).toBeDefined();
     expect(classify).toBeDefined();
+    expect(summarizeUrl).toBeDefined();
   });
 
   it("exports builtinActions record with all actions", () => {
-    expect(Object.keys(builtinActions)).toHaveLength(5);
+    expect(Object.keys(builtinActions)).toHaveLength(6);
     expect(builtinActions.summarize).toBeDefined();
     expect(builtinActions.explain).toBeDefined();
     expect(builtinActions.translate).toBeDefined();
     expect(builtinActions.extract).toBeDefined();
     expect(builtinActions.classify).toBeDefined();
+    expect(builtinActions.summarize_url).toBeDefined();
   });
 
   it("each action has metadata with id", () => {
