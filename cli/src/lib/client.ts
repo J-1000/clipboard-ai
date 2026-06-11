@@ -39,6 +39,8 @@ export interface ConfigResponse {
     {
       enabled: boolean;
       trigger: string;
+      model?: string;
+      endpoint?: string;
       timeout_ms?: number;
       retry_count?: number;
       retry_backoff_ms?: number;

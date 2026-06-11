@@ -28,6 +28,8 @@ type ProviderConfig struct {
 type ActionConfig struct {
 	Enabled        bool   `toml:"enabled"`
 	Trigger        string `toml:"trigger"`          // trigger expression
+	Model          string `toml:"model"`            // optional model override
+	Endpoint       string `toml:"endpoint"`         // optional endpoint override
 	TimeoutMs      int    `toml:"timeout_ms"`       // action execution timeout override
 	RetryCount     int    `toml:"retry_count"`      // retries after initial attempt
 	RetryBackoffMs int    `toml:"retry_backoff_ms"` // delay between retries
