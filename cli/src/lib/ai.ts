@@ -23,12 +23,6 @@ export class AIClient {
   private onToken?: (token: string) => void;
 
   constructor(config: AIConfig) {
-    if (config.type === "anthropic") {
-      throw new Error(
-        'Provider type "anthropic" is not supported. Use an OpenAI-compatible endpoint or switch providers.'
-      );
-    }
-
     this.model = config.model;
     this.onToken = config.onToken;
 
@@ -53,7 +47,7 @@ export class AIClient {
       case "openai":
         return "https://api.openai.com/v1";
       case "anthropic":
-        return "https://api.anthropic.com/v1";
+        return "https://api.anthropic.com/v1/";
       default:
         return "http://localhost:11434/v1";
     }
