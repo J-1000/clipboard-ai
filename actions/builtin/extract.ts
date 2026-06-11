@@ -1,9 +1,5 @@
 import type { Action, ActionContext, ActionResult } from "../lib/types.js";
-import OpenAI from "openai";
-import {
-  isOpenAICompatibleProvider,
-  openAICompatibilityError,
-} from "../lib/provider.js";
+import { executeAIAction } from "../lib/execute.js";
 
 export const extract: Action = {
   metadata: {
@@ -14,45 +10,12 @@ export const extract: Action = {
   },
 
   async execute(ctx: ActionContext): Promise<ActionResult> {
-    if (!isOpenAICompatibleProvider(ctx.config.provider.type)) {
-      return {
-        success: false,
-        error: openAICompatibilityError(ctx.config.provider.type),
-      };
-    }
-
-    try {
-      const client = new OpenAI({
-        baseURL: ctx.config.provider.endpoint,
-        apiKey: ctx.config.provider.apiKey || "dummy",
-      });
-
-      const response = await client.chat.completions.create({
-        model: ctx.config.provider.model,
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are a data extraction assistant. Extract key information from the text and output it in a structured format. Use JSON when appropriate.",
-          },
-          {
-            role: "user",
-            content: `Extract structured data from the following:\n\n${ctx.text}`,
-          },
-        ],
-        max_tokens: 1024,
-      });
-
-      return {
-        success: true,
-        output: response.choices[0]?.message.content || "",
-      };
-    } catch (err) {
-      return {
-        success: false,
-        error: (err as Error).message,
-      };
-    }
+    return executeAIAction(ctx, {
+      systemPrompt:
+        "You are a data extraction assistant. Extract key information from the text and output it in a structured format. Use JSON when appropriate.",
+      userPrompt: `Extract structured data from the following:\n\n${ctx.text}`,
+      maxTokens: 1024,
+    });
   },
 };
 
