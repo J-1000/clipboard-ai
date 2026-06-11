@@ -97,11 +97,19 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
       console.log(`${action.progressMessage}\n`);
     }
 
+    const shouldStreamOutput = shouldStreamActionOutput(action.id, source, options);
+    const streamedChunks: string[] = [];
     const ai = new AIClient({
       type: config.provider.type,
       endpoint: config.provider.endpoint,
       model: config.provider.model,
       apiKey: config.provider.api_key,
+      onToken: shouldStreamOutput
+        ? (token) => {
+            streamedChunks.push(token);
+            process.stdout.write(token);
+          }
+        : undefined,
     });
 
     const startedAt = Date.now();
@@ -120,9 +128,14 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
       latencyMs = Date.now() - startedAt;
     }
 
-    console.log(`${action.outputTitle}:`);
-    console.log("─".repeat(action.outputTitle.length));
-    console.log(output);
+    if (shouldStreamOutput) {
+      output = streamedChunks.join("");
+      process.stdout.write("\n");
+    } else {
+      console.log(`${action.outputTitle}:`);
+      console.log("─".repeat(action.outputTitle.length));
+      console.log(output);
+    }
 
     if (options.copy) {
       copyToClipboard(output);
@@ -163,4 +176,15 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
   if (runError) {
     process.exit(1);
   }
+}
+
+function shouldStreamActionOutput(
+  actionId: string,
+  source: RunSource,
+  options: RunActionOptions
+): boolean {
+  if (source !== "manual" || options.copy || !process.stdout.isTTY) {
+    return false;
+  }
+  return actionId !== "classify" && actionId !== "extract";
 }
