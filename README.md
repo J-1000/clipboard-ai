@@ -189,6 +189,11 @@ trigger = "mime:code"
 # [actions.ocr]
 # enabled = false
 # trigger = "mime:image"
+
+# URL summarization (disabled by default)
+# [actions.summarize_url]
+# enabled = false
+# trigger = "regex:^https?://\\S+$"
 ```
 
 ### Local HTTP API
@@ -212,6 +217,12 @@ When `settings.http_enabled = true`, the agent also exposes a localhost HTTP API
 - `A AND B` - Both conditions
 - `NOT A` - Negate a condition/expression
 - `(A OR B) AND C` - Grouped expressions with parentheses
+
+### URL Summarization
+
+`summarize_url` fetches a single HTTP(S) URL from clipboard text, extracts readable text from `text/html` or `text/plain` responses, and summarizes it. The fetch has a 10 second timeout and 2 MB response limit.
+
+Fetching a URL makes a network request to that site even when safe mode is enabled. Safe mode controls LLM provider calls; it does not block URL fetching. Keep `actions.summarize_url` disabled unless that network behavior is acceptable.
 
 ### Reliability Controls
 

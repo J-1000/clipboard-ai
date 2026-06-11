@@ -75,3 +75,9 @@ trigger = "mime:code"
 # [actions.improve]
 # enabled = false
 # trigger = "length > 50"
+
+# [actions.summarize_url]
+# enabled = false
+# Fetches matching URLs over the network before summarizing.
+# Safe mode controls LLM provider calls, not this URL fetch.
+# trigger = "regex:^https?://\\S+$"
