@@ -27,6 +27,21 @@
       "description": "Explain the current clipboard with clipboard-ai.",
       "mode": "view",
       "keywords": ["explain", "code"]
+    },
+    {
+      "name": "translate",
+      "title": "Translate Clipboard",
+      "description": "Translate the current clipboard with clipboard-ai.",
+      "mode": "view",
+      "keywords": ["translate"],
+      "arguments": [
+        {
+          "name": "language",
+          "type": "text",
+          "placeholder": "Target language",
+          "required": true
+        }
+      ]
     }
   ],
   "preferences": [
