@@ -54,6 +54,7 @@ describe("IPC Client", () => {
   let server: Server;
 
   afterEach((done) => {
+    delete process.env.CBAI_IPC_TIMEOUT_MS;
     if (server) {
       server.close(() => {
         if (existsSync(TEST_SOCKET)) {
@@ -180,6 +181,25 @@ describe("IPC Client", () => {
       server = null as unknown as Server;
 
       await expect(getStatus()).rejects.toThrow("Agent not running");
+    });
+
+    it("rejects when daemon does not respond before timeout", async () => {
+      process.env.CBAI_IPC_TIMEOUT_MS = "100";
+
+      await new Promise<void>((resolve) => {
+        mkdirSync(dirname(TEST_SOCKET), { recursive: true });
+        if (existsSync(TEST_SOCKET)) {
+          unlinkSync(TEST_SOCKET);
+        }
+        server = createServer(() => {
+          // Intentionally leave the response open to exercise the client timeout.
+        });
+        server.listen(TEST_SOCKET, () => resolve());
+      });
+
+      await expect(getStatus()).rejects.toThrow(
+        "daemon did not respond within 0.1s — is clipboard-ai-agent running? Try `cbai logs`"
+      );
     });
   });
 });
