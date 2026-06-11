@@ -2,6 +2,10 @@ import { createInterface } from "readline";
 import type { ConfigResponse } from "./client.js";
 
 export function isCloudProvider(providerType: string, endpoint?: string): boolean {
+  if (endpoint) {
+    return !isLocalEndpoint(endpoint);
+  }
+
   if (providerType === "openai") {
     return true;
   }
@@ -14,20 +18,20 @@ export function isCloudProvider(providerType: string, endpoint?: string): boolea
     return false;
   }
 
-  // Custom provider — check if endpoint is localhost
-  if (endpoint) {
-    try {
-      const url = new URL(endpoint);
-      const host = url.hostname;
-      if (host === "localhost" || host === "127.0.0.1" || host === "::1") {
-        return false;
-      }
-    } catch {
-      // Invalid URL — treat as cloud to be safe
-    }
-  }
-
   return true;
+}
+
+function isLocalEndpoint(endpoint: string): boolean {
+  try {
+    const url = new URL(endpoint);
+    return (
+      url.hostname === "localhost" ||
+      url.hostname === "127.0.0.1" ||
+      url.hostname === "::1"
+    );
+  } catch {
+    return false;
+  }
 }
 
 function confirm(message: string): Promise<boolean> {

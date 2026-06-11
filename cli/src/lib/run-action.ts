@@ -1,7 +1,8 @@
 import { AIClient } from "./ai.js";
 import { resolveAction, getActionRegistry, type ActionRegistry } from "./action-registry.js";
+import type { ActionDefinition } from "./action-types.js";
 import { copyToClipboard } from "./clipboard.js";
-import { getConfig } from "./client.js";
+import { getConfig, type ConfigResponse } from "./client.js";
 import { appendHistoryRecord, type HistoryRetentionSettings, type RunSource } from "./history.js";
 import { getInput, type InputPayload } from "./input.js";
 import { enforceSafeMode } from "./safe-mode.js";
@@ -71,8 +72,13 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
 
     source = options.source ?? (process.env.CBAI_DAEMON_MODE === "true" ? "daemon" : "manual");
     trigger = options.trigger ?? process.env.CBAI_TRIGGER ?? (source === "manual" ? "cli" : "daemon");
-    providerType = config.provider.type;
-    providerModel = config.provider.model;
+    const actionConfig = resolveConfiguredAction(config, actionName, action);
+    const effectiveConfig = withProviderOverrides(config, {
+      model: process.env.CBAI_MODEL_OVERRIDE || actionConfig?.model,
+      endpoint: process.env.CBAI_ENDPOINT_OVERRIDE || actionConfig?.endpoint,
+    });
+    providerType = effectiveConfig.provider.type;
+    providerModel = effectiveConfig.provider.model;
     resolvedActionName = action.id;
     inputText = text || input.rtf || (input.imageBase64 ? "[image]" : "");
     shouldRecord = true;
@@ -91,7 +97,7 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
       }
     }
 
-    await enforceSafeMode(config, { yes: options.yes });
+    await enforceSafeMode(effectiveConfig, { yes: options.yes });
 
     if (action.progressMessage) {
       console.log(`${action.progressMessage}\n`);
@@ -100,10 +106,10 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
     const shouldStreamOutput = shouldStreamActionOutput(action.id, source, options);
     const streamedChunks: string[] = [];
     const ai = new AIClient({
-      type: config.provider.type,
-      endpoint: config.provider.endpoint,
-      model: config.provider.model,
-      apiKey: config.provider.api_key,
+      type: effectiveConfig.provider.type,
+      endpoint: effectiveConfig.provider.endpoint,
+      model: effectiveConfig.provider.model,
+      apiKey: effectiveConfig.provider.api_key,
       onToken: shouldStreamOutput
         ? (token) => {
             streamedChunks.push(token);
@@ -121,7 +127,7 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
         imageMime: input.imageMime,
         contentType: input.type,
         ai,
-        config,
+        config: effectiveConfig,
         args: options.args ?? [],
       });
     } finally {
@@ -187,4 +193,36 @@ function shouldStreamActionOutput(
     return false;
   }
   return actionId !== "classify" && actionId !== "extract";
+}
+
+function resolveConfiguredAction(
+  config: ConfigResponse,
+  requestedName: string,
+  action: ActionDefinition
+): ConfigResponse["actions"][string] | undefined {
+  const names = [action.id, requestedName, ...(action.aliases ?? [])];
+  for (const name of names) {
+    const actionConfig = config.actions[name];
+    if (actionConfig) {
+      return actionConfig;
+    }
+  }
+  return undefined;
+}
+
+function withProviderOverrides(
+  config: ConfigResponse,
+  overrides: { model?: string; endpoint?: string }
+): ConfigResponse {
+  const model = overrides.model?.trim();
+  const endpoint = overrides.endpoint?.trim();
+
+  return {
+    ...config,
+    provider: {
+      ...config.provider,
+      model: model || config.provider.model,
+      endpoint: endpoint || config.provider.endpoint,
+    },
+  };
 }
