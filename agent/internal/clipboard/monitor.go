@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"log/slog"
 	"os/exec"
 	"strings"
 	"sync"
@@ -36,6 +37,8 @@ const (
 
 	defaultPollIntervalMs = 150
 )
+
+var logRTFReadFailureOnce sync.Once
 
 // Handler is called when clipboard content changes
 type Handler func(content Content)
@@ -159,6 +162,9 @@ func readRTF() string {
 	cmd := exec.Command("pbpaste", "-Prefer", "rtf")
 	output, err := cmd.Output()
 	if err != nil {
+		logRTFReadFailureOnce.Do(func() {
+			slog.Warn("failed to read RTF clipboard content", "error", err)
+		})
 		return ""
 	}
 	rtf := strings.TrimSpace(string(output))
