@@ -19,6 +19,7 @@ import (
 )
 
 const maxActionRequestBodyBytes = 10 << 20
+const maxClipboardImageBytes = 25 << 20
 
 // Server provides HTTP API over Unix socket
 type Server struct {
@@ -44,13 +45,15 @@ type StatusResponse struct {
 
 // ClipboardResponse is returned by /clipboard endpoint
 type ClipboardResponse struct {
-	Text        string `json:"text"`
-	RTF         string `json:"rtf,omitempty"`
-	ImageBase64 string `json:"image_base64,omitempty"`
-	ImageMime   string `json:"image_mime,omitempty"`
-	Type        string `json:"type"`
-	Timestamp   string `json:"timestamp"`
-	Length      int    `json:"length"`
+	Text           string `json:"text"`
+	RTF            string `json:"rtf,omitempty"`
+	ImageBase64    string `json:"image_base64,omitempty"`
+	ImageMime      string `json:"image_mime,omitempty"`
+	ImageTruncated bool   `json:"image_truncated,omitempty"`
+	ImageSizeBytes int    `json:"image_size_bytes,omitempty"`
+	Type           string `json:"type"`
+	Timestamp      string `json:"timestamp"`
+	Length         int    `json:"length"`
 }
 
 // ConfigResponse is returned by /config endpoint
@@ -155,8 +158,13 @@ func (s *Server) handleClipboard(w http.ResponseWriter, r *http.Request) {
 		resp.RTF = current.RTF
 	}
 	if current.Type == clipboard.ContentTypeImage && len(current.Image) > 0 {
-		resp.ImageBase64 = base64.StdEncoding.EncodeToString(current.Image)
 		resp.ImageMime = current.ImageMime
+		resp.ImageSizeBytes = len(current.Image)
+		if len(current.Image) > maxClipboardImageBytes {
+			resp.ImageTruncated = true
+		} else {
+			resp.ImageBase64 = base64.StdEncoding.EncodeToString(current.Image)
+		}
 	}
 
 	writeJSON(w, resp)
