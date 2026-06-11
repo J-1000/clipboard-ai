@@ -1,6 +1,7 @@
 import { Action, ActionPanel, Detail } from "@raycast/api";
 
-const docsUrl = "https://github.com/J-1000/clipboard-ai/blob/main/docs/http-api.md";
+const docsUrl =
+  "https://github.com/J-1000/clipboard-ai/blob/main/docs/http-api.md";
 const configSnippet = `[settings]
 http_enabled = true
 http_addr = "127.0.0.1:9159"
@@ -21,7 +22,10 @@ The API is local-only by default and every request must include the configured t
       actions={
         <ActionPanel>
           <Action.OpenInBrowser title="Open HTTP API Docs" url={docsUrl} />
-          <Action.CopyToClipboard title="Copy Config Snippet" content={configSnippet} />
+          <Action.CopyToClipboard
+            title="Copy Config Snippet"
+            content={configSnippet}
+          />
         </ActionPanel>
       }
     />

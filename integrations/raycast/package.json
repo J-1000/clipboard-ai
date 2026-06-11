@@ -3,9 +3,14 @@
   "title": "Clipboard AI",
   "description": "Run clipboard-ai actions from Raycast through the local HTTP API.",
   "icon": "icon.png",
-  "author": "J-1000",
-  "platforms": ["macOS"],
-  "categories": ["Productivity", "Developer Tools"],
+  "author": "jan",
+  "platforms": [
+    "macOS"
+  ],
+  "categories": [
+    "Productivity",
+    "Developer Tools"
+  ],
   "license": "MIT",
   "commands": [
     {
@@ -19,21 +24,29 @@
       "title": "Summarize Clipboard",
       "description": "Summarize the current clipboard with clipboard-ai.",
       "mode": "view",
-      "keywords": ["summary", "summarize"]
+      "keywords": [
+        "summary",
+        "summarize"
+      ]
     },
     {
       "name": "explain",
       "title": "Explain Clipboard",
       "description": "Explain the current clipboard with clipboard-ai.",
       "mode": "view",
-      "keywords": ["explain", "code"]
+      "keywords": [
+        "explain",
+        "code"
+      ]
     },
     {
       "name": "translate",
       "title": "Translate Clipboard",
       "description": "Translate the current clipboard with clipboard-ai.",
       "mode": "view",
-      "keywords": ["translate"],
+      "keywords": [
+        "translate"
+      ],
       "arguments": [
         {
           "name": "language",
@@ -48,7 +61,10 @@
       "title": "Clipboard AI History",
       "description": "Show recent clipboard-ai action runs.",
       "mode": "view",
-      "keywords": ["history", "recent"]
+      "keywords": [
+        "history",
+        "recent"
+      ]
     }
   ],
   "preferences": [
@@ -83,7 +99,7 @@
     "@raycast/eslint-config": "2.1.1",
     "@types/node": "22.10.2",
     "@types/react": "19.0.2",
-    "eslint": "9.17.0",
+    "eslint": "9.39.4",
     "prettier": "3.4.2",
     "typescript": "5.7.2"
   }

@@ -20,7 +20,11 @@ export function ActionView({ action, title, body }: ActionViewProps) {
       } catch (err) {
         const message = (err as Error).message;
         setError(message);
-        await showToast({ style: Toast.Style.Failure, title: `${title} failed`, message });
+        await showToast({
+          style: Toast.Style.Failure,
+          title: `${title} failed`,
+          message,
+        });
       }
     }
 

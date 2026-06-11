@@ -41,19 +41,25 @@ export function preferences(): Preferences {
   };
 }
 
-export async function runAction(action: string, body: Record<string, unknown> = {}): Promise<ActionResponse> {
+export async function runAction(
+  action: string,
+  body: Record<string, unknown> = {},
+): Promise<ActionResponse> {
   return request<ActionResponse>("/action", {
     method: "POST",
     body: JSON.stringify({ action, ...body }),
   });
 }
 
-export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+export async function request<T>(
+  path: string,
+  init: RequestInit = {},
+): Promise<T> {
   const prefs = preferences();
   const response = await fetch(`${prefs.baseUrl}${path}`, {
     ...init,
     headers: {
-      "Authorization": `Bearer ${prefs.token}`,
+      Authorization: `Bearer ${prefs.token}`,
       "Content-Type": "application/json",
       ...(init.headers ?? {}),
     },
@@ -61,7 +67,9 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
 
   const text = await response.text();
   if (!response.ok) {
-    throw new Error(text || `clipboard-ai HTTP API returned ${response.status}`);
+    throw new Error(
+      text || `clipboard-ai HTTP API returned ${response.status}`,
+    );
   }
 
   try {

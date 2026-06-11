@@ -1,4 +1,11 @@
-import { Action, ActionPanel, Icon, List, showToast, Toast } from "@raycast/api";
+import {
+  Action,
+  ActionPanel,
+  Icon,
+  List,
+  showToast,
+  Toast,
+} from "@raycast/api";
 import { useEffect, useState } from "react";
 import { HistoryResponse, request, type HistoryRecord } from "./api";
 
@@ -26,11 +33,16 @@ export default function Command() {
   }, []);
 
   return (
-    <List isLoading={isLoading} searchBarPlaceholder="Search recent action runs">
+    <List
+      isLoading={isLoading}
+      searchBarPlaceholder="Search recent action runs"
+    >
       {records.map((record) => (
         <List.Item
           key={record.id}
-          icon={record.status === "success" ? Icon.CheckCircle : Icon.XMarkCircle}
+          icon={
+            record.status === "success" ? Icon.CheckCircle : Icon.XMarkCircle
+          }
           title={record.action}
           subtitle={record.output || record.error || record.input}
           accessories={[
@@ -47,9 +59,15 @@ export default function Command() {
 function HistoryActions({ record }: { record: HistoryRecord }) {
   return (
     <ActionPanel>
-      {record.output ? <Action.CopyToClipboard title="Copy Output" content={record.output} /> : null}
-      {record.input ? <Action.CopyToClipboard title="Copy Input" content={record.input} /> : null}
-      {record.error ? <Action.CopyToClipboard title="Copy Error" content={record.error} /> : null}
+      {record.output ? (
+        <Action.CopyToClipboard title="Copy Output" content={record.output} />
+      ) : null}
+      {record.input ? (
+        <Action.CopyToClipboard title="Copy Input" content={record.input} />
+      ) : null}
+      {record.error ? (
+        <Action.CopyToClipboard title="Copy Error" content={record.error} />
+      ) : null}
     </ActionPanel>
   );
 }
