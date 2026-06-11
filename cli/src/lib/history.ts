@@ -68,12 +68,27 @@ export async function readHistoryRecords(limit?: number): Promise<ActionRunRecor
   }
 
   const data = await readFile(historyFile, "utf8");
-  const records = data
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-    .map((line) => JSON.parse(line) as ActionRunRecord)
-    .reverse();
+  const records: ActionRunRecord[] = [];
+  let corruptCount = 0;
+
+  for (const line of data.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed.length === 0) {
+      continue;
+    }
+
+    try {
+      records.push(JSON.parse(trimmed) as ActionRunRecord);
+    } catch {
+      corruptCount += 1;
+    }
+  }
+
+  if (corruptCount > 0) {
+    console.error(`Warning: skipped ${corruptCount} corrupt history entr${corruptCount === 1 ? "y" : "ies"}`);
+  }
+
+  records.reverse();
 
   if (limit !== undefined && limit >= 0) {
     return records.slice(0, limit);
