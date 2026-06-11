@@ -253,6 +253,57 @@ func TestHandleConfig_WrongMethod(t *testing.T) {
 	}
 }
 
+func TestHandleHistory_GET(t *testing.T) {
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+	dataDir := filepath.Join(tmpHome, ".clipboard-ai")
+	if err := os.MkdirAll(dataDir, 0700); err != nil {
+		t.Fatalf("failed to create data dir: %v", err)
+	}
+	history := `{"id":"old","timestamp":"2026-06-11T10:00:00Z","action":"summarize","args":[],"source":"manual","trigger":"cli","provider":"ollama","model":"mistral","latency_ms":10,"status":"success","copy":false,"input":"old","output":"old out"}
+not json
+{"id":"new","timestamp":"2026-06-11T11:00:00Z","action":"explain","args":[],"source":"manual","trigger":"cli","provider":"ollama","model":"mistral","latency_ms":20,"status":"success","copy":false,"input":"new","output":"new out"}
+`
+	if err := os.WriteFile(filepath.Join(dataDir, "history.jsonl"), []byte(history), 0600); err != nil {
+		t.Fatalf("failed to write history: %v", err)
+	}
+
+	s := newTestServer()
+	req := httptest.NewRequest(http.MethodGet, "/history?limit=1", nil)
+	w := httptest.NewRecorder()
+
+	s.handleHistory(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var resp HistoryResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if len(resp.Records) != 1 {
+		t.Fatalf("expected 1 record, got %d", len(resp.Records))
+	}
+	if resp.Records[0].ID != "new" {
+		t.Fatalf("expected newest record first, got %q", resp.Records[0].ID)
+	}
+	if resp.SkippedCorrupt != 1 {
+		t.Fatalf("expected skipped_corrupt 1, got %d", resp.SkippedCorrupt)
+	}
+}
+
+func TestHandleHistory_InvalidLimit(t *testing.T) {
+	s := newTestServer()
+	req := httptest.NewRequest(http.MethodGet, "/history?limit=-1", nil)
+	w := httptest.NewRecorder()
+
+	s.handleHistory(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", w.Code)
+	}
+}
+
 func TestHandleAction_WrongMethod(t *testing.T) {
 	s := newTestServer()
 

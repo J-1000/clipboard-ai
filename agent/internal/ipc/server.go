@@ -1,6 +1,7 @@
 package ipc
 
 import (
+	"bufio"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -9,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -79,6 +81,31 @@ type ConfigResponse struct {
 	Settings config.SettingsConfig          `json:"settings"`
 }
 
+// HistoryRecord mirrors CLI history records stored in history.jsonl.
+type HistoryRecord struct {
+	ID        string   `json:"id"`
+	Timestamp string   `json:"timestamp"`
+	Action    string   `json:"action"`
+	Args      []string `json:"args"`
+	Source    string   `json:"source"`
+	Trigger   string   `json:"trigger"`
+	Provider  string   `json:"provider"`
+	Model     string   `json:"model"`
+	LatencyMs int      `json:"latency_ms"`
+	Status    string   `json:"status"`
+	Copy      bool     `json:"copy"`
+	Input     string   `json:"input"`
+	Output    string   `json:"output,omitempty"`
+	Error     string   `json:"error,omitempty"`
+	ReplayOf  string   `json:"replay_of,omitempty"`
+}
+
+// HistoryResponse is returned by /history.
+type HistoryResponse struct {
+	Records        []HistoryRecord `json:"records"`
+	SkippedCorrupt int             `json:"skipped_corrupt,omitempty"`
+}
+
 // NewServer creates a new IPC server
 func NewServer(socketPath string, monitor *clipboard.Monitor, cfg *config.Config, version string) *Server {
 	return &Server{
@@ -135,6 +162,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/clipboard", s.handleClipboard)
 	mux.HandleFunc("/config", s.handleConfig)
 	mux.HandleFunc("/action", s.handleAction)
+	mux.HandleFunc("/history", s.handleHistory)
 	return mux
 }
 
@@ -202,6 +230,37 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, redactedConfigResponse(s.configSnapshot()))
+}
+
+func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	limit := 20
+	if value := strings.TrimSpace(r.URL.Query().Get("limit")); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed < 0 {
+			http.Error(w, "Invalid limit", http.StatusBadRequest)
+			return
+		}
+		if parsed > 100 {
+			parsed = 100
+		}
+		limit = parsed
+	}
+
+	records, skipped, err := readHistoryRecords(filepath.Join(config.GetDataDir(), "history.jsonl"), limit)
+	if err != nil {
+		http.Error(w, "Failed to read history", http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, HistoryResponse{
+		Records:        records,
+		SkippedCorrupt: skipped,
+	})
 }
 
 func redactedConfigResponse(cfg *config.Config) ConfigResponse {
@@ -341,6 +400,45 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 		Action:  req.Action,
 		Result:  result.Output,
 	})
+}
+
+func readHistoryRecords(path string, limit int) ([]HistoryRecord, int, error) {
+	file, err := os.Open(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return []HistoryRecord{}, 0, nil
+	}
+	if err != nil {
+		return nil, 0, err
+	}
+	defer file.Close()
+
+	var records []HistoryRecord
+	skipped := 0
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		var record HistoryRecord
+		if err := json.Unmarshal([]byte(line), &record); err != nil {
+			skipped++
+			continue
+		}
+		records = append(records, record)
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, skipped, err
+	}
+
+	for i, j := 0, len(records)-1; i < j; i, j = i+1, j-1 {
+		records[i], records[j] = records[j], records[i]
+	}
+	if limit >= 0 && len(records) > limit {
+		records = records[:limit]
+	}
+
+	return records, skipped, nil
 }
 
 // writeJSON writes a JSON response
