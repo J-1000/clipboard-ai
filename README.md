@@ -119,6 +119,12 @@ cbai logs --tail 100
 
 # View configuration
 cbai config
+
+# List registered actions
+cbai actions
+
+# Run diagnostics
+cbai doctor
 ```
 
 ### --copy Flag
@@ -203,6 +209,12 @@ When `settings.http_enabled = true`, the agent also exposes a localhost HTTP API
 - Full endpoint reference: `docs/http-api.md`
 - Integration snippets (Raycast, Alfred, editor shell): `docs/integrations/local-http-clients.md`
 - Example script: `scripts/examples/http-action.sh`
+
+### Diagnostics
+
+- `cbai actions` lists built-in and plugin actions with aliases, descriptions, enabled state, and configured triggers.
+- `cbai doctor` checks daemon reachability, daemon/CLI version match, provider reachability, Ollama model availability, image-action model guidance, history file size, and plugin directory state.
+- If image actions are enabled and model vision support cannot be recognized, doctor reports `unknown — caption/ocr may fail`.
 
 ### Trigger Expressions
 

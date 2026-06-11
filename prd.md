@@ -347,11 +347,14 @@ Completed (as of 2026-06-11):
    - Built-in action execution is deduplicated behind a shared helper.
    - Action type boundaries between `actions/` and `cli/` are documented.
    - Regex triggers are validated and compiled when the rules engine starts.
-
-Next:
-
-1. Clipboard image UX
-   - Add clearer user messaging for vision model requirements and error handling.
+11. Sensitive-data guard
+   - Clipboard text is scanned for likely secrets/PII before actions run.
+   - Guard-triggered runs do not persist clipboard content to history.
+12. Feature additions
+   - Manual CLI actions can stream model output on TTY when not copying output.
+   - `summarize_url` fetches and summarizes a single HTTP(S) URL.
+   - `cbai actions` lists registered actions with trigger state.
+   - `cbai doctor` provides local diagnostics and clearer vision model guidance for image actions.
 
 ## 15. Repository Structure
 
