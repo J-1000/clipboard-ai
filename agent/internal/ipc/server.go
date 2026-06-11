@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 	"unicode/utf8"
 
@@ -81,18 +82,26 @@ func (s *Server) Start(ctx context.Context) error {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
 	}
+	if err := os.Chmod(dir, 0700); err != nil {
+		return err
+	}
 
 	// Remove existing socket
 	os.Remove(s.socketPath)
 
+	oldUmask := syscall.Umask(0077)
 	listener, err := net.Listen("unix", s.socketPath)
+	syscall.Umask(oldUmask)
 	if err != nil {
 		return err
 	}
 	s.listener = listener
 
 	// Set socket permissions
-	os.Chmod(s.socketPath, 0600)
+	if err := os.Chmod(s.socketPath, 0600); err != nil {
+		listener.Close()
+		return err
+	}
 
 	server := &http.Server{Handler: s.Handler()}
 
