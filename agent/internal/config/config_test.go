@@ -367,6 +367,31 @@ sensitive_guard = "maybe"
 	}
 }
 
+func TestReloadFromPath_KeepsPreviousConfigOnValidationError(t *testing.T) {
+	tmpDir := t.TempDir()
+	configFile := filepath.Join(tmpDir, "config.toml")
+	if err := os.WriteFile(configFile, []byte(`
+[settings]
+poll_interval = 0
+`), 0600); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	previous := Default()
+	previous.Provider.Model = "previous-model"
+
+	reloaded, err := ReloadFromPath(configFile, previous)
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+	if reloaded != previous {
+		t.Fatal("expected previous config pointer to be returned on reload failure")
+	}
+	if reloaded.Provider.Model != "previous-model" {
+		t.Fatalf("expected previous model to be preserved, got %q", reloaded.Provider.Model)
+	}
+}
+
 func TestGetSocketPath(t *testing.T) {
 	path := GetSocketPath()
 	if path == "" {

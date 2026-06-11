@@ -219,6 +219,27 @@ func TestHandleConfig_RedactsSecrets(t *testing.T) {
 	}
 }
 
+func TestHandleConfig_UsesSwappedConfig(t *testing.T) {
+	s := newTestServer()
+
+	next := config.Default()
+	next.Provider.Model = "reloaded-model"
+	s.SetConfig(next)
+
+	req := httptest.NewRequest(http.MethodGet, "/config", nil)
+	w := httptest.NewRecorder()
+
+	s.handleConfig(w, req)
+
+	var resp ConfigResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp.Provider.Model != "reloaded-model" {
+		t.Fatalf("expected reloaded model, got %q", resp.Provider.Model)
+	}
+}
+
 func TestHandleConfig_WrongMethod(t *testing.T) {
 	s := newTestServer()
 
