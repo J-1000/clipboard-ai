@@ -4,6 +4,7 @@ import { homedir } from "os";
 import { join } from "path";
 
 const SOCKET_PATH = join(homedir(), ".clipboard-ai", "agent.sock");
+const DEFAULT_IPC_TIMEOUT_MS = 10_000;
 
 export interface StatusResponse {
   status: string;
@@ -86,10 +87,21 @@ async function makeRequest<T>(
       },
     };
 
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    let timedOut = false;
+    const timeoutMs = getIPCTimeoutMs();
+    const timeoutError = () =>
+      new Error(
+        `daemon did not respond within ${formatTimeoutSeconds(timeoutMs)} — is clipboard-ai-agent running? Try \`cbai logs\``
+      );
+
     const req = request(options, (res) => {
       let data = "";
       res.on("data", (chunk) => (data += chunk));
       res.on("end", () => {
+        if (timeout) {
+          clearTimeout(timeout);
+        }
         const statusCode = res.statusCode || 0;
         const isSuccess = statusCode >= 200 && statusCode < 300;
 
@@ -118,6 +130,9 @@ async function makeRequest<T>(
     });
 
     req.on("error", (err) => {
+      if (timeout) {
+        clearTimeout(timeout);
+      }
       if ((err as NodeJS.ErrnoException).code === "ENOENT") {
         reject(
           new Error("Agent not running. Start with: clipboard-ai-agent")
@@ -128,6 +143,18 @@ async function makeRequest<T>(
         reject(err);
       }
     });
+
+    const onTimeout = () => {
+      if (timedOut) {
+        return;
+      }
+      timedOut = true;
+      const err = timeoutError();
+      reject(err);
+      req.destroy(err);
+    };
+    req.setTimeout(timeoutMs, onTimeout);
+    timeout = setTimeout(onTimeout, timeoutMs);
 
     if (body) {
       req.write(JSON.stringify(body));
@@ -153,4 +180,17 @@ export async function runAction(
   text?: string
 ): Promise<ActionResponse> {
   return makeRequest<ActionResponse>("POST", "/action", { action, text });
+}
+
+function getIPCTimeoutMs(): number {
+  const configured = Number.parseInt(process.env.CBAI_IPC_TIMEOUT_MS ?? "", 10);
+  if (Number.isFinite(configured) && configured > 0) {
+    return configured;
+  }
+  return DEFAULT_IPC_TIMEOUT_MS;
+}
+
+function formatTimeoutSeconds(timeoutMs: number): string {
+  const seconds = timeoutMs / 1000;
+  return Number.isInteger(seconds) ? `${seconds}s` : `${seconds.toFixed(1)}s`;
 }
