@@ -9,6 +9,15 @@ const mockCreate = mock(() =>
   })
 );
 
+async function* streamChunks(tokens: string[]) {
+  for (const token of tokens) {
+    yield {
+      choices: [{ delta: { content: token } }],
+      model: "stream-model",
+    };
+  }
+}
+
 mock.module("openai", () => ({
   default: class MockOpenAI {
     chat = {
@@ -172,6 +181,24 @@ describe("AIClient", () => {
       await expect(client.generateWithImage("describe", "aW1hZ2U=")).rejects.toThrow(
         "provider returned no completion choices"
       );
+    });
+  });
+
+  describe("generateStream", () => {
+    it("accumulates streamed tokens and invokes callback", async () => {
+      mockCreate.mockResolvedValueOnce(streamChunks(["hello", " ", "world"]));
+      const chunks: string[] = [];
+
+      const result = await client.generateStream("test", undefined, (token) => {
+        chunks.push(token);
+      });
+
+      expect(result.content).toBe("hello world");
+      expect(result.model).toBe("stream-model");
+      expect(chunks).toEqual(["hello", " ", "world"]);
+
+      const call = mockCreate.mock.calls[0][0] as Record<string, unknown>;
+      expect(call.stream).toBe(true);
     });
   });
 });

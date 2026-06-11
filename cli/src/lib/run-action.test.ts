@@ -12,6 +12,7 @@ const mockGetInput = mock(() => Promise.resolve({ text: "clipboard text" }));
 const mockEnforceSafeMode = mock(() => Promise.resolve());
 const mockCopyToClipboard = mock(() => undefined);
 const mockAppendHistoryRecord = mock(() => Promise.resolve(undefined));
+const mockAIConfigs: Array<{ onToken?: (token: string) => void }> = [];
 
 mock.module("./client.js", () => ({
   getConfig: mockGetConfig,
@@ -29,7 +30,17 @@ mock.module("./history.js", () => ({
   appendHistoryRecord: mockAppendHistoryRecord,
 }));
 mock.module("./ai.js", () => ({
-  AIClient: class {},
+  AIClient: class {
+    constructor(public config: { onToken?: (token: string) => void }) {
+      mockAIConfigs.push(config);
+    }
+
+    async generate(): Promise<{ content: string }> {
+      this.config.onToken?.("streamed");
+      this.config.onToken?.(" output");
+      return { content: "streamed output" };
+    }
+  },
 }));
 
 const { runActionCommand } = await import("./run-action.js");
@@ -50,9 +61,14 @@ describe("runActionCommand history", () => {
     mockEnforceSafeMode.mockClear();
     mockCopyToClipboard.mockClear();
     mockAppendHistoryRecord.mockClear();
+    mockAIConfigs.length = 0;
     spyOn(console, "log").mockImplementation(() => {});
     spyOn(console, "error").mockImplementation(() => {});
     delete process.env.CBAI_SENSITIVE_GUARD_HIT;
+    Object.defineProperty(process.stdout, "isTTY", {
+      value: false,
+      configurable: true,
+    });
   });
 
   it("records successful runs", async () => {
@@ -168,5 +184,70 @@ describe("runActionCommand history", () => {
     const call = mockAppendHistoryRecord.mock.calls[0][0];
     expect(call.input).toBe("[sensitive content omitted]");
     expect(call.output).toBeUndefined();
+  });
+
+  it("streams manual TTY output and records accumulated output", async () => {
+    Object.defineProperty(process.stdout, "isTTY", {
+      value: true,
+      configurable: true,
+    });
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(() => true);
+    (console.log as unknown as { mockClear: () => void }).mockClear();
+    const streamingRegistry = createActionRegistry([
+      {
+        id: "summary",
+        description: "Summary",
+        outputTitle: "Summary",
+        run: async ({ ai }) => (await ai.generate("prompt")).content,
+      },
+    ]);
+
+    await runActionCommand("summary", { registry: streamingRegistry });
+
+    expect(writeSpy).toHaveBeenCalledWith("streamed");
+    expect(writeSpy).toHaveBeenCalledWith(" output");
+    expect(writeSpy).toHaveBeenCalledWith("\n");
+    expect(console.log).not.toHaveBeenCalledWith("Summary:");
+    const call = mockAppendHistoryRecord.mock.calls[0][0];
+    expect(call.output).toBe("streamed output");
+    writeSpy.mockRestore();
+  });
+
+  it("uses buffered output when stdout is not a TTY", async () => {
+    const streamingRegistry = createActionRegistry([
+      {
+        id: "summary",
+        description: "Summary",
+        outputTitle: "Summary",
+        run: async ({ ai }) => (await ai.generate("prompt")).content,
+      },
+    ]);
+
+    await runActionCommand("summary", { registry: streamingRegistry });
+
+    expect(mockAIConfigs[0].onToken).toBeUndefined();
+    expect(console.log).toHaveBeenCalledWith("Summary:");
+    expect(console.log).toHaveBeenCalledWith("streamed output");
+  });
+
+  it("keeps JSON-producing actions buffered on TTY", async () => {
+    Object.defineProperty(process.stdout, "isTTY", {
+      value: true,
+      configurable: true,
+    });
+    const jsonRegistry = createActionRegistry([
+      {
+        id: "classify",
+        description: "Classify",
+        outputTitle: "Classification",
+        run: async ({ ai }) => (await ai.generate("prompt")).content,
+      },
+    ]);
+
+    await runActionCommand("classify", { registry: jsonRegistry });
+
+    expect(mockAIConfigs[0].onToken).toBeUndefined();
+    expect(console.log).toHaveBeenCalledWith("Classification:");
+    expect(console.log).toHaveBeenCalledWith("streamed output");
   });
 });
