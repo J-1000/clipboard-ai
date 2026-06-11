@@ -21,6 +21,7 @@ type Options struct {
 	SensitiveGuardHit bool
 	ModelOverride     string
 	EndpointOverride  string
+	Args              []string
 }
 
 // ExecuteFunc allows tests to override the executor behavior.
@@ -83,7 +84,8 @@ func runExecuteWithOptions(ctx context.Context, action string, text string, opts
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "cbai", "run", action)
+	cmdArgs := append([]string{"run", action}, opts.Args...)
+	cmd := exec.CommandContext(ctx, "cbai", cmdArgs...)
 	cmd.Env = append(os.Environ(), "CBAI_DAEMON_MODE=true")
 	if opts.Trigger != "" {
 		cmd.Env = append(cmd.Env, "CBAI_TRIGGER="+opts.Trigger)

@@ -142,3 +142,27 @@ printf '%s|%s|%s' "$CBAI_MODEL_OVERRIDE" "$CBAI_ENDPOINT_OVERRIDE" "$CBAI_DAEMON
 		t.Fatalf("expected output %q, got %q", expected, result.Output)
 	}
 }
+
+func TestRunExecuteWithOptions_AppendsArgs(t *testing.T) {
+	dir := t.TempDir()
+	scriptPath := filepath.Join(dir, "cbai")
+	script := `#!/bin/sh
+printf '%s' "$*"
+`
+	if err := os.WriteFile(scriptPath, []byte(script), 0755); err != nil {
+		t.Fatalf("failed to write fake cbai: %v", err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	result := runExecuteWithOptions(context.Background(), "translate", "input", Options{
+		Args: []string{"Spanish"},
+	})
+
+	if result.Error != nil {
+		t.Fatalf("expected fake cbai to succeed, got %v", result.Error)
+	}
+	expected := "run translate Spanish"
+	if result.Output != expected {
+		t.Fatalf("expected output %q, got %q", expected, result.Output)
+	}
+}

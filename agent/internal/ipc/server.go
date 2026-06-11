@@ -224,12 +224,13 @@ func redactedConfigResponse(cfg *config.Config) ConfigResponse {
 
 // ActionRequest for triggering an action
 type ActionRequest struct {
-	Action      string `json:"action"`
-	Text        string `json:"text,omitempty"` // optional, uses clipboard if empty
-	RTF         string `json:"rtf,omitempty"`
-	ImageBase64 string `json:"image_base64,omitempty"`
-	ImageMime   string `json:"image_mime,omitempty"`
-	Type        string `json:"type,omitempty"`
+	Action      string   `json:"action"`
+	Text        string   `json:"text,omitempty"` // optional, uses clipboard if empty
+	RTF         string   `json:"rtf,omitempty"`
+	ImageBase64 string   `json:"image_base64,omitempty"`
+	ImageMime   string   `json:"image_mime,omitempty"`
+	Type        string   `json:"type,omitempty"`
+	Args        []string `json:"args,omitempty"`
 }
 
 // ActionResponse from triggering an action
@@ -307,6 +308,7 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 	opts := executor.Options{
 		InputType: inputType,
 		InputRTF:  inputRTF,
+		Args:      req.Args,
 	}
 	cfg := s.configSnapshot()
 	if actionCfg, ok := cfg.Actions[req.Action]; ok {

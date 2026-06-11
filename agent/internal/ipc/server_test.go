@@ -396,6 +396,41 @@ func TestHandleAction_AppliesConfiguredOverrides(t *testing.T) {
 	}
 }
 
+func TestHandleAction_PassesArgs(t *testing.T) {
+	s := newTestServer()
+
+	var gotOptions executor.Options
+	executor.SetExecuteWithOptionsFunc(func(ctx context.Context, action string, text string, opts executor.Options) executor.Result {
+		gotOptions = opts
+		return executor.Result{
+			Action: action,
+			Output: "ok",
+		}
+	})
+	defer executor.ResetExecuteFunc()
+
+	body, _ := json.Marshal(ActionRequest{
+		Action: "translate",
+		Text:   "hello",
+		Args:   []string{"Spanish"},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/action", bytes.NewBuffer(body))
+	w := httptest.NewRecorder()
+
+	s.handleAction(w, req)
+
+	var resp ActionResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if !resp.Success {
+		t.Fatalf("expected success=true, got error %q", resp.Error)
+	}
+	if !reflect.DeepEqual(gotOptions.Args, []string{"Spanish"}) {
+		t.Fatalf("expected args [Spanish], got %#v", gotOptions.Args)
+	}
+}
+
 func TestTruncate(t *testing.T) {
 	tests := []struct {
 		input  string
