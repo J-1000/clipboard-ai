@@ -7,9 +7,13 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
+
+	"github.com/fsnotify/fsnotify"
 
 	"github.com/clipboard-ai/agent/internal/automation"
 	"github.com/clipboard-ai/agent/internal/clipboard"
@@ -22,6 +26,25 @@ import (
 )
 
 var version = "0.1.0"
+
+type runtimeState struct {
+	mu          sync.RWMutex
+	cfg         *config.Config
+	rulesEngine *rules.Engine
+}
+
+func (s *runtimeState) snapshot() (*config.Config, *rules.Engine) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.cfg, s.rulesEngine
+}
+
+func (s *runtimeState) swap(cfg *config.Config, rulesEngine *rules.Engine) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cfg = cfg
+	s.rulesEngine = rulesEngine
+}
 
 func main() {
 	versionFlag := flag.Bool("version", false, "Print version and exit")
@@ -62,10 +85,12 @@ func main() {
 		logger.Error("failed to create rules engine", "error", err)
 		os.Exit(1)
 	}
+	state := &runtimeState{cfg: cfg, rulesEngine: rulesEngine}
 	controller := automation.NewController(time.Duration(cfg.Settings.ClipboardDedupeWindow) * time.Millisecond)
 
 	// Create clipboard handler
 	handler := func(content clipboard.Content) {
+		cfg, rulesEngine := state.snapshot()
 		logFields := []any{
 			"type", content.Type,
 			"length_chars", len([]rune(content.Text)),
@@ -213,6 +238,38 @@ func main() {
 	// Create IPC server
 	socketPath := config.GetSocketPath()
 	server := ipc.NewServer(socketPath, monitor, cfg, version)
+	configPath := config.ConfigPath()
+
+	reloadConfig := func(reason string) {
+		previousCfg, _ := state.snapshot()
+		nextCfg, err := config.ReloadFromPath(configPath, previousCfg)
+		if err != nil {
+			logger.Error("config reload rejected", "reason", reason, "error", err)
+			if previousCfg.Settings.Notifications {
+				notify.SendWithSubtitle("clipboard-ai", "Config reload failed", err.Error())
+			}
+			return
+		}
+
+		nextRulesEngine, err := rules.NewEngine(nextCfg.Actions)
+		if err != nil {
+			logger.Error("config reload rejected", "reason", reason, "error", err)
+			if previousCfg.Settings.Notifications {
+				notify.SendWithSubtitle("clipboard-ai", "Config reload failed", err.Error())
+			}
+			return
+		}
+
+		logRestartRequiredSettings(logger, previousCfg, nextCfg)
+		state.swap(nextCfg, nextRulesEngine)
+		server.SetConfig(nextCfg)
+		logger.Info("config reloaded",
+			"reason", reason,
+			"provider.type", nextCfg.Provider.Type,
+			"provider.model", nextCfg.Provider.Model,
+			"actions", len(nextCfg.Actions),
+		)
+	}
 
 	// Start optional local HTTP server
 	if cfg.Settings.HTTPEnabled {
@@ -227,7 +284,9 @@ func main() {
 
 	// Handle shutdown signals
 	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
+	reloadCh := make(chan string, 4)
+	go watchConfigFile(ctx, configPath, reloadCh, logger)
 
 	// Start IPC server in goroutine
 	go func() {
@@ -245,12 +304,21 @@ func main() {
 		}
 	}()
 
-	// Wait for shutdown signal
-	sig := <-sigCh
-	logger.Info("shutdown signal received", "signal", sig.String())
-	cancel()
-
-	logger.Info("agent stopped")
+	for {
+		select {
+		case reason := <-reloadCh:
+			reloadConfig(reason)
+		case sig := <-sigCh:
+			if sig == syscall.SIGHUP {
+				reloadConfig("SIGHUP")
+				continue
+			}
+			logger.Info("shutdown signal received", "signal", sig.String())
+			cancel()
+			logger.Info("agent stopped")
+			return
+		}
+	}
 }
 
 func parseLogLevel(level string) slog.Level {
@@ -263,5 +331,94 @@ func parseLogLevel(level string) slog.Level {
 		return slog.LevelError
 	default:
 		return slog.LevelInfo
+	}
+}
+
+func watchConfigFile(ctx context.Context, configPath string, reloadCh chan<- string, logger *slog.Logger) {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		logger.Error("failed to create config watcher", "error", err)
+		return
+	}
+	defer watcher.Close()
+
+	dir := filepath.Dir(configPath)
+	if err := watcher.Add(dir); err != nil {
+		logger.Error("failed to watch config directory", "path", dir, "error", err)
+		return
+	}
+
+	var debounce *time.Timer
+	var debounceC <-chan time.Time
+	scheduleReload := func() {
+		if debounce == nil {
+			debounce = time.NewTimer(200 * time.Millisecond)
+			debounceC = debounce.C
+			return
+		}
+		if !debounce.Stop() {
+			select {
+			case <-debounce.C:
+			default:
+			}
+		}
+		debounce.Reset(200 * time.Millisecond)
+		debounceC = debounce.C
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			if debounce != nil {
+				debounce.Stop()
+			}
+			return
+		case event, ok := <-watcher.Events:
+			if !ok {
+				return
+			}
+			if event.Name != configPath {
+				continue
+			}
+			if event.Op&(fsnotify.Write|fsnotify.Create|fsnotify.Rename) != 0 {
+				scheduleReload()
+			}
+		case err, ok := <-watcher.Errors:
+			if !ok {
+				return
+			}
+			logger.Error("config watcher error", "error", err)
+		case <-debounceC:
+			debounceC = nil
+			select {
+			case reloadCh <- "config file changed":
+			default:
+				logger.Warn("config reload skipped because reload queue is full")
+			}
+		}
+	}
+}
+
+func logRestartRequiredSettings(logger *slog.Logger, previous *config.Config, next *config.Config) {
+	if previous.Settings.HTTPEnabled != next.Settings.HTTPEnabled {
+		logger.Warn("config change requires restart",
+			"setting", "settings.http_enabled",
+			"old", previous.Settings.HTTPEnabled,
+			"new", next.Settings.HTTPEnabled,
+		)
+	}
+	if previous.Settings.HTTPAddress != next.Settings.HTTPAddress {
+		logger.Warn("config change requires restart",
+			"setting", "settings.http_addr",
+			"old", previous.Settings.HTTPAddress,
+			"new", next.Settings.HTTPAddress,
+		)
+	}
+	if previous.Settings.PollInterval != next.Settings.PollInterval {
+		logger.Warn("config change requires restart",
+			"setting", "settings.poll_interval",
+			"old", previous.Settings.PollInterval,
+			"new", next.Settings.PollInterval,
+		)
 	}
 }

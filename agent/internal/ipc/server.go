@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 	"unicode/utf8"
@@ -26,10 +27,24 @@ const maxClipboardImageBytes = 25 << 20
 type Server struct {
 	socketPath string
 	monitor    *clipboard.Monitor
+	mu         sync.RWMutex
 	config     *config.Config
 	version    string
 	startTime  time.Time
 	listener   net.Listener
+}
+
+// SetConfig atomically swaps the config used by /config and /action.
+func (s *Server) SetConfig(cfg *config.Config) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.config = cfg
+}
+
+func (s *Server) configSnapshot() *config.Config {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.config
 }
 
 // StatusResponse is returned by /status endpoint
@@ -186,7 +201,7 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, redactedConfigResponse(s.config))
+	writeJSON(w, redactedConfigResponse(s.configSnapshot()))
 }
 
 func redactedConfigResponse(cfg *config.Config) ConfigResponse {
@@ -293,7 +308,8 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 		InputType: inputType,
 		InputRTF:  inputRTF,
 	}
-	if actionCfg, ok := s.config.Actions[req.Action]; ok {
+	cfg := s.configSnapshot()
+	if actionCfg, ok := cfg.Actions[req.Action]; ok {
 		opts.ModelOverride = actionCfg.Model
 		opts.EndpointOverride = actionCfg.Endpoint
 	}
