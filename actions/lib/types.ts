@@ -1,3 +1,7 @@
+// The actions package is a standalone action library. Its contract returns
+// ActionResult objects and can be executed outside the CLI runner. The CLI's
+// plugin/runtime action shape in cli/src/lib/action-types.ts is intentionally
+// separate because it injects an AIClient and expects run() to return a string.
 export interface ActionMetadata {
   id: string;
   name: string;
