@@ -1,5 +1,7 @@
 import { describe, it, expect, mock, beforeEach } from "bun:test";
 
+const mockConstructedOptions: Array<Record<string, unknown>> = [];
+
 // Mock OpenAI before importing AIClient
 const mockCreate = mock(() =>
   Promise.resolve({
@@ -25,7 +27,9 @@ mock.module("openai", () => ({
         create: mockCreate,
       },
     };
-    constructor(public opts: Record<string, unknown>) {}
+    constructor(public opts: Record<string, unknown>) {
+      mockConstructedOptions.push(opts);
+    }
   },
 }));
 
@@ -36,6 +40,7 @@ describe("AIClient", () => {
 
   beforeEach(() => {
     mockCreate.mockClear();
+    mockConstructedOptions.length = 0;
     client = new AIClient({
       type: "ollama",
       endpoint: "http://localhost:11434/v1",
@@ -60,10 +65,18 @@ describe("AIClient", () => {
       expect(c).toBeDefined();
     });
 
-    it("throws for anthropic provider", () => {
-      expect(
-        () => new AIClient({ type: "anthropic", endpoint: "", model: "m" })
-      ).toThrow('Provider type "anthropic" is not supported');
+    it("defaults anthropic to the OpenAI-compatible endpoint", () => {
+      const c = new AIClient({
+        type: "anthropic",
+        endpoint: "",
+        model: "claude-haiku-4-5-20251001",
+        apiKey: "anthropic-key",
+      });
+      expect(c).toBeDefined();
+      expect(mockConstructedOptions.at(-1)).toEqual({
+        baseURL: "https://api.anthropic.com/v1/",
+        apiKey: "anthropic-key",
+      });
     });
   });
 

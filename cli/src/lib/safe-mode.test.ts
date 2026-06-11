@@ -109,4 +109,9 @@ describe("enforceSafeMode", () => {
     const config = makeConfig({ type: "openai", safe_mode: true });
     await expect(enforceSafeMode(config, { yes: true })).resolves.toBeUndefined();
   });
+
+  it("allows anthropic with --yes flag", async () => {
+    const config = makeConfig({ type: "anthropic", safe_mode: true });
+    await expect(enforceSafeMode(config, { yes: true })).resolves.toBeUndefined();
+  });
 });
