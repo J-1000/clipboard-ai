@@ -9,7 +9,7 @@ clipboard-ai is a macOS-first lightweight agent that monitors your clipboard and
 ## Current Status
 
 - Project status snapshot: see `STATUS.md`
-- Provider support: Ollama, OpenAI, and custom OpenAI-compatible endpoints
+- Provider support: Ollama, OpenAI, Anthropic, and custom OpenAI-compatible endpoints
 - Safe mode: blocks daemon-triggered cloud calls and prompts on manual CLI calls (unless `--yes` is used)
 - Trigger/clipboard length behavior: character-based (UTF-8 rune-aware), not byte-based
 - Clipboard types: text, RTF, images (image actions require vision-capable models)
@@ -148,7 +148,7 @@ cbai explain -y
 
 ### Safe Mode
 
-When `safe_mode = true` in config, clipboard content won't be sent to cloud providers (OpenAI or remote custom endpoints) without consent:
+When `safe_mode = true` in config, clipboard content won't be sent to cloud providers (OpenAI, Anthropic, or remote custom endpoints) without consent:
 
 - **Manual CLI usage**: Shows an interactive confirmation prompt before cloud calls
 - **Daemon-triggered (automatic)**: Blocks cloud calls entirely and sends a macOS notification
@@ -306,7 +306,19 @@ cbai run rev
 |----------|--------|-------|
 | Ollama | `type = "ollama"` | Local, no API key needed |
 | OpenAI | `type = "openai"` | Requires `api_key` |
+| Anthropic | `type = "anthropic"` | Requires `api_key`; uses Anthropic's OpenAI SDK compatibility endpoint |
 | Custom | Set `endpoint` | Any OpenAI-compatible API |
+
+Anthropic uses `https://api.anthropic.com/v1/` by default. Configure a Claude model name and API key:
+
+```toml
+[provider]
+type = "anthropic"
+model = "claude-haiku-4-5-20251001"
+api_key = "sk-ant-..."
+```
+
+Anthropic documents this route as an OpenAI SDK compatibility layer for the Claude API. Some OpenAI SDK fields are ignored or behave differently; use the native Claude API for Anthropic-only features. See Anthropic's compatibility docs: https://platform.claude.com/docs/en/cli-sdks-libraries/libraries/openai-sdk.
 
 ## Architecture
 

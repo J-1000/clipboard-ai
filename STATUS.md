@@ -14,8 +14,8 @@ Last updated: 2026-06-11
 - Supported providers:
   - `ollama`
   - `openai`
+  - `anthropic` via Anthropic's OpenAI SDK compatibility endpoint
   - custom OpenAI-compatible endpoint via `provider.endpoint`
-- Not supported directly: `anthropic` provider type in CLI AI client
 
 ## Behavior Notes
 
@@ -63,6 +63,7 @@ Last updated: 2026-06-11
   - `summarize_url` builtin can fetch and summarize a single HTTP(S) URL
   - `cbai actions` lists registered actions and configured trigger state
   - `cbai doctor` runs local diagnostics, including vision-model guidance for caption/OCR
+  - `anthropic` provider type routes through Anthropic's OpenAI SDK compatibility endpoint
 
 ## Test Health
 
@@ -72,11 +73,11 @@ Last updated: 2026-06-11
 
 ## Recent Fixes
 
-- Phase 4 feature work: sensitive-data guard, streaming CLI output, `summarize_url`, `cbai actions`, and `cbai doctor`
+- Phase 4 feature work: sensitive-data guard, streaming CLI output, `summarize_url`, `cbai actions`, `cbai doctor`, and Anthropic provider support
 - Phase 3 code quality fixes: shared builtin action execution helper, documented action type boundary, and precompiled trigger regex validation
 - Phase 2 robustness fixes: CLI IPC timeout, corrupt history-line tolerance, defensive empty-choice AI response handling, and one-time RTF read failure logging
 - Phase 1 security fixes: notification AppleScript injection prevention, `/config` secret redaction, history retention/privacy controls, IPC size limits/socket permissions, and plugin trust-model docs
-- Provider docs/runtime consistency: removed Anthropic support claims from user docs/config comments
+- Provider docs/runtime consistency: Anthropic provider support now matches user docs/config comments
 - Poll interval hardening: validation and runtime fallback for invalid values
 - Unicode length correctness: rules and IPC length/truncation updated to rune-based behavior
 - Local HTTP API docs: added endpoint/auth reference and cURL examples in `docs/http-api.md`

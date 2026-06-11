@@ -197,6 +197,7 @@ Block outgoing calls to cloud providers without explicit user confirmation.
 +------------------------------+
 | AI Action Router (TS/Go)    |
 | - OpenAI API                |
+| - Anthropic compatibility   |
 | - Local LLMs (Ollama)       |
 | - Custom endpoints          |
 +------------------------------+
@@ -355,6 +356,7 @@ Completed (as of 2026-06-11):
    - `summarize_url` fetches and summarizes a single HTTP(S) URL.
    - `cbai actions` lists registered actions with trigger state.
    - `cbai doctor` provides local diagnostics and clearer vision model guidance for image actions.
+   - `type = "anthropic"` routes through Anthropic's OpenAI SDK compatibility endpoint and is treated as a cloud provider by safe mode.
 
 ## 15. Repository Structure
 
