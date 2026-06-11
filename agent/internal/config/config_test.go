@@ -141,9 +141,7 @@ sensitive_guard = "block"
 `
 	os.WriteFile(configFile, []byte(content), 0600)
 
-	// Override getConfigPath temporarily using env
-	// Since getConfigPath is unexported and uses UserHomeDir, we test Load with
-	// the actual path — but for unit tests, we test the TOML parsing directly
+	// For unit tests, decode this fixture directly into the default config.
 	cfg := Default()
 	_, err := toml.DecodeFile(configFile, cfg)
 	if err != nil {

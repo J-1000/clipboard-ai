@@ -84,9 +84,13 @@ func Default() *Config {
 
 // Load reads config from the standard location
 func Load() (*Config, error) {
+	return LoadFromPath(ConfigPath())
+}
+
+// LoadFromPath reads and validates a config file from path.
+func LoadFromPath(configPath string) (*Config, error) {
 	cfg := Default()
 
-	configPath := getConfigPath()
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		return cfg, nil
 	}
@@ -99,6 +103,16 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
+	return cfg, nil
+}
+
+// ReloadFromPath loads a replacement config while preserving the previous
+// config on validation or parsing failure.
+func ReloadFromPath(configPath string, previous *Config) (*Config, error) {
+	cfg, err := LoadFromPath(configPath)
+	if err != nil {
+		return previous, err
+	}
 	return cfg, nil
 }
 
@@ -159,8 +173,8 @@ func (c *Config) validate() error {
 	return nil
 }
 
-// getConfigPath returns the path to the config file
-func getConfigPath() string {
+// ConfigPath returns the path to the config file.
+func ConfigPath() string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".clipboard-ai", "config.toml")
 }
