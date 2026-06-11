@@ -56,7 +56,11 @@ func main() {
 	defer cancel()
 
 	// Create rules engine
-	rulesEngine := rules.NewEngine(cfg.Actions)
+	rulesEngine, err := rules.NewEngine(cfg.Actions)
+	if err != nil {
+		logger.Error("failed to create rules engine", "error", err)
+		os.Exit(1)
+	}
 	controller := automation.NewController(time.Duration(cfg.Settings.ClipboardDedupeWindow) * time.Millisecond)
 
 	// Create clipboard handler

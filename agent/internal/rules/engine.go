@@ -1,6 +1,7 @@
 package rules
 
 import (
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -15,6 +16,7 @@ var lengthExprRe = regexp.MustCompile(`^length\s*(>=|<=|!=|==|=|>|<)\s*(-?\d+)\s
 // Engine evaluates trigger rules against clipboard content
 type Engine struct {
 	actions map[string]config.ActionConfig
+	regexes map[string]*regexp.Regexp
 }
 
 // Match represents a triggered action
@@ -24,8 +26,22 @@ type Match struct {
 }
 
 // NewEngine creates a new rules engine
-func NewEngine(actions map[string]config.ActionConfig) *Engine {
-	return &Engine{actions: actions}
+func NewEngine(actions map[string]config.ActionConfig) (*Engine, error) {
+	regexes := make(map[string]*regexp.Regexp)
+	for actionName, action := range actions {
+		for _, pattern := range regexPatterns(action.Trigger) {
+			if _, ok := regexes[pattern]; ok {
+				continue
+			}
+			compiled, err := regexp.Compile(pattern)
+			if err != nil {
+				return nil, fmt.Errorf("invalid regex trigger for action %q: %w", actionName, err)
+			}
+			regexes[pattern] = compiled
+		}
+	}
+
+	return &Engine{actions: actions, regexes: regexes}, nil
 }
 
 // Evaluate checks all rules against content and returns matches
@@ -248,8 +264,8 @@ func (e *Engine) evaluateCondition(cond string, content clipboard.Content) bool 
 	// regex:pattern
 	if strings.HasPrefix(cond, "regex:") {
 		pattern := strings.TrimPrefix(cond, "regex:")
-		matched, _ := regexp.MatchString(pattern, content.Text)
-		return matched
+		compiled, ok := e.regexes[pattern]
+		return ok && compiled.MatchString(content.Text)
 	}
 
 	// mime:type
@@ -259,6 +275,41 @@ func (e *Engine) evaluateCondition(cond string, content clipboard.Content) bool 
 	}
 
 	return false
+}
+
+func regexPatterns(trigger string) []string {
+	var patterns []string
+	parser := triggerParser{input: trigger}
+
+	for parser.pos < len(parser.input) {
+		cond, ok := parser.readCondition()
+		if !ok {
+			parser.pos++
+			continue
+		}
+		if pattern, ok := regexPatternFromCondition(cond); ok {
+			patterns = append(patterns, pattern)
+		}
+	}
+
+	return patterns
+}
+
+func regexPatternFromCondition(cond string) (string, bool) {
+	cond = strings.TrimSpace(cond)
+	for {
+		cond = strings.TrimSpace(strings.TrimPrefix(cond, "("))
+		if !hasKeywordAt(cond, 0, "NOT") {
+			break
+		}
+		cond = strings.TrimSpace(cond[len("NOT"):])
+	}
+
+	if !strings.HasPrefix(cond, "regex:") {
+		return "", false
+	}
+
+	return strings.TrimPrefix(cond, "regex:"), true
 }
 
 // checkLength evaluates length comparisons
