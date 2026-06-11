@@ -334,6 +334,47 @@ func TestHandleAction_UsesRequestText(t *testing.T) {
 	}
 }
 
+func TestHandleAction_AppliesConfiguredOverrides(t *testing.T) {
+	s := newTestServer()
+	s.config.Actions["summarize"] = config.ActionConfig{
+		Model:    "llama3.2:1b",
+		Endpoint: "http://localhost:11435/v1",
+	}
+
+	var gotOptions executor.Options
+	executor.SetExecuteWithOptionsFunc(func(ctx context.Context, action string, text string, opts executor.Options) executor.Result {
+		gotOptions = opts
+		return executor.Result{
+			Action: action,
+			Output: "ok",
+		}
+	})
+	defer executor.ResetExecuteFunc()
+
+	body, _ := json.Marshal(ActionRequest{
+		Action: "summarize",
+		Text:   "hello from request",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/action", bytes.NewBuffer(body))
+	w := httptest.NewRecorder()
+
+	s.handleAction(w, req)
+
+	var resp ActionResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if !resp.Success {
+		t.Fatalf("expected success=true, got error %q", resp.Error)
+	}
+	if gotOptions.ModelOverride != "llama3.2:1b" {
+		t.Fatalf("expected model override 'llama3.2:1b', got %q", gotOptions.ModelOverride)
+	}
+	if gotOptions.EndpointOverride != "http://localhost:11435/v1" {
+		t.Fatalf("expected endpoint override 'http://localhost:11435/v1', got %q", gotOptions.EndpointOverride)
+	}
+}
+
 func TestTruncate(t *testing.T) {
 	tests := []struct {
 		input  string

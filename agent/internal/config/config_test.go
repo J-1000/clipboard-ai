@@ -121,6 +121,8 @@ api_key = "sk-test"
 [actions.translate]
 enabled = true
 trigger = "contains:translate"
+model = "llama3.2:1b"
+endpoint = "http://localhost:11435/v1"
 timeout_ms = 12000
 retry_count = 2
 retry_backoff_ms = 250
@@ -167,6 +169,12 @@ sensitive_guard = "block"
 	}
 	if cfg.Actions["translate"].Trigger != "contains:translate" {
 		t.Fatalf("expected translate trigger, got %q", cfg.Actions["translate"].Trigger)
+	}
+	if cfg.Actions["translate"].Model != "llama3.2:1b" {
+		t.Fatalf("expected model override 'llama3.2:1b', got %q", cfg.Actions["translate"].Model)
+	}
+	if cfg.Actions["translate"].Endpoint != "http://localhost:11435/v1" {
+		t.Fatalf("expected endpoint override 'http://localhost:11435/v1', got %q", cfg.Actions["translate"].Endpoint)
 	}
 	if cfg.Actions["translate"].TimeoutMs != 12000 {
 		t.Fatalf("expected timeout_ms 12000, got %d", cfg.Actions["translate"].TimeoutMs)

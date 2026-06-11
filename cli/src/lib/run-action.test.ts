@@ -12,7 +12,13 @@ const mockGetInput = mock(() => Promise.resolve({ text: "clipboard text" }));
 const mockEnforceSafeMode = mock(() => Promise.resolve());
 const mockCopyToClipboard = mock(() => undefined);
 const mockAppendHistoryRecord = mock(() => Promise.resolve(undefined));
-const mockAIConfigs: Array<{ onToken?: (token: string) => void }> = [];
+const mockAIConfigs: Array<{
+  type?: string;
+  endpoint?: string;
+  model?: string;
+  apiKey?: string;
+  onToken?: (token: string) => void;
+}> = [];
 
 mock.module("./client.js", () => ({
   getConfig: mockGetConfig,
@@ -49,6 +55,7 @@ describe("runActionCommand history", () => {
   const registry = createActionRegistry([
     {
       id: "summary",
+      aliases: ["summarize", "sum"],
       description: "Summary",
       outputTitle: "Summary",
       run: async ({ text }) => `out: ${text}`,
@@ -65,6 +72,8 @@ describe("runActionCommand history", () => {
     spyOn(console, "log").mockImplementation(() => {});
     spyOn(console, "error").mockImplementation(() => {});
     delete process.env.CBAI_SENSITIVE_GUARD_HIT;
+    delete process.env.CBAI_MODEL_OVERRIDE;
+    delete process.env.CBAI_ENDPOINT_OVERRIDE;
     Object.defineProperty(process.stdout, "isTTY", {
       value: false,
       configurable: true,
@@ -184,6 +193,65 @@ describe("runActionCommand history", () => {
     const call = mockAppendHistoryRecord.mock.calls[0][0];
     expect(call.input).toBe("[sensitive content omitted]");
     expect(call.output).toBeUndefined();
+  });
+
+  it("uses configured action model and endpoint overrides", async () => {
+    let actionConfigModel = "";
+    mockGetConfig.mockResolvedValueOnce({
+      provider: { type: "ollama", endpoint: "http://localhost:11434/v1", model: "mistral" },
+      actions: {
+        summarize: {
+          enabled: true,
+          trigger: "length > 200",
+          model: "llama3.2:1b",
+          endpoint: "http://localhost:11435/v1",
+        },
+      },
+      settings: { poll_interval: 150, safe_mode: false, notifications: false, log_level: "info" },
+    });
+    const overrideRegistry = createActionRegistry([
+      {
+        id: "summary",
+        aliases: ["summarize"],
+        description: "Summary",
+        outputTitle: "Summary",
+        run: async ({ config }) => {
+          actionConfigModel = config.provider.model;
+          return "ok";
+        },
+      },
+    ]);
+
+    await runActionCommand("summary", { registry: overrideRegistry });
+
+    expect(mockAIConfigs[0].model).toBe("llama3.2:1b");
+    expect(mockAIConfigs[0].endpoint).toBe("http://localhost:11435/v1");
+    expect(actionConfigModel).toBe("llama3.2:1b");
+    expect(mockEnforceSafeMode.mock.calls[0][0].provider.model).toBe("llama3.2:1b");
+    const call = mockAppendHistoryRecord.mock.calls[0][0];
+    expect(call.model).toBe("llama3.2:1b");
+  });
+
+  it("prefers daemon environment overrides over action config overrides", async () => {
+    process.env.CBAI_MODEL_OVERRIDE = "qwen2.5-coder:14b";
+    process.env.CBAI_ENDPOINT_OVERRIDE = "http://localhost:11436/v1";
+    mockGetConfig.mockResolvedValueOnce({
+      provider: { type: "ollama", endpoint: "http://localhost:11434/v1", model: "mistral" },
+      actions: {
+        summary: {
+          enabled: true,
+          trigger: "length > 200",
+          model: "llama3.2:1b",
+          endpoint: "http://localhost:11435/v1",
+        },
+      },
+      settings: { poll_interval: 150, safe_mode: false, notifications: false, log_level: "info" },
+    });
+
+    await runActionCommand("summary", { registry });
+
+    expect(mockAIConfigs[0].model).toBe("qwen2.5-coder:14b");
+    expect(mockAIConfigs[0].endpoint).toBe("http://localhost:11436/v1");
   });
 
   it("streams manual TTY output and records accumulated output", async () => {

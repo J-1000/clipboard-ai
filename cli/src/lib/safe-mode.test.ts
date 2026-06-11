@@ -7,10 +7,13 @@ function makeConfig(overrides: {
   endpoint?: string;
   safe_mode?: boolean;
 }): ConfigResponse {
+  const type = overrides.type ?? "ollama";
+  const endpoint =
+    overrides.endpoint ?? (type === "ollama" ? "http://localhost:11434/v1" : "");
   return {
     provider: {
-      type: overrides.type ?? "ollama",
-      endpoint: overrides.endpoint ?? "http://localhost:11434/v1",
+      type,
+      endpoint,
       model: "test-model",
     },
     actions: {},
@@ -34,6 +37,14 @@ describe("isCloudProvider", () => {
 
   it("returns false for ollama", () => {
     expect(isCloudProvider("ollama")).toBe(false);
+  });
+
+  it("returns true for ollama with a remote endpoint override", () => {
+    expect(isCloudProvider("ollama", "https://api.example.com/v1")).toBe(true);
+  });
+
+  it("returns false for openai with a localhost endpoint override", () => {
+    expect(isCloudProvider("openai", "http://localhost:8080/v1")).toBe(false);
   });
 
   it("returns false for custom localhost endpoint", () => {

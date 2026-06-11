@@ -2,6 +2,8 @@ package executor
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -113,5 +115,30 @@ func TestExecuteWithOptions_UsesOverride(t *testing.T) {
 	}
 	if gotTimeout != 5*time.Second {
 		t.Fatalf("expected timeout 5s, got %v", gotTimeout)
+	}
+}
+
+func TestRunExecuteWithOptions_SetsModelOverrideEnvironment(t *testing.T) {
+	dir := t.TempDir()
+	scriptPath := filepath.Join(dir, "cbai")
+	script := `#!/bin/sh
+printf '%s|%s|%s' "$CBAI_MODEL_OVERRIDE" "$CBAI_ENDPOINT_OVERRIDE" "$CBAI_DAEMON_MODE"
+`
+	if err := os.WriteFile(scriptPath, []byte(script), 0755); err != nil {
+		t.Fatalf("failed to write fake cbai: %v", err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	result := runExecuteWithOptions(context.Background(), "summary", "input", Options{
+		ModelOverride:    "llama3.2:1b",
+		EndpointOverride: "http://localhost:11435/v1",
+	})
+
+	if result.Error != nil {
+		t.Fatalf("expected fake cbai to succeed, got %v", result.Error)
+	}
+	expected := "llama3.2:1b|http://localhost:11435/v1|true"
+	if result.Output != expected {
+		t.Fatalf("expected output %q, got %q", expected, result.Output)
 	}
 }
