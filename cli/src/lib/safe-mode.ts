@@ -2,7 +2,11 @@ import { createInterface } from "readline";
 import type { ConfigResponse } from "./client.js";
 
 export function isCloudProvider(providerType: string, endpoint?: string): boolean {
-  if (providerType === "openai" || providerType === "anthropic") {
+  if (providerType === "openai") {
+    return true;
+  }
+
+  if (providerType === "anthropic") {
     return true;
   }
 
