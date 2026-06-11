@@ -2,6 +2,7 @@ package rules
 
 import (
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/clipboard-ai/agent/internal/clipboard"
@@ -15,8 +16,17 @@ func makeContent(text string, contentType clipboard.ContentType) clipboard.Conte
 	}
 }
 
+func mustNewEngine(t *testing.T, actions map[string]config.ActionConfig) *Engine {
+	t.Helper()
+	engine, err := NewEngine(actions)
+	if err != nil {
+		t.Fatalf("NewEngine returned error: %v", err)
+	}
+	return engine
+}
+
 func TestEvaluate_LengthGreaterThan(t *testing.T) {
-	engine := NewEngine(map[string]config.ActionConfig{
+	engine := mustNewEngine(t, map[string]config.ActionConfig{
 		"summarize": {Enabled: true, Trigger: "length > 10"},
 	})
 
@@ -37,7 +47,7 @@ func TestEvaluate_LengthGreaterThan(t *testing.T) {
 }
 
 func TestEvaluate_LengthLessThan(t *testing.T) {
-	engine := NewEngine(map[string]config.ActionConfig{
+	engine := mustNewEngine(t, map[string]config.ActionConfig{
 		"short": {Enabled: true, Trigger: "length < 5"},
 	})
 
@@ -53,7 +63,7 @@ func TestEvaluate_LengthLessThan(t *testing.T) {
 }
 
 func TestEvaluate_LengthEquals(t *testing.T) {
-	engine := NewEngine(map[string]config.ActionConfig{
+	engine := mustNewEngine(t, map[string]config.ActionConfig{
 		"exact": {Enabled: true, Trigger: "length = 5"},
 	})
 
@@ -69,7 +79,7 @@ func TestEvaluate_LengthEquals(t *testing.T) {
 }
 
 func TestEvaluate_LengthGreaterThanOrEqual(t *testing.T) {
-	engine := NewEngine(map[string]config.ActionConfig{
+	engine := mustNewEngine(t, map[string]config.ActionConfig{
 		"gte": {Enabled: true, Trigger: "length >= 5"},
 	})
 
@@ -85,7 +95,7 @@ func TestEvaluate_LengthGreaterThanOrEqual(t *testing.T) {
 }
 
 func TestEvaluate_LengthLessThanOrEqual(t *testing.T) {
-	engine := NewEngine(map[string]config.ActionConfig{
+	engine := mustNewEngine(t, map[string]config.ActionConfig{
 		"lte": {Enabled: true, Trigger: "length <= 5"},
 	})
 
@@ -101,7 +111,7 @@ func TestEvaluate_LengthLessThanOrEqual(t *testing.T) {
 }
 
 func TestEvaluate_LengthNotEqual(t *testing.T) {
-	engine := NewEngine(map[string]config.ActionConfig{
+	engine := mustNewEngine(t, map[string]config.ActionConfig{
 		"ne": {Enabled: true, Trigger: "length != 5"},
 	})
 
@@ -117,7 +127,7 @@ func TestEvaluate_LengthNotEqual(t *testing.T) {
 }
 
 func TestEvaluate_LengthUsesRuneCount(t *testing.T) {
-	engine := NewEngine(map[string]config.ActionConfig{
+	engine := mustNewEngine(t, map[string]config.ActionConfig{
 		"unicode": {Enabled: true, Trigger: "length = 2"},
 	})
 
@@ -128,7 +138,7 @@ func TestEvaluate_LengthUsesRuneCount(t *testing.T) {
 }
 
 func TestEvaluate_Contains(t *testing.T) {
-	engine := NewEngine(map[string]config.ActionConfig{
+	engine := mustNewEngine(t, map[string]config.ActionConfig{
 		"finder": {Enabled: true, Trigger: "contains:error"},
 	})
 
@@ -144,7 +154,7 @@ func TestEvaluate_Contains(t *testing.T) {
 }
 
 func TestEvaluate_Regex(t *testing.T) {
-	engine := NewEngine(map[string]config.ActionConfig{
+	engine := mustNewEngine(t, map[string]config.ActionConfig{
 		"phone": {Enabled: true, Trigger: `regex:\d{3}-\d{4}`},
 	})
 
@@ -160,7 +170,7 @@ func TestEvaluate_Regex(t *testing.T) {
 }
 
 func TestEvaluate_Mime(t *testing.T) {
-	engine := NewEngine(map[string]config.ActionConfig{
+	engine := mustNewEngine(t, map[string]config.ActionConfig{
 		"explain": {Enabled: true, Trigger: "mime:code"},
 	})
 
@@ -176,7 +186,7 @@ func TestEvaluate_Mime(t *testing.T) {
 }
 
 func TestEvaluate_AND(t *testing.T) {
-	engine := NewEngine(map[string]config.ActionConfig{
+	engine := mustNewEngine(t, map[string]config.ActionConfig{
 		"both": {Enabled: true, Trigger: "length > 5 AND contains:hello"},
 	})
 
@@ -200,7 +210,7 @@ func TestEvaluate_AND(t *testing.T) {
 }
 
 func TestEvaluate_OR(t *testing.T) {
-	engine := NewEngine(map[string]config.ActionConfig{
+	engine := mustNewEngine(t, map[string]config.ActionConfig{
 		"either": {Enabled: true, Trigger: "contains:error OR contains:warning"},
 	})
 
@@ -221,7 +231,7 @@ func TestEvaluate_OR(t *testing.T) {
 }
 
 func TestEvaluate_NOT(t *testing.T) {
-	engine := NewEngine(map[string]config.ActionConfig{
+	engine := mustNewEngine(t, map[string]config.ActionConfig{
 		"not_error": {Enabled: true, Trigger: "NOT contains:error"},
 	})
 
@@ -237,7 +247,7 @@ func TestEvaluate_NOT(t *testing.T) {
 }
 
 func TestEvaluate_Parentheses(t *testing.T) {
-	engine := NewEngine(map[string]config.ActionConfig{
+	engine := mustNewEngine(t, map[string]config.ActionConfig{
 		"grouped": {Enabled: true, Trigger: "(contains:error OR contains:warning) AND length > 6"},
 	})
 
@@ -253,7 +263,7 @@ func TestEvaluate_Parentheses(t *testing.T) {
 }
 
 func TestEvaluate_NOTWithParentheses(t *testing.T) {
-	engine := NewEngine(map[string]config.ActionConfig{
+	engine := mustNewEngine(t, map[string]config.ActionConfig{
 		"clean": {Enabled: true, Trigger: "NOT (contains:error OR contains:warning)"},
 	})
 
@@ -269,7 +279,7 @@ func TestEvaluate_NOTWithParentheses(t *testing.T) {
 }
 
 func TestEvaluate_InvalidExpression(t *testing.T) {
-	engine := NewEngine(map[string]config.ActionConfig{
+	engine := mustNewEngine(t, map[string]config.ActionConfig{
 		"invalid": {Enabled: true, Trigger: "(contains:error OR contains:warning"},
 	})
 
@@ -279,8 +289,29 @@ func TestEvaluate_InvalidExpression(t *testing.T) {
 	}
 }
 
+func TestNewEngine_InvalidRegexRejected(t *testing.T) {
+	_, err := NewEngine(map[string]config.ActionConfig{
+		"invalid": {Enabled: true, Trigger: `regex:(unclosed`},
+	})
+	if err == nil {
+		t.Fatal("expected invalid regex error")
+	}
+	if !strings.Contains(err.Error(), `invalid regex trigger for action "invalid"`) {
+		t.Fatalf("expected action-specific regex error, got %v", err)
+	}
+}
+
+func TestNewEngine_InvalidGroupedNegatedRegexRejected(t *testing.T) {
+	_, err := NewEngine(map[string]config.ActionConfig{
+		"invalid": {Enabled: true, Trigger: `NOT (regex:[)`},
+	})
+	if err == nil {
+		t.Fatal("expected invalid regex error")
+	}
+}
+
 func TestEvaluate_DisabledAction(t *testing.T) {
-	engine := NewEngine(map[string]config.ActionConfig{
+	engine := mustNewEngine(t, map[string]config.ActionConfig{
 		"disabled": {Enabled: false, Trigger: "length > 0"},
 	})
 
@@ -291,7 +322,7 @@ func TestEvaluate_DisabledAction(t *testing.T) {
 }
 
 func TestEvaluate_EmptyTrigger(t *testing.T) {
-	engine := NewEngine(map[string]config.ActionConfig{
+	engine := mustNewEngine(t, map[string]config.ActionConfig{
 		"empty": {Enabled: true, Trigger: ""},
 	})
 
@@ -302,7 +333,7 @@ func TestEvaluate_EmptyTrigger(t *testing.T) {
 }
 
 func TestEvaluate_MultipleActions(t *testing.T) {
-	engine := NewEngine(map[string]config.ActionConfig{
+	engine := mustNewEngine(t, map[string]config.ActionConfig{
 		"action_a": {Enabled: true, Trigger: "length > 5"},
 		"action_b": {Enabled: true, Trigger: "contains:hello"},
 	})
