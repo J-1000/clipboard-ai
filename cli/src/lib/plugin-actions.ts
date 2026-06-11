@@ -53,6 +53,11 @@ export async function loadPluginActions(dir = DEFAULT_PLUGIN_DIR): Promise<Actio
     }
   }
 
+  const names = actions.map((action) => action.id).sort();
+  console.error(
+    `Loaded ${actions.length} plugin action(s) from ${dir}${names.length > 0 ? `: ${names.join(", ")}` : ""}`
+  );
+
   return actions;
 }
 
