@@ -239,6 +239,8 @@ When `settings.http_enabled = true`, the agent also exposes a localhost HTTP API
 
 Plugin directory: `~/.clipboard-ai/actions`
 
+Security model: plugin actions run as local code with your full user privileges. Only install plugins from trusted sources, review code before adding it, and keep `~/.clipboard-ai/actions` writable only by your user account.
+
 Supported plugin file extensions:
 - `.js`
 - `.mjs`
