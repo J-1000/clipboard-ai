@@ -13,6 +13,7 @@ import { tldrCommand } from "./commands/tldr.js";
 import { classifyCommand } from "./commands/classify.js";
 import { runCommand } from "./commands/run.js";
 import { actionsCommand } from "./commands/actions.js";
+import { doctorCommand } from "./commands/doctor.js";
 import { historyCommand } from "./commands/history.js";
 import { rerunCommand } from "./commands/rerun.js";
 import { logsCommand } from "./commands/logs.js";
@@ -62,6 +63,14 @@ yargs(hideBin(process.argv))
     () => {},
     async () => {
       await actionsCommand();
+    }
+  )
+  .command(
+    "doctor",
+    "Run diagnostics",
+    () => {},
+    async () => {
+      await doctorCommand();
     }
   )
   .command(
