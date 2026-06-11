@@ -20,6 +20,13 @@
       "description": "Summarize the current clipboard with clipboard-ai.",
       "mode": "view",
       "keywords": ["summary", "summarize"]
+    },
+    {
+      "name": "explain",
+      "title": "Explain Clipboard",
+      "description": "Explain the current clipboard with clipboard-ai.",
+      "mode": "view",
+      "keywords": ["explain", "code"]
     }
   ],
   "preferences": [

@@ -22,6 +22,8 @@ declare namespace Preferences {
   export type Setup = ExtensionPreferences & {}
   /** Preferences accessible in the `summary` command */
   export type Summary = ExtensionPreferences & {}
+  /** Preferences accessible in the `explain` command */
+  export type Explain = ExtensionPreferences & {}
 }
 
 declare namespace Arguments {
@@ -29,5 +31,7 @@ declare namespace Arguments {
   export type Setup = {}
   /** Arguments passed to the `summary` command */
   export type Summary = {}
+  /** Arguments passed to the `explain` command */
+  export type Explain = {}
 }
 
