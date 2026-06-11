@@ -338,6 +338,11 @@ Completed (as of 2026-06-11):
    - IPC action requests and clipboard image responses have size bounds.
 8. Plugin trust model
    - Plugin actions are documented as trusted local code with full user privileges.
+9. Robustness hardening
+   - CLI IPC calls now time out with an actionable error.
+   - Corrupt history JSONL lines are skipped with a warning.
+   - Empty AI provider completion responses produce a descriptive error.
+   - RTF clipboard read failures are logged once per agent process.
 
 Next:
 

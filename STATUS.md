@@ -48,6 +48,11 @@ Last updated: 2026-06-11
   - Oversized clipboard images are omitted from `/clipboard` with truncation metadata
   - IPC socket directory/socket permissions are enforced at startup
   - Plugin actions are documented as trusted local code
+- Robustness hardening:
+  - CLI IPC requests time out after 10 seconds by default (`CBAI_IPC_TIMEOUT_MS` override)
+  - History reading skips corrupt JSONL lines with a single warning
+  - AI provider responses with no completion choices produce a descriptive error
+  - The first RTF clipboard read failure is logged once per agent process
 
 ## Test Health
 
@@ -57,6 +62,7 @@ Last updated: 2026-06-11
 
 ## Recent Fixes
 
+- Phase 2 robustness fixes: CLI IPC timeout, corrupt history-line tolerance, defensive empty-choice AI response handling, and one-time RTF read failure logging
 - Phase 1 security fixes: notification AppleScript injection prevention, `/config` secret redaction, history retention/privacy controls, IPC size limits/socket permissions, and plugin trust-model docs
 - Provider docs/runtime consistency: removed Anthropic support claims from user docs/config comments
 - Poll interval hardening: validation and runtime fallback for invalid values
