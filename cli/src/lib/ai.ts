@@ -5,6 +5,7 @@ export interface AIConfig {
   endpoint: string;
   model: string;
   apiKey?: string;
+  onToken?: (token: string) => void;
 }
 
 export interface AIResponse {
@@ -19,6 +20,7 @@ export interface AIResponse {
 export class AIClient {
   private client: OpenAI;
   private model: string;
+  private onToken?: (token: string) => void;
 
   constructor(config: AIConfig) {
     if (config.type === "anthropic") {
@@ -28,6 +30,7 @@ export class AIClient {
     }
 
     this.model = config.model;
+    this.onToken = config.onToken;
 
     // Configure for different providers
     const baseURL = this.getBaseURL(config);
@@ -57,14 +60,11 @@ export class AIClient {
   }
 
   async generate(prompt: string, systemPrompt?: string): Promise<AIResponse> {
-    const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
-
-    if (systemPrompt) {
-      messages.push({ role: "system", content: systemPrompt });
+    if (this.onToken) {
+      return this.generateStream(prompt, systemPrompt, this.onToken);
     }
 
-    messages.push({ role: "user", content: prompt });
-
+    const messages = completionMessages(prompt, systemPrompt);
     const response = await this.client.chat.completions.create({
       model: this.model,
       messages,
@@ -82,6 +82,38 @@ export class AIClient {
           }
         : undefined,
     };
+  }
+
+  async generateStream(
+    prompt: string,
+    systemPrompt?: string,
+    onToken?: (token: string) => void
+  ): Promise<AIResponse> {
+    const messages = completionMessages(prompt, systemPrompt);
+    const stream = await this.client.chat.completions.create({
+      model: this.model,
+      messages,
+      temperature: 0.7,
+      max_tokens: 1024,
+      stream: true,
+    });
+
+    let content = "";
+    let model = this.model;
+
+    for await (const chunk of stream) {
+      if (chunk.model) {
+        model = chunk.model;
+      }
+      const token = chunk.choices?.[0]?.delta?.content;
+      if (!token) {
+        continue;
+      }
+      content += token;
+      onToken?.(token);
+    }
+
+    return { content, model };
   }
 
   async generateWithImage(
@@ -191,6 +223,20 @@ export class AIClient {
     );
     return response.content;
   }
+}
+
+function completionMessages(
+  prompt: string,
+  systemPrompt?: string
+): OpenAI.Chat.ChatCompletionMessageParam[] {
+  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
+
+  if (systemPrompt) {
+    messages.push({ role: "system", content: systemPrompt });
+  }
+
+  messages.push({ role: "user", content: prompt });
+  return messages;
 }
 
 function completionContent(response: OpenAI.Chat.ChatCompletion): string {
