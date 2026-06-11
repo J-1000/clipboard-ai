@@ -359,6 +359,7 @@ Completed (as of 2026-06-11):
    - `type = "anthropic"` routes through Anthropic's OpenAI SDK compatibility endpoint and is treated as a cloud provider by safe mode.
    - Per-action `model` and `endpoint` overrides route selected actions to different OpenAI-compatible models, with safe mode evaluated against the effective endpoint.
    - Config hot reload watches `~/.clipboard-ai/config.toml`, keeps the previous config on invalid reloads, and supports manual reload via `SIGHUP`.
+   - Raycast extension scaffold and commands live in `integrations/raycast/`, backed by the local HTTP API.
 
 ## 15. Repository Structure
 

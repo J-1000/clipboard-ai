@@ -26,6 +26,35 @@ curl -s "$BASE/action" \
   -d '{"action":"tldr"}' | jq -r '.result // .error'
 ```
 
+## Raycast Extension
+
+A full Raycast extension lives in `integrations/raycast/`. It includes commands for:
+
+- setup instructions
+- summarize clipboard
+- explain clipboard
+- translate clipboard
+- recent action history
+
+Enable the local HTTP API first:
+
+```toml
+[settings]
+http_enabled = true
+http_addr = "127.0.0.1:9159"
+http_auth_token = "replace-with-a-long-random-token"
+```
+
+Then install/run the extension during development:
+
+```bash
+cd integrations/raycast
+npm install
+npm run dev
+```
+
+Set the extension preferences to the same `http_addr` and `http_auth_token`.
+
 ## Alfred Script Filter (Bash)
 
 Use a Script Filter that outputs JSON:

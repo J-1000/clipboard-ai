@@ -89,6 +89,7 @@ Request body:
 ```json
 {
   "action": "summarize",
+  "args": [],
   "text": "optional input override",
   "type": "text"
 }
@@ -117,6 +118,45 @@ Success response:
 }
 ```
 
+Use `args` for actions that accept CLI arguments. Example:
+
+```json
+{
+  "action": "translate",
+  "args": ["Spanish"]
+}
+```
+
+### `GET /history`
+
+Returns recent action history from `~/.clipboard-ai/history.jsonl`, newest first.
+
+Query parameters:
+
+- `limit`: maximum records to return, default `20`, capped at `100`
+
+```json
+{
+  "records": [
+    {
+      "id": "mabc123-def456",
+      "timestamp": "2026-06-11T12:00:00Z",
+      "action": "summarize",
+      "args": [],
+      "source": "manual",
+      "trigger": "cli",
+      "provider": "ollama",
+      "model": "mistral",
+      "latency_ms": 315,
+      "status": "success",
+      "copy": false,
+      "input": "...",
+      "output": "..."
+    }
+  ]
+}
+```
+
 ## cURL Examples
 
 ```bash
@@ -133,6 +173,9 @@ curl -s "$BASE/action" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"action":"tldr"}'
+
+curl -s "$BASE/history?limit=10" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ## Integration Examples

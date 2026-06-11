@@ -38,6 +38,8 @@ Last updated: 2026-06-11
   - Enabled via `settings.http_enabled`
   - Address via `settings.http_addr`
   - Auth token via `settings.http_auth_token`
+  - `/action` accepts optional `args` for action arguments
+  - `/history` returns recent action history for integrations
 - Config hot reload:
   - `~/.clipboard-ai/config.toml` is watched and valid provider/action/rule changes are applied without restart
   - Invalid reloads are rejected while the previous config remains active
@@ -72,6 +74,7 @@ Last updated: 2026-06-11
   - `anthropic` provider type routes through Anthropic's OpenAI SDK compatibility endpoint
   - Per-action model/endpoint overrides route selected actions to different OpenAI-compatible models
   - Config hot reload applies valid provider/action/rule changes without restarting the agent
+  - Raycast extension lives in `integrations/raycast/` with setup, summary, explain, translate, and history commands
 
 ## Test Health
 
@@ -81,7 +84,7 @@ Last updated: 2026-06-11
 
 ## Recent Fixes
 
-- Phase 4 feature work: sensitive-data guard, streaming CLI output, `summarize_url`, `cbai actions`, `cbai doctor`, Anthropic provider support, per-action model routing, and config hot reload
+- Phase 4 feature work: sensitive-data guard, streaming CLI output, `summarize_url`, `cbai actions`, `cbai doctor`, Anthropic provider support, per-action model routing, config hot reload, and Raycast extension
 - Phase 3 code quality fixes: shared builtin action execution helper, documented action type boundary, and precompiled trigger regex validation
 - Phase 2 robustness fixes: CLI IPC timeout, corrupt history-line tolerance, defensive empty-choice AI response handling, and one-time RTF read failure logging
 - Phase 1 security fixes: notification AppleScript injection prevention, `/config` secret redaction, history retention/privacy controls, IPC size limits/socket permissions, and plugin trust-model docs
