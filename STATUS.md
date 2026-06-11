@@ -1,6 +1,6 @@
 # clipboard-ai Status
 
-Last updated: 2026-02-22
+Last updated: 2026-06-11
 
 ## Status Quo
 
@@ -39,16 +39,25 @@ Last updated: 2026-02-22
   - Auth token via `settings.http_auth_token`
 - Action history:
   - Runs are persisted to `~/.clipboard-ai/history.jsonl`
-  - CLI supports `cbai history` and `cbai rerun <id>`
+  - Retention controls: `history_enabled`, `history_max_entries`, `history_truncate_chars`
+  - CLI supports `cbai history`, `cbai history --clear`, `cbai history --before <ISO date>`, and `cbai rerun <id>`
+- Security hardening:
+  - macOS notification text is passed to AppleScript via argv
+  - `/config` redacts provider API keys and HTTP auth tokens
+  - `/action` request bodies are capped at 10 MB
+  - Oversized clipboard images are omitted from `/clipboard` with truncation metadata
+  - IPC socket directory/socket permissions are enforced at startup
+  - Plugin actions are documented as trusted local code
 
 ## Test Health
 
 - `agent`: `go test ./...` passing
 - `actions`: `bun test` passing
-- `cli`: `bun test` passing
+- `cli`: `bun test` currently failing in existing client/AI command test areas and Bun module-mock isolation; focused history/plugin tests for the Phase 1 changes pass
 
 ## Recent Fixes
 
+- Phase 1 security fixes: notification AppleScript injection prevention, `/config` secret redaction, history retention/privacy controls, IPC size limits/socket permissions, and plugin trust-model docs
 - Provider docs/runtime consistency: removed Anthropic support claims from user docs/config comments
 - Poll interval hardening: validation and runtime fallback for invalid values
 - Unicode length correctness: rules and IPC length/truncation updated to rune-based behavior
