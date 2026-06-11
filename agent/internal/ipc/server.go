@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net"
 	"net/http"
 	"os"
@@ -16,6 +17,8 @@ import (
 	"github.com/clipboard-ai/agent/internal/config"
 	"github.com/clipboard-ai/agent/internal/executor"
 )
+
+const maxActionRequestBodyBytes = 10 << 20
 
 // Server provides HTTP API over Unix socket
 type Server struct {
@@ -212,8 +215,14 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, maxActionRequestBodyBytes)
 	var req ActionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			http.Error(w, "Request body too large", http.StatusRequestEntityTooLarge)
+			return
+		}
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
