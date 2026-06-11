@@ -33,6 +33,7 @@ Last updated: 2026-06-11
 - Reliability controls:
   - `settings.clipboard_dedupe_window_ms` suppresses duplicate clipboard events inside a window
   - Per-action controls: `timeout_ms`, `retry_count`, `retry_backoff_ms`, `cooldown_ms`
+  - Per-action model routing: `actions.<name>.model` and `actions.<name>.endpoint`
 - Local HTTP API:
   - Enabled via `settings.http_enabled`
   - Address via `settings.http_addr`
@@ -64,6 +65,7 @@ Last updated: 2026-06-11
   - `cbai actions` lists registered actions and configured trigger state
   - `cbai doctor` runs local diagnostics, including vision-model guidance for caption/OCR
   - `anthropic` provider type routes through Anthropic's OpenAI SDK compatibility endpoint
+  - Per-action model/endpoint overrides route selected actions to different OpenAI-compatible models
 
 ## Test Health
 
@@ -73,7 +75,7 @@ Last updated: 2026-06-11
 
 ## Recent Fixes
 
-- Phase 4 feature work: sensitive-data guard, streaming CLI output, `summarize_url`, `cbai actions`, `cbai doctor`, and Anthropic provider support
+- Phase 4 feature work: sensitive-data guard, streaming CLI output, `summarize_url`, `cbai actions`, `cbai doctor`, Anthropic provider support, and per-action model routing
 - Phase 3 code quality fixes: shared builtin action execution helper, documented action type boundary, and precompiled trigger regex validation
 - Phase 2 robustness fixes: CLI IPC timeout, corrupt history-line tolerance, defensive empty-choice AI response handling, and one-time RTF read failure logging
 - Phase 1 security fixes: notification AppleScript injection prevention, `/config` secret redaction, history retention/privacy controls, IPC size limits/socket permissions, and plugin trust-model docs

@@ -239,10 +239,31 @@ Fetching a URL makes a network request to that site even when safe mode is enabl
 ### Reliability Controls
 
 - `settings.clipboard_dedupe_window_ms`: suppresses duplicate clipboard text reprocessing within a time window
+- `actions.<name>.model`: per-action model override
+- `actions.<name>.endpoint`: per-action OpenAI-compatible endpoint override
 - `actions.<name>.timeout_ms`: per-action execution timeout override
 - `actions.<name>.retry_count`: retry attempts after first failure
 - `actions.<name>.retry_backoff_ms`: wait time between retries
 - `actions.<name>.cooldown_ms`: minimum interval between action invocations
+
+### Per-Action Model Routing
+
+Actions can use a different model, and optionally a different OpenAI-compatible endpoint, without changing the default provider:
+
+```toml
+[actions.classify]
+enabled = true
+trigger = "length > 0"
+model = "llama3.2:1b"
+
+[actions.explain]
+enabled = true
+trigger = "mime:code"
+model = "qwen2.5-coder:14b"
+endpoint = "http://localhost:11435/v1"
+```
+
+Manual CLI runs use the matching action config when available. Daemon-triggered runs pass the configured override to the CLI for the triggered action. Safe mode evaluates the effective endpoint after overrides, so a remote per-action endpoint is treated as a cloud call.
 
 ### Sensitive-Data Guard
 

@@ -48,6 +48,9 @@ sensitive_guard = "warn"
 enabled = true
 # Trigger when clipboard content is longer than 200 characters
 trigger = "length > 200"
+# Optional provider overrides for this action
+# model = "llama3.2:1b"
+# endpoint = "http://localhost:11434/v1"
 # Optional reliability controls (all default to 0 when omitted)
 timeout_ms = 15000
 retry_count = 1

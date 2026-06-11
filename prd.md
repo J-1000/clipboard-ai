@@ -357,6 +357,7 @@ Completed (as of 2026-06-11):
    - `cbai actions` lists registered actions with trigger state.
    - `cbai doctor` provides local diagnostics and clearer vision model guidance for image actions.
    - `type = "anthropic"` routes through Anthropic's OpenAI SDK compatibility endpoint and is treated as a cloud provider by safe mode.
+   - Per-action `model` and `endpoint` overrides route selected actions to different OpenAI-compatible models, with safe mode evaluated against the effective endpoint.
 
 ## 15. Repository Structure
 
