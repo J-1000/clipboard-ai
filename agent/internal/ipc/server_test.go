@@ -7,10 +7,13 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/clipboard-ai/agent/internal/clipboard"
 	"github.com/clipboard-ai/agent/internal/config"
@@ -106,6 +109,42 @@ func TestHandleClipboard_GET(t *testing.T) {
 
 	if resp.Length != 0 {
 		t.Fatalf("expected length 0 for empty clipboard, got %d", resp.Length)
+	}
+}
+
+func TestHandleClipboard_OmitsOversizedImage(t *testing.T) {
+	s := newTestServer()
+	setMonitorCurrent(t, s.monitor, clipboard.Content{
+		Image:     bytes.Repeat([]byte("a"), maxClipboardImageBytes+1),
+		ImageMime: "image/png",
+		Type:      clipboard.ContentTypeImage,
+		Timestamp: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/clipboard", nil)
+	w := httptest.NewRecorder()
+
+	s.handleClipboard(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp ClipboardResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp.ImageBase64 != "" {
+		t.Fatal("expected oversized image_base64 to be omitted")
+	}
+	if !resp.ImageTruncated {
+		t.Fatal("expected image_truncated=true")
+	}
+	if resp.ImageSizeBytes != maxClipboardImageBytes+1 {
+		t.Fatalf("expected image_size_bytes %d, got %d", maxClipboardImageBytes+1, resp.ImageSizeBytes)
+	}
+	if resp.ImageMime != "image/png" {
+		t.Fatalf("expected image mime image/png, got %q", resp.ImageMime)
 	}
 }
 
@@ -216,6 +255,23 @@ func TestHandleAction_InvalidJSON(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestHandleAction_OversizedBody(t *testing.T) {
+	s := newTestServer()
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/action",
+		bytes.NewReader([]byte(`{"action":"summarize","text":"`+strings.Repeat("a", maxActionRequestBodyBytes)+`"}`)),
+	)
+	w := httptest.NewRecorder()
+
+	s.handleAction(w, req)
+
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("expected 413, got %d", w.Code)
 	}
 }
 
@@ -357,4 +413,69 @@ func TestStart_ListensOnSocket(t *testing.T) {
 
 	// Shutdown
 	cancel()
+}
+
+func TestStart_SocketPermissions(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("/tmp", "cbai-ipc-")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	socketPath := filepath.Join(tmpDir, ".clipboard-ai", "agent.sock")
+	s := NewServer(socketPath, clipboard.NewMonitor(100, nil), config.Default(), "test-version")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- s.Start(ctx)
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		if _, err := os.Stat(socketPath); err == nil {
+			break
+		}
+		select {
+		case err := <-errCh:
+			t.Fatalf("server exited before creating socket: %v", err)
+		default:
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("timed out waiting for socket")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	dirInfo, err := os.Stat(filepath.Dir(socketPath))
+	if err != nil {
+		t.Fatalf("failed to stat socket dir: %v", err)
+	}
+	if got := dirInfo.Mode().Perm(); got != 0700 {
+		t.Fatalf("expected socket dir mode 0700, got %o", got)
+	}
+
+	socketInfo, err := os.Stat(socketPath)
+	if err != nil {
+		t.Fatalf("failed to stat socket: %v", err)
+	}
+	if got := socketInfo.Mode().Perm(); got != 0600 {
+		t.Fatalf("expected socket mode 0600, got %o", got)
+	}
+
+	cancel()
+	select {
+	case <-errCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for server shutdown")
+	}
+}
+
+func setMonitorCurrent(t *testing.T, monitor *clipboard.Monitor, content clipboard.Content) {
+	t.Helper()
+
+	current := reflect.ValueOf(monitor).Elem().FieldByName("current")
+	reflect.NewAt(current.Type(), unsafe.Pointer(current.UnsafeAddr())).Elem().Set(reflect.ValueOf(content))
 }
