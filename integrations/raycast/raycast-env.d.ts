@@ -26,6 +26,8 @@ declare namespace Preferences {
   export type Explain = ExtensionPreferences & {}
   /** Preferences accessible in the `translate` command */
   export type Translate = ExtensionPreferences & {}
+  /** Preferences accessible in the `history` command */
+  export type History = ExtensionPreferences & {}
 }
 
 declare namespace Arguments {
@@ -40,5 +42,7 @@ declare namespace Arguments {
   /** Target language */
   "language": string
 }
+  /** Arguments passed to the `history` command */
+  export type History = {}
 }
 

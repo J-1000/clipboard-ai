@@ -42,6 +42,13 @@
           "required": true
         }
       ]
+    },
+    {
+      "name": "history",
+      "title": "Clipboard AI History",
+      "description": "Show recent clipboard-ai action runs.",
+      "mode": "view",
+      "keywords": ["history", "recent"]
     }
   ],
   "preferences": [

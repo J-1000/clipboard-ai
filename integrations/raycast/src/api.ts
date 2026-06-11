@@ -14,17 +14,23 @@ export interface ActionResponse {
 
 export interface HistoryRecord {
   id: string;
+  timestamp: string;
   action: string;
+  args: string[];
   source: string;
   trigger: string;
   provider: string;
   model: string;
   status: "success" | "error";
-  created_at: string;
   latency_ms?: number;
   input?: string;
   output?: string;
   error?: string;
+}
+
+export interface HistoryResponse {
+  records: HistoryRecord[];
+  skipped_corrupt?: number;
 }
 
 export function preferences(): Preferences {
