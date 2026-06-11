@@ -72,9 +72,8 @@ export class AIClient {
       max_tokens: 1024,
     });
 
-    const choice = response.choices[0];
     return {
-      content: choice.message.content || "",
+      content: completionContent(response),
       model: response.model,
       usage: response.usage
         ? {
@@ -113,9 +112,8 @@ export class AIClient {
       max_tokens: 1024,
     });
 
-    const choice = response.choices[0];
     return {
-      content: choice.message.content || "",
+      content: completionContent(response),
       model: response.model,
       usage: response.usage
         ? {
@@ -193,4 +191,12 @@ export class AIClient {
     );
     return response.content;
   }
+}
+
+function completionContent(response: OpenAI.Chat.ChatCompletion): string {
+  const content = response.choices?.[0]?.message?.content;
+  if (content === undefined || content === null) {
+    throw new Error("provider returned no completion choices");
+  }
+  return content;
 }
