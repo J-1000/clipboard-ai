@@ -3,7 +3,7 @@ import { runActionCommand } from "../lib/run-action.js";
 
 export async function rerunCommand(
   id: string,
-  options: { copy?: boolean; yes?: boolean } = {}
+  options: { copy?: boolean; yes?: boolean; force?: boolean } = {}
 ): Promise<void> {
   try {
     const record = await getHistoryRecordById(id);
@@ -16,6 +16,7 @@ export async function rerunCommand(
       args: record.args,
       copy: options.copy,
       yes: options.yes,
+      force: options.force,
       inputText: record.input,
       source: "rerun",
       trigger: `rerun:${record.id}`,

@@ -26,6 +26,11 @@ yargs(hideBin(process.argv))
     description: "Skip safe mode confirmation prompts",
     default: false,
   })
+  .option("force", {
+    type: "boolean",
+    description: "Bypass sensitive-data guard for manual actions",
+    default: false,
+  })
   .command(
     "status",
     "Show agent status",
@@ -74,6 +79,7 @@ yargs(hideBin(process.argv))
         args: (argv.args as string[] | undefined) ?? [],
         copy: argv.copy,
         yes: argv.yes,
+        force: argv.force,
       });
     }
   )
@@ -120,7 +126,7 @@ yargs(hideBin(process.argv))
           default: false,
         }),
     async (argv) => {
-      await rerunCommand(argv.id as string, { copy: argv.copy, yes: argv.yes });
+      await rerunCommand(argv.id as string, { copy: argv.copy, yes: argv.yes, force: argv.force });
     }
   )
   .command(
@@ -155,7 +161,7 @@ yargs(hideBin(process.argv))
         default: false,
       }),
     async (argv) => {
-      await summaryCommand({ copy: argv.copy, yes: argv.yes });
+      await summaryCommand({ copy: argv.copy, yes: argv.yes, force: argv.force });
     }
   )
   .command(
@@ -169,7 +175,7 @@ yargs(hideBin(process.argv))
         default: false,
       }),
     async (argv) => {
-      await summaryCommand({ copy: argv.copy, yes: argv.yes });
+      await summaryCommand({ copy: argv.copy, yes: argv.yes, force: argv.force });
     }
   )
   .command(
@@ -183,7 +189,7 @@ yargs(hideBin(process.argv))
         default: false,
       }),
     async (argv) => {
-      await explainCommand({ copy: argv.copy, yes: argv.yes });
+      await explainCommand({ copy: argv.copy, yes: argv.yes, force: argv.force });
     }
   )
   .command(
@@ -204,7 +210,7 @@ yargs(hideBin(process.argv))
         });
     },
     async (argv) => {
-      await translateCommand(argv.lang as string, { copy: argv.copy, yes: argv.yes });
+      await translateCommand(argv.lang as string, { copy: argv.copy, yes: argv.yes, force: argv.force });
     }
   )
   .command(
@@ -218,7 +224,7 @@ yargs(hideBin(process.argv))
         default: false,
       }),
     async (argv) => {
-      await improveCommand({ copy: argv.copy, yes: argv.yes });
+      await improveCommand({ copy: argv.copy, yes: argv.yes, force: argv.force });
     }
   )
   .command(
@@ -232,7 +238,7 @@ yargs(hideBin(process.argv))
         default: false,
       }),
     async (argv) => {
-      await extractCommand({ copy: argv.copy, yes: argv.yes });
+      await extractCommand({ copy: argv.copy, yes: argv.yes, force: argv.force });
     }
   )
   .command(
@@ -246,7 +252,7 @@ yargs(hideBin(process.argv))
         default: false,
       }),
     async (argv) => {
-      await tldrCommand({ copy: argv.copy, yes: argv.yes });
+      await tldrCommand({ copy: argv.copy, yes: argv.yes, force: argv.force });
     }
   )
   .command(
@@ -260,7 +266,7 @@ yargs(hideBin(process.argv))
         default: false,
       }),
     async (argv) => {
-      await classifyCommand({ copy: argv.copy, yes: argv.yes });
+      await classifyCommand({ copy: argv.copy, yes: argv.yes, force: argv.force });
     }
   )
   .demandCommand(1, "Please specify a command")

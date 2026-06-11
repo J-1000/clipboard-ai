@@ -5,11 +5,13 @@ import { getConfig } from "./client.js";
 import { appendHistoryRecord, type HistoryRetentionSettings, type RunSource } from "./history.js";
 import { getInput, type InputPayload } from "./input.js";
 import { enforceSafeMode } from "./safe-mode.js";
+import { scanSensitiveText } from "./sensitive-guard.js";
 
 export interface RunActionOptions {
   args?: string[];
   copy?: boolean;
   yes?: boolean;
+  force?: boolean;
   registry?: ActionRegistry;
   inputText?: string;
   input?: InputPayload;
@@ -31,6 +33,7 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
   let shouldRecord = false;
   let input: InputPayload | null = null;
   let historySettings: HistoryRetentionSettings | undefined;
+  let guardHit = process.env.CBAI_SENSITIVE_GUARD_HIT === "true";
 
   try {
     const registry = options.registry ?? (await getActionRegistry());
@@ -73,6 +76,20 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
     resolvedActionName = action.id;
     inputText = text || input.rtf || (input.imageBase64 ? "[image]" : "");
     shouldRecord = true;
+
+    const guardMode = config.settings.sensitive_guard ?? "warn";
+    if (!guardHit && text && guardMode !== "off") {
+      const findings = scanSensitiveText(text);
+      if (findings.length > 0) {
+        guardHit = true;
+        if (guardMode === "block" && !options.force) {
+          throw new Error("clipboard looks like it contains a secret — action skipped. Use --force to run the action anyway.");
+        }
+        if (guardMode === "warn" && !options.force) {
+          console.error("Warning: clipboard looks like it contains a secret.");
+        }
+      }
+    }
 
     await enforceSafeMode(config, { yes: options.yes });
 
@@ -131,9 +148,9 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
           latency_ms: latencyMs,
           status: runError ? "error" : "success",
           copy: options.copy ?? false,
-          input: inputText,
-          output,
-          error: runError,
+        input: guardHit ? "[sensitive content omitted]" : inputText,
+        output: guardHit ? undefined : output,
+        error: runError,
           replay_of: options.replayOf,
         },
         historySettings
