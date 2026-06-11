@@ -121,7 +121,11 @@ func main() {
 			logger.Info("action triggered", "action", match.ActionName)
 
 			go func(actionName string, actionCfg config.ActionConfig, content clipboard.Content, sensitiveGuardHit bool) {
-				opts := executor.Options{Trigger: actionCfg.Trigger}
+				opts := executor.Options{
+					Trigger:          actionCfg.Trigger,
+					ModelOverride:    actionCfg.Model,
+					EndpointOverride: actionCfg.Endpoint,
+				}
 				if sensitiveGuardHit {
 					opts.SensitiveGuardHit = true
 				}

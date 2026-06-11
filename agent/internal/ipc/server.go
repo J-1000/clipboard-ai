@@ -293,6 +293,10 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 		InputType: inputType,
 		InputRTF:  inputRTF,
 	}
+	if actionCfg, ok := s.config.Actions[req.Action]; ok {
+		opts.ModelOverride = actionCfg.Model
+		opts.EndpointOverride = actionCfg.Endpoint
+	}
 	if len(imageBytes) > 0 {
 		path, err := executor.WriteTempImage(imageBytes)
 		if err != nil {

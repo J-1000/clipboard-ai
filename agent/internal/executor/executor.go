@@ -19,6 +19,8 @@ type Options struct {
 	InputImagePath    string
 	InputImageMime    string
 	SensitiveGuardHit bool
+	ModelOverride     string
+	EndpointOverride  string
 }
 
 // ExecuteFunc allows tests to override the executor behavior.
@@ -103,6 +105,12 @@ func runExecuteWithOptions(ctx context.Context, action string, text string, opts
 	}
 	if opts.SensitiveGuardHit {
 		cmd.Env = append(cmd.Env, "CBAI_SENSITIVE_GUARD_HIT=true")
+	}
+	if opts.ModelOverride != "" {
+		cmd.Env = append(cmd.Env, "CBAI_MODEL_OVERRIDE="+opts.ModelOverride)
+	}
+	if opts.EndpointOverride != "" {
+		cmd.Env = append(cmd.Env, "CBAI_ENDPOINT_OVERRIDE="+opts.EndpointOverride)
 	}
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
