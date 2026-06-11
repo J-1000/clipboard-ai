@@ -13,6 +13,13 @@
       "title": "Setup Clipboard AI",
       "description": "Show the local HTTP API setup required for this extension.",
       "mode": "view"
+    },
+    {
+      "name": "summary",
+      "title": "Summarize Clipboard",
+      "description": "Summarize the current clipboard with clipboard-ai.",
+      "mode": "view",
+      "keywords": ["summary", "summarize"]
     }
   ],
   "preferences": [
