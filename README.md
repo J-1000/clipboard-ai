@@ -167,6 +167,7 @@ clipboard_dedupe_window_ms = 1000
 http_enabled = false
 http_addr = "127.0.0.1:9159"
 # http_auth_token = "set-a-long-random-token"
+sensitive_guard = "warn"
 
 [actions.summarize]
 enabled = true
@@ -219,6 +220,16 @@ When `settings.http_enabled = true`, the agent also exposes a localhost HTTP API
 - `actions.<name>.retry_count`: retry attempts after first failure
 - `actions.<name>.retry_backoff_ms`: wait time between retries
 - `actions.<name>.cooldown_ms`: minimum interval between action invocations
+
+### Sensitive-Data Guard
+
+`settings.sensitive_guard` detects likely secrets and PII before actions run:
+
+- `warn` (default): notify/warn and continue
+- `block`: skip the action unless manual CLI usage includes `--force`
+- `off`: disable the guard
+
+Detected inputs are not written to history; history records keep metadata and replace content with a placeholder. Initial detectors cover AWS access keys, API-key assignments, JWTs, private-key headers, and Luhn-valid credit-card numbers.
 
 ### Action History
 
