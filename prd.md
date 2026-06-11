@@ -343,6 +343,10 @@ Completed (as of 2026-06-11):
    - Corrupt history JSONL lines are skipped with a warning.
    - Empty AI provider completion responses produce a descriptive error.
    - RTF clipboard read failures are logged once per agent process.
+10. Code quality hardening
+   - Built-in action execution is deduplicated behind a shared helper.
+   - Action type boundaries between `actions/` and `cli/` are documented.
+   - Regex triggers are validated and compiled when the rules engine starts.
 
 Next:
 

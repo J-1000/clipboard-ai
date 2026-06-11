@@ -53,6 +53,10 @@ Last updated: 2026-06-11
   - History reading skips corrupt JSONL lines with a single warning
   - AI provider responses with no completion choices produce a descriptive error
   - The first RTF clipboard read failure is logged once per agent process
+- Code quality:
+  - Built-in action execution in `actions/` uses a shared `executeAIAction` helper
+  - `actions/` and `cli/` action type contracts document their package boundary
+  - Regex triggers are compiled when the rules engine is created and invalid regexes fail startup
 
 ## Test Health
 
@@ -62,6 +66,7 @@ Last updated: 2026-06-11
 
 ## Recent Fixes
 
+- Phase 3 code quality fixes: shared builtin action execution helper, documented action type boundary, and precompiled trigger regex validation
 - Phase 2 robustness fixes: CLI IPC timeout, corrupt history-line tolerance, defensive empty-choice AI response handling, and one-time RTF read failure logging
 - Phase 1 security fixes: notification AppleScript injection prevention, `/config` secret redaction, history retention/privacy controls, IPC size limits/socket permissions, and plugin trust-model docs
 - Provider docs/runtime consistency: removed Anthropic support claims from user docs/config comments
