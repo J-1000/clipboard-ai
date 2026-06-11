@@ -358,6 +358,7 @@ Completed (as of 2026-06-11):
    - `cbai doctor` provides local diagnostics and clearer vision model guidance for image actions.
    - `type = "anthropic"` routes through Anthropic's OpenAI SDK compatibility endpoint and is treated as a cloud provider by safe mode.
    - Per-action `model` and `endpoint` overrides route selected actions to different OpenAI-compatible models, with safe mode evaluated against the effective endpoint.
+   - Config hot reload watches `~/.clipboard-ai/config.toml`, keeps the previous config on invalid reloads, and supports manual reload via `SIGHUP`.
 
 ## 15. Repository Structure
 

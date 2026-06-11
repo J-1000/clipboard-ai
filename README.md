@@ -202,6 +202,14 @@ trigger = "mime:code"
 # trigger = "regex:^https?://\\S+$"
 ```
 
+### Config Hot Reload
+
+The agent watches `~/.clipboard-ai/config.toml` and reloads valid changes without restart. Provider settings, action definitions, trigger rules, safe mode, notifications, logging level, sensitive guard, history settings, and per-action routing are applied to new clipboard events and manual CLI calls after reload.
+
+Invalid TOML, invalid settings, or invalid trigger regexes are rejected; the agent keeps the last valid config and sends a notification when notifications are enabled. Send `SIGHUP` to `clipboard-ai-agent` to force a reload manually.
+
+Changes to `settings.http_enabled`, `settings.http_addr`, and `settings.poll_interval` are logged as restart-required because the HTTP server and clipboard poller are created at startup.
+
 ### Local HTTP API
 
 When `settings.http_enabled = true`, the agent also exposes a localhost HTTP API.
