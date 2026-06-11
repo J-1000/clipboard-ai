@@ -15,6 +15,7 @@ import (
 	"github.com/clipboard-ai/agent/internal/clipboard"
 	"github.com/clipboard-ai/agent/internal/config"
 	"github.com/clipboard-ai/agent/internal/executor"
+	"github.com/clipboard-ai/agent/internal/guard"
 	"github.com/clipboard-ai/agent/internal/ipc"
 	"github.com/clipboard-ai/agent/internal/notify"
 	"github.com/clipboard-ai/agent/internal/rules"
@@ -85,6 +86,29 @@ func main() {
 		// Evaluate rules
 		matches := rulesEngine.Evaluate(content)
 		for _, match := range matches {
+			guardHit := false
+			if content.Text != "" && cfg.Settings.SensitiveGuard != "off" {
+				findings := guard.Scan(content.Text)
+				if len(findings) > 0 {
+					guardHit = true
+					logger.Warn("sensitive clipboard content detected",
+						"action", match.ActionName,
+						"mode", cfg.Settings.SensitiveGuard,
+						"findings", len(findings),
+					)
+					if cfg.Settings.Notifications {
+						message := "clipboard looks like it contains a secret"
+						if cfg.Settings.SensitiveGuard == "block" {
+							message += " — action skipped"
+						}
+						notify.SendWithSubtitle("clipboard-ai", "Sensitive content", message)
+					}
+					if cfg.Settings.SensitiveGuard == "block" {
+						continue
+					}
+				}
+			}
+
 			cooldown := time.Duration(match.Config.CooldownMs) * time.Millisecond
 			if !controller.AllowAction(match.ActionName, cooldown, now) {
 				logger.Debug("skipped action due to cooldown",
@@ -96,8 +120,11 @@ func main() {
 
 			logger.Info("action triggered", "action", match.ActionName)
 
-			go func(actionName string, actionCfg config.ActionConfig, content clipboard.Content) {
+			go func(actionName string, actionCfg config.ActionConfig, content clipboard.Content, sensitiveGuardHit bool) {
 				opts := executor.Options{Trigger: actionCfg.Trigger}
+				if sensitiveGuardHit {
+					opts.SensitiveGuardHit = true
+				}
 				if actionCfg.TimeoutMs > 0 {
 					opts.Timeout = time.Duration(actionCfg.TimeoutMs) * time.Millisecond
 				}
@@ -172,7 +199,7 @@ func main() {
 					}
 					notify.SendWithSubtitle("clipboard-ai", actionName, output)
 				}
-			}(match.ActionName, match.Config, content)
+			}(match.ActionName, match.Config, content, guardHit)
 		}
 	}
 

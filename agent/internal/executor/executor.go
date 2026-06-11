@@ -12,12 +12,13 @@ const defaultTimeout = 30 * time.Second
 
 // Options controls action execution behavior.
 type Options struct {
-	Timeout        time.Duration
-	Trigger        string
-	InputType      string
-	InputRTF       string
-	InputImagePath string
-	InputImageMime string
+	Timeout           time.Duration
+	Trigger           string
+	InputType         string
+	InputRTF          string
+	InputImagePath    string
+	InputImageMime    string
+	SensitiveGuardHit bool
 }
 
 // ExecuteFunc allows tests to override the executor behavior.
@@ -99,6 +100,9 @@ func runExecuteWithOptions(ctx context.Context, action string, text string, opts
 	}
 	if opts.InputImageMime != "" {
 		cmd.Env = append(cmd.Env, "CBAI_INPUT_IMAGE_MIME="+opts.InputImageMime)
+	}
+	if opts.SensitiveGuardHit {
+		cmd.Env = append(cmd.Env, "CBAI_SENSITIVE_GUARD_HIT=true")
 	}
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
