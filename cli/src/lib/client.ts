@@ -66,13 +66,6 @@ export interface ConfigResponse {
   };
 }
 
-export interface ActionResponse {
-  success: boolean;
-  action: string;
-  result?: string;
-  error?: string;
-}
-
 async function makeRequest<T>(
   method: string,
   path: string,
@@ -179,13 +172,6 @@ export async function getClipboard(): Promise<ClipboardResponse> {
 
 export async function getConfig(): Promise<ConfigResponse> {
   return makeRequest<ConfigResponse>("GET", "/config");
-}
-
-export async function runAction(
-  action: string,
-  text?: string
-): Promise<ActionResponse> {
-  return makeRequest<ActionResponse>("POST", "/action", { action, text });
 }
 
 function getIPCTimeoutMs(): number {

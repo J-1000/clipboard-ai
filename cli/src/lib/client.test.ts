@@ -55,7 +55,7 @@ mock.module("os", () => ({
 // would cache a real-homedir SOCKET_PATH. A cache-busting query forces a fresh
 // evaluation here, after the os mock is in place, so SOCKET_PATH points at
 // TEST_ROOT regardless of evaluation order.
-const { getStatus, getClipboard, getConfig, runAction } = (await import(
+const { getStatus, getClipboard, getConfig } = (await import(
   `./client.js?test=${Date.now()}`
 )) as typeof import("./client.js");
 
@@ -138,47 +138,6 @@ describe("IPC Client", () => {
       expect(config.provider.model).toBe("mistral");
       expect(config.settings.safe_mode).toBe(true);
       expect(config.actions.summarize.enabled).toBe(true);
-    });
-  });
-
-  describe("runAction", () => {
-    it("sends POST with action and text", async () => {
-      let receivedBody = "";
-      server = await startMockServer((req) => {
-        receivedBody = req.body;
-        return {
-          body: {
-            success: true,
-            action: "summarize",
-            result: "A summary",
-          },
-        };
-      });
-
-      const result = await runAction("summarize", "some long text");
-      expect(result.success).toBe(true);
-      expect(result.action).toBe("summarize");
-      expect(result.result).toBe("A summary");
-
-      const parsed = JSON.parse(receivedBody);
-      expect(parsed.action).toBe("summarize");
-      expect(parsed.text).toBe("some long text");
-    });
-
-    it("sends POST without text when not provided", async () => {
-      let receivedBody = "";
-      server = await startMockServer((req) => {
-        receivedBody = req.body;
-        return {
-          body: { success: true, action: "classify", result: "code" },
-        };
-      });
-
-      const result = await runAction("classify");
-      expect(result.success).toBe(true);
-
-      const parsed = JSON.parse(receivedBody);
-      expect(parsed.action).toBe("classify");
     });
   });
 

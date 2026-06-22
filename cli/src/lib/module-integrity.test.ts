@@ -15,7 +15,6 @@ describe("module integrity (no cross-file mock leakage)", () => {
     expect(typeof client.getStatus).toBe("function");
     expect(typeof client.getClipboard).toBe("function");
     expect(typeof client.getConfig).toBe("function");
-    expect(typeof client.runAction).toBe("function");
   });
 
   it("ai.js exposes the AIClient class", async () => {
