@@ -11,6 +11,8 @@ import { improveCommand } from "./commands/improve.js";
 import { extractCommand } from "./commands/extract.js";
 import { tldrCommand } from "./commands/tldr.js";
 import { classifyCommand } from "./commands/classify.js";
+import { captionCommand } from "./commands/caption.js";
+import { ocrCommand } from "./commands/ocr.js";
 import { runCommand } from "./commands/run.js";
 import { actionsCommand } from "./commands/actions.js";
 import { doctorCommand } from "./commands/doctor.js";
@@ -246,6 +248,22 @@ yargs(hideBin(process.argv))
     (yargs) => runFlags(yargs),
     async (argv) => {
       await classifyCommand({ copy: argv.copy, yes: argv.yes, force: argv.force });
+    }
+  )
+  .command(
+    "caption",
+    "Generate a caption for a clipboard image",
+    (yargs) => runFlags(yargs),
+    async (argv) => {
+      await captionCommand({ copy: argv.copy, yes: argv.yes, force: argv.force });
+    }
+  )
+  .command(
+    "ocr",
+    "Extract text from a clipboard image",
+    (yargs) => runFlags(yargs),
+    async (argv) => {
+      await ocrCommand({ copy: argv.copy, yes: argv.yes, force: argv.force });
     }
   )
   .demandCommand(1, "Please specify a command")
