@@ -717,3 +717,26 @@ func TestHandleAction_RateLimitsWhenSaturated(t *testing.T) {
 		t.Fatalf("expected 429 when saturated, got %d", w.Code)
 	}
 }
+
+func TestErrorResponsesAreJSON(t *testing.T) {
+	s := newTestServer()
+
+	// A protocol error (wrong method) must return a JSON {"error": ...} body.
+	req := httptest.NewRequest(http.MethodPost, "/status", nil)
+	w := httptest.NewRecorder()
+	s.handleStatus(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405, got %d", w.Code)
+	}
+	if ct := w.Header().Get("Content-Type"); ct != "application/json" {
+		t.Fatalf("expected JSON content type, got %q", ct)
+	}
+	var body map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+		t.Fatalf("error body is not JSON: %v", err)
+	}
+	if body["error"] == "" {
+		t.Fatalf("expected an error message, got %v", body)
+	}
+}

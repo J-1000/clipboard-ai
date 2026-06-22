@@ -67,8 +67,11 @@ Text payload:
 
 Image payload includes:
 
-- `image_base64`
+- `image_base64` (omitted when the image exceeds the 25 MB cap)
 - `image_mime`
+- `image_size_bytes` — raw image size in bytes
+- `image_truncated` — `true` when the image was too large to inline (so
+  `image_base64` is omitted)
 - `type: "image"`
 
 RTF payload includes:
@@ -118,6 +121,14 @@ Success response:
 }
 ```
 
+**Error contract:** `/action` returns **HTTP 200** for *application* failures
+(the action ran but errored), with `success: false` and an `error` message — so
+clients should branch on the `success` field, not only the status code. *Protocol*
+errors (bad method, invalid JSON, unknown/invalid action name, body too large,
+rate-limited) return a non-2xx status with a JSON body `{"error": "..."}`.
+Unknown or malformed action names return `400`; a saturated action queue returns
+`429`.
+
 Use `args` for actions that accept CLI arguments. Example:
 
 ```json
@@ -151,11 +162,37 @@ Query parameters:
       "status": "success",
       "copy": false,
       "input": "...",
-      "output": "..."
+      "output": "...",
+      "replay_of": "mxyz789-...optional id this run replayed"
     }
-  ]
+  ],
+  "skipped_corrupt": 0
 }
 ```
+
+Additional fields:
+
+- `replay_of` (per record) — present when the run was a replay (`cbai rerun`),
+  set to the original run id.
+- `skipped_corrupt` (top level) — number of unparseable history lines skipped
+  while reading; omitted when `0`.
+
+## Errors
+
+Every non-2xx response uses a JSON body of the form:
+
+```json
+{ "error": "message" }
+```
+
+`401` is returned for missing/invalid auth; see the `/action` error contract for
+the 200-with-`success:false` application-error case.
+
+## Security
+
+`GET /clipboard` and `GET /history` return the **full** clipboard text and stored
+action input/output to any holder of the token. Treat `http_auth_token` like a
+password, keep `http_addr` on loopback, and see `docs/security.md`.
 
 ## cURL Examples
 

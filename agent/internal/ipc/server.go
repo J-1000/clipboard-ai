@@ -180,7 +180,7 @@ func (s *Server) Handler() http.Handler {
 // handleStatus returns agent status
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
@@ -206,7 +206,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 // handleClipboard returns current clipboard content
 func (s *Server) handleClipboard(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
@@ -236,7 +236,7 @@ func (s *Server) handleClipboard(w http.ResponseWriter, r *http.Request) {
 // handleConfig returns current configuration
 func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
@@ -245,7 +245,7 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
@@ -253,7 +253,7 @@ func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
 	if value := strings.TrimSpace(r.URL.Query().Get("limit")); value != "" {
 		parsed, err := strconv.Atoi(value)
 		if err != nil || parsed < 0 {
-			http.Error(w, "Invalid limit", http.StatusBadRequest)
+			writeJSONError(w, http.StatusBadRequest, "Invalid limit")
 			return
 		}
 		if parsed > 100 {
@@ -264,7 +264,7 @@ func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
 
 	records, skipped, err := readHistoryRecords(filepath.Join(config.GetDataDir(), "history.jsonl"), limit)
 	if err != nil {
-		http.Error(w, "Failed to read history", http.StatusInternalServerError)
+		writeJSONError(w, http.StatusInternalServerError, "Failed to read history")
 		return
 	}
 
@@ -347,7 +347,7 @@ func isKnownAction(cfg *config.Config, name string) bool {
 // handleAction triggers an AI action
 func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
@@ -356,10 +356,10 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
-			http.Error(w, "Request body too large", http.StatusRequestEntityTooLarge)
+			writeJSONError(w, http.StatusRequestEntityTooLarge, "Request body too large")
 			return
 		}
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		writeJSONError(w, http.StatusBadRequest, "Invalid JSON")
 		return
 	}
 
@@ -368,11 +368,11 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 	// /action calls — mirroring `cbai run`, which runs disabled actions too.)
 	req.Action = strings.TrimSpace(req.Action)
 	if req.Action == "" || !actionNamePattern.MatchString(req.Action) {
-		http.Error(w, "Invalid action name", http.StatusBadRequest)
+		writeJSONError(w, http.StatusBadRequest, "Invalid action name")
 		return
 	}
 	if !isKnownAction(s.configSnapshot(), req.Action) {
-		http.Error(w, "Unknown action", http.StatusBadRequest)
+		writeJSONError(w, http.StatusBadRequest, "Unknown action")
 		return
 	}
 
@@ -382,7 +382,7 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 		case s.actionSem <- struct{}{}:
 			defer func() { <-s.actionSem }()
 		default:
-			http.Error(w, "Too many concurrent actions", http.StatusTooManyRequests)
+			writeJSONError(w, http.StatusTooManyRequests, "Too many concurrent actions")
 			return
 		}
 	}
@@ -406,7 +406,7 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 	if req.ImageBase64 != "" {
 		decoded, err := base64.StdEncoding.DecodeString(req.ImageBase64)
 		if err != nil {
-			http.Error(w, "Invalid image_base64", http.StatusBadRequest)
+			writeJSONError(w, http.StatusBadRequest, "Invalid image_base64")
 			return
 		}
 		imageBytes = decoded
@@ -445,7 +445,7 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 	if len(imageBytes) > 0 {
 		path, err := executor.WriteTempImage(imageBytes)
 		if err != nil {
-			http.Error(w, "Failed to store image", http.StatusInternalServerError)
+			writeJSONError(w, http.StatusInternalServerError, "Failed to store image")
 			return
 		}
 		defer os.Remove(path)
@@ -513,6 +513,14 @@ func readHistoryRecords(path string, limit int) ([]HistoryRecord, int, error) {
 func writeJSON(w http.ResponseWriter, v interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(v)
+}
+
+// writeJSONError writes a consistent JSON error body ({"error": ...}) so every
+// non-2xx protocol error has the same shape.
+func writeJSONError(w http.ResponseWriter, status int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(map[string]string{"error": message})
 }
 
 // truncate shortens a string
