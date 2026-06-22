@@ -1,5 +1,10 @@
 # clipboard-ai Implementation Plan
 
+> **Historical design document.** This captures the original plan. For the
+> current state see `README.md` and `STATUS.md`; for changes see `CHANGELOG.md`.
+> Notably, the separate `actions/` package was removed — built-in actions now
+> live in `cli/src/lib/builtin-actions.ts`.
+
 ## Overview
 
 Build a macOS clipboard monitoring agent with AI-powered transformations. The system consists of:
@@ -32,21 +37,16 @@ clipboard-ai/
 ├── cli/                      # TypeScript CLI (Bun)
 │   ├── src/
 │   │   ├── index.ts
-│   │   ├── commands/         # summary, explain, translate, improve, extract, tldr, classify
+│   │   ├── commands/         # summary, explain, translate, improve, extract, tldr, classify, caption, ocr, init
 │   │   └── lib/
-│   │       ├── ai.ts         # LLM API abstraction
-│   │       ├── client.ts     # Unix socket IPC client
-│   │       ├── clipboard.ts  # Clipboard copy utility (pbcopy)
-│   │       └── safe-mode.ts  # Cloud provider detection & safe mode enforcement
+│   │       ├── ai.ts              # LLM API abstraction
+│   │       ├── client.ts          # Unix socket IPC client
+│   │       ├── clipboard.ts       # Clipboard copy utility (pbcopy)
+│   │       ├── builtin-actions.ts # Built-in action registry (incl. summarize_url)
+│   │       ├── summarize-url.ts   # URL fetch + extract + SSRF guard
+│   │       └── safe-mode.ts       # Cloud provider detection & safe mode enforcement
 │   └── package.json
-├── actions/                  # Built-in AI actions
-│   ├── builtin/
-│   │   ├── summarize.ts
-│   │   ├── explain.ts
-│   │   ├── translate.ts
-│   │   ├── extract.ts
-│   │   └── classify.ts
-│   └── lib/types.ts
+├── integrations/raycast/     # Raycast extension (HTTP API client)
 ├── configs/
 │   └── default.toml
 ├── scripts/
@@ -151,9 +151,10 @@ trigger = "length > 200"
 ## Dependencies
 
 **Go:**
-- `golang.design/x/clipboard` - clipboard access
+- `golang.design/x/clipboard` - clipboard access (requires cgo on macOS)
 - `BurntSushi/toml` - config parsing
-- `gorilla/mux` - HTTP router (optional)
+- `fsnotify/fsnotify` - config-file watching for hot reload
+- (HTTP uses the stdlib `net/http` ServeMux — no `gorilla/mux`)
 
 **TypeScript (Bun):**
 - `yargs` - CLI framework

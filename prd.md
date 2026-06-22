@@ -317,6 +317,9 @@ export const metadata = {
 
 ## 14.1 Next Implementation Priorities
 
+> Historical. Superseded by `CHANGELOG.md`; see `README.md`/`STATUS.md` for the
+> current state.
+
 Completed (as of 2026-06-11):
 
 1. Custom actions/plugins
@@ -345,9 +348,8 @@ Completed (as of 2026-06-11):
    - Empty AI provider completion responses produce a descriptive error.
    - RTF clipboard read failures are logged once per agent process.
 10. Code quality hardening
-   - Built-in action execution is deduplicated behind a shared helper.
-   - Action type boundaries between `actions/` and `cli/` are documented.
-   - Regex triggers are validated and compiled when the rules engine starts.
+   - Built-in actions live in a single CLI registry (`cli/src/lib/builtin-actions.ts`).
+   - Regex triggers are compiled for enabled actions; an invalid one is skipped, not fatal.
 11. Sensitive-data guard
    - Clipboard text is scanned for likely secrets/PII before actions run.
    - Guard-triggered runs do not persist clipboard content to history.
@@ -374,13 +376,11 @@ clipboard-ai/
  │       ├── ipc/          # Unix socket server
  │       ├── notify/       # macOS notifications
  │       └── rules/        # Trigger engine
- ├── cli/               # TypeScript CLI
+ ├── cli/               # TypeScript CLI (the only action runtime)
  │   └── src/
- │       ├── commands/     # summary, explain, translate, improve, extract, tldr, classify
- │       └── lib/          # AI client, IPC client, clipboard utility, safe mode
- ├── actions/           # Built-in AI actions
- │   ├── builtin/          # summarize, explain, translate, extract, classify
- │   └── lib/              # Action type definitions
+ │       ├── commands/     # summary, explain, translate, improve, extract, tldr, classify, caption, ocr, init
+ │       └── lib/          # AI client, IPC client, clipboard, safe mode, builtin-actions, summarize-url
+ ├── integrations/raycast/ # Raycast extension (HTTP API client)
  ├── configs/
  ├── docs/
  ├── scripts/
