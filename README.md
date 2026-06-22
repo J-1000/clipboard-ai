@@ -65,6 +65,22 @@ sudo cp dist/index.js /usr/local/bin/cbai
 chmod +x /usr/local/bin/cbai
 ```
 
+### Release binaries and Gatekeeper
+
+Release artifacts are **not yet codesigned or notarized**, so macOS Gatekeeper
+quarantines downloaded binaries. After downloading an agent binary from a
+release:
+
+```bash
+# Verify the download against the published checksums
+shasum -a 256 -c SHA256SUMS
+
+# Clear the quarantine attribute so it can run
+xattr -d com.apple.quarantine ./clipboard-ai-agent-darwin-arm64
+```
+
+Building from source (the installer above) avoids quarantine entirely.
+
 ## Usage
 
 ### CLI Commands
