@@ -25,7 +25,10 @@ import (
 	"github.com/clipboard-ai/agent/internal/rules"
 )
 
-var version = "0.1.0"
+// version is stamped at build time via
+// `-ldflags "-X main.version=<tag>"` (see install.sh and the release workflow).
+// "dev" marks an unstamped local build.
+var version = "dev"
 
 type runtimeState struct {
 	mu          sync.RWMutex
