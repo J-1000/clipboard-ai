@@ -112,8 +112,11 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
     shouldRecord = true;
 
     const guardMode = config.settings.sensitive_guard ?? "warn";
-    if (!guardHit && text && guardMode !== "off") {
-      const findings = deps.scanSensitiveText(text);
+    // Scan the RTF payload too: a styled paste can carry a secret that isn't in
+    // the plain-text representation.
+    const guardInput = input.rtf ? `${text}\n${input.rtf}` : text;
+    if (!guardHit && guardInput && guardMode !== "off") {
+      const findings = deps.scanSensitiveText(guardInput);
       if (findings.length > 0) {
         guardHit = true;
         if (guardMode === "block" && !options.force) {

@@ -115,8 +115,14 @@ func main() {
 		matches := rulesEngine.Evaluate(content)
 		for _, match := range matches {
 			guardHit := false
-			if content.Text != "" && cfg.Settings.SensitiveGuard != "off" {
-				findings := guard.Scan(content.Text)
+			// Scan the RTF payload too: a styled paste can carry a secret that
+			// isn't in the plain-text representation.
+			guardInput := content.Text
+			if content.RTF != "" {
+				guardInput += "\n" + content.RTF
+			}
+			if guardInput != "" && cfg.Settings.SensitiveGuard != "off" {
+				findings := guard.Scan(guardInput)
 				if len(findings) > 0 {
 					guardHit = true
 					logger.Warn("sensitive clipboard content detected",
