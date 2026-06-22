@@ -22,6 +22,39 @@ func TestShouldSkipClipboard(t *testing.T) {
 	}
 }
 
+func TestShouldSkipClipboard_RecopyWithinWindow(t *testing.T) {
+	c := NewController(1 * time.Second)
+	now := time.Now()
+
+	// A -> B -> A: re-copying A within the window must be suppressed even though
+	// B was the immediately-previous signature.
+	if c.ShouldSkipClipboard("A", now) {
+		t.Fatal("first sight of A should pass")
+	}
+	if c.ShouldSkipClipboard("B", now.Add(100*time.Millisecond)) {
+		t.Fatal("first sight of B should pass")
+	}
+	if !c.ShouldSkipClipboard("A", now.Add(200*time.Millisecond)) {
+		t.Fatal("re-copy of A within the window should be skipped")
+	}
+}
+
+func TestShouldSkipClipboard_RecopyAfterWindow(t *testing.T) {
+	c := NewController(1 * time.Second)
+	now := time.Now()
+
+	if c.ShouldSkipClipboard("A", now) {
+		t.Fatal("first sight of A should pass")
+	}
+	if c.ShouldSkipClipboard("B", now.Add(100*time.Millisecond)) {
+		t.Fatal("first sight of B should pass")
+	}
+	// A re-copied after the window has elapsed should pass again.
+	if c.ShouldSkipClipboard("A", now.Add(2*time.Second)) {
+		t.Fatal("re-copy of A after the window should pass")
+	}
+}
+
 func TestShouldSkipClipboard_Disabled(t *testing.T) {
 	c := NewController(0)
 	now := time.Now()
