@@ -26,6 +26,11 @@ import (
 const maxActionRequestBodyBytes = 10 << 20
 const maxClipboardImageBytes = 25 << 20
 
+// maxConcurrentActionRequests bounds in-flight /action executions so a burst of
+// HTTP requests can't spawn unbounded LLM-calling subprocesses. Excess requests
+// get 429 rather than queueing.
+const maxConcurrentActionRequests = 4
+
 // Server provides HTTP API over Unix socket
 type Server struct {
 	socketPath string
@@ -35,6 +40,7 @@ type Server struct {
 	version    string
 	startTime  time.Time
 	listener   net.Listener
+	actionSem  chan struct{}
 }
 
 // SetConfig atomically swaps the config used by /config and /action.
@@ -115,6 +121,7 @@ func NewServer(socketPath string, monitor *clipboard.Monitor, cfg *config.Config
 		config:     cfg,
 		version:    version,
 		startTime:  time.Now(),
+		actionSem:  make(chan struct{}, maxConcurrentActionRequests),
 	}
 }
 
@@ -364,6 +371,17 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 	if !isKnownAction(s.configSnapshot(), req.Action) {
 		http.Error(w, "Unknown action", http.StatusBadRequest)
 		return
+	}
+
+	// Bound concurrent executions; shed load with 429 instead of queueing.
+	if s.actionSem != nil {
+		select {
+		case s.actionSem <- struct{}{}:
+			defer func() { <-s.actionSem }()
+		default:
+			http.Error(w, "Too many concurrent actions", http.StatusTooManyRequests)
+			return
+		}
 	}
 
 	// Use clipboard content if payload not provided

@@ -693,3 +693,27 @@ func TestHandleAction_PassesInjectedFlagAsPositionalArg(t *testing.T) {
 		t.Fatalf("expected args [--force] passed through to executor, got %v", gotArgs)
 	}
 }
+
+func TestHandleAction_RateLimitsWhenSaturated(t *testing.T) {
+	s := newTestServer()
+	// Saturate the concurrency semaphore so the next request is shed.
+	for i := 0; i < cap(s.actionSem); i++ {
+		s.actionSem <- struct{}{}
+	}
+
+	executor.SetExecuteWithOptionsFunc(func(ctx context.Context, action string, text string, opts executor.Options) executor.Result {
+		t.Fatal("executor must not run when the action limiter is saturated")
+		return executor.Result{}
+	})
+	defer executor.ResetExecuteFunc()
+
+	body, _ := json.Marshal(ActionRequest{Action: "summary", Text: "hi"})
+	req := httptest.NewRequest(http.MethodPost, "/action", bytes.NewBuffer(body))
+	w := httptest.NewRecorder()
+
+	s.handleAction(w, req)
+
+	if w.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected 429 when saturated, got %d", w.Code)
+	}
+}
