@@ -118,6 +118,10 @@ export class AIClient {
 
     warnIfTruncated(finishReason, this.maxTokens);
 
+    if (content === "") {
+      throw new Error("provider returned no completion choices");
+    }
+
     return { content, model };
   }
 

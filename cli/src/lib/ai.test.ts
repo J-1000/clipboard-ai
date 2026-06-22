@@ -219,6 +219,13 @@ describe("AIClient", () => {
       const call = mockCreate.mock.calls[0][0] as Record<string, unknown>;
       expect(call.stream).toBe(true);
     });
+
+    it("throws when the stream yields no content tokens", async () => {
+      mockCreate.mockResolvedValueOnce(streamChunks([]));
+      await expect(client.generateStream("test", undefined, () => {})).rejects.toThrow(
+        /no completion choices/
+      );
+    });
   });
 
   describe("max_tokens", () => {
