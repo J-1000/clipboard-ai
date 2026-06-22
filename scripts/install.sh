@@ -75,9 +75,22 @@ mkdir -p "$LAUNCH_AGENTS_DIR"
 PLIST_SOURCE="$SCRIPT_DIR/$PLIST_NAME"
 PLIST_DEST="$LAUNCH_AGENTS_DIR/$PLIST_NAME"
 
+# The daemon spawns `cbai` (a `#!/usr/bin/env node` script). launchd does NOT
+# inherit the interactive shell's PATH, so unless we inject the directory that
+# holds `node` (and Homebrew's bin on Apple Silicon), every daemon-triggered
+# action fails with `env: node: No such file or directory`.
+AGENT_PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+if command -v brew &> /dev/null; then
+    AGENT_PATH="$(brew --prefix)/bin:$AGENT_PATH"
+fi
+if NODE_BIN="$(command -v node 2>/dev/null)"; then
+    AGENT_PATH="$(dirname "$NODE_BIN"):$AGENT_PATH"
+fi
+
 # Replace placeholders
 sed -e "s|__INSTALL_PATH__|$INSTALL_DIR|g" \
     -e "s|__HOME__|$HOME|g" \
+    -e "s|__AGENT_PATH__|$AGENT_PATH|g" \
     "$PLIST_SOURCE" > "$PLIST_DEST"
 
 # Load the agent
