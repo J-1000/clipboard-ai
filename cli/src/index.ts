@@ -22,6 +22,15 @@ import { logsCommand } from "./commands/logs.js";
 import { VERSION } from "./version.js";
 import type { Argv } from "yargs";
 
+// --json prints the underlying structured object instead of formatted text.
+function jsonFlag<T>(yargs: Argv<T>) {
+  return yargs.option("json", {
+    type: "boolean",
+    description: "Output the result as JSON",
+    default: false,
+  });
+}
+
 // Flags scoped to action-running commands only (not global), so read-only
 // commands' help isn't cluttered with --yes/--force.
 function runFlags<T>(yargs: Argv<T>) {
@@ -55,9 +64,9 @@ yargs(hideBin(process.argv))
   .command(
     "status",
     "Show agent status",
-    () => {},
-    async () => {
-      await statusCommand();
+    (yargs) => jsonFlag(yargs),
+    async (argv) => {
+      await statusCommand({ json: argv.json });
     }
   )
   .command(
@@ -71,25 +80,25 @@ yargs(hideBin(process.argv))
   .command(
     "config",
     "Show current configuration",
-    () => {},
-    async () => {
-      await configCommand();
+    (yargs) => jsonFlag(yargs),
+    async (argv) => {
+      await configCommand({ json: argv.json });
     }
   )
   .command(
     "actions",
     "List registered actions",
-    () => {},
-    async () => {
-      await actionsCommand();
+    (yargs) => jsonFlag(yargs),
+    async (argv) => {
+      await actionsCommand({ json: argv.json });
     }
   )
   .command(
     "doctor",
     "Run diagnostics",
-    () => {},
-    async () => {
-      await doctorCommand();
+    (yargs) => jsonFlag(yargs),
+    async (argv) => {
+      await doctorCommand({ json: argv.json });
     }
   )
   .command(
@@ -122,12 +131,13 @@ yargs(hideBin(process.argv))
     "history",
     "Show recent action history",
     (yargs) =>
-      yargs.option("limit", {
-        alias: "n",
-        type: "number",
-        description: "Maximum number of history rows to show",
-        default: 20,
-      })
+      jsonFlag(yargs)
+        .option("limit", {
+          alias: "n",
+          type: "number",
+          description: "Maximum number of history rows to show",
+          default: 20,
+        })
         .option("clear", {
           type: "boolean",
           description: "Delete all history records",
@@ -142,6 +152,7 @@ yargs(hideBin(process.argv))
         limit: argv.limit,
         clear: argv.clear,
         before: argv.before,
+        json: argv.json,
       });
     }
   )

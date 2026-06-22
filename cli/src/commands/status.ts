@@ -4,10 +4,17 @@ export interface StatusCommandDeps {
   getStatus: typeof defaultGetStatus;
 }
 
-export async function statusCommand(deps: Partial<StatusCommandDeps> = {}): Promise<void> {
+export async function statusCommand(
+  deps: Partial<StatusCommandDeps> & { json?: boolean } = {}
+): Promise<void> {
   const getStatus = deps.getStatus ?? defaultGetStatus;
   try {
     const status = await getStatus();
+
+    if (deps.json) {
+      console.log(JSON.stringify(status, null, 2));
+      return;
+    }
 
     console.log("clipboard-ai agent");
     console.log("\u2500".repeat(18));

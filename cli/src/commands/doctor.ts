@@ -17,16 +17,22 @@ export interface DoctorCommandDeps {
   pluginDir: string;
 }
 
-export async function doctorCommand(deps: Partial<DoctorCommandDeps> = {}): Promise<void> {
+export async function doctorCommand(
+  deps: Partial<DoctorCommandDeps> & { json?: boolean } = {}
+): Promise<void> {
   const getStatus = deps.getStatus ?? defaultGetStatus;
   const getConfig = deps.getConfig ?? defaultGetConfig;
   const pluginDir = deps.pluginDir ?? DEFAULT_PLUGIN_DIR;
 
   passedChecks = 0;
   failedChecks = 0;
+  jsonMode = deps.json ?? false;
+  results.length = 0;
 
-  console.log("clipboard-ai doctor");
-  console.log("──────────────────");
+  if (!jsonMode) {
+    console.log("clipboard-ai doctor");
+    console.log("──────────────────");
+  }
 
   let status: Awaited<ReturnType<typeof getStatus>> | null = null;
   let config: ConfigResponse | null = null;
@@ -62,8 +68,12 @@ export async function doctorCommand(deps: Partial<DoctorCommandDeps> = {}): Prom
   checkPluginDir(pluginDir);
   checkDaemonInterpreter();
 
-  console.log("──────────────────");
-  console.log(`${passedChecks} passed, ${failedChecks} failed`);
+  if (jsonMode) {
+    console.log(JSON.stringify(results, null, 2));
+  } else {
+    console.log("──────────────────");
+    console.log(`${passedChecks} passed, ${failedChecks} failed`);
+  }
   if (failedChecks > 0) {
     // Non-zero exit so launchd/CI health gating can detect a broken setup.
     process.exitCode = 1;
@@ -216,17 +226,28 @@ function formatBytes(bytes: number): string {
 // summary reflect only the current run (INFO is informational, not a failure).
 let passedChecks = 0;
 let failedChecks = 0;
+let jsonMode = false;
+const results: Array<{ check: string; status: "pass" | "fail" | "info"; detail?: string }> = [];
 
 function pass(label: string): void {
   passedChecks += 1;
-  console.log(`${green("PASS")} ${label}`);
+  results.push({ check: label, status: "pass" });
+  if (!jsonMode) {
+    console.log(`${green("PASS")} ${label}`);
+  }
 }
 
 function fail(label: string, detail: string): void {
   failedChecks += 1;
-  console.log(`${red("FAIL")} ${label}: ${detail}`);
+  results.push({ check: label, status: "fail", detail });
+  if (!jsonMode) {
+    console.log(`${red("FAIL")} ${label}: ${detail}`);
+  }
 }
 
 function info(label: string, detail: string): void {
-  console.log(`${yellow("INFO")} ${label}: ${detail}`);
+  results.push({ check: label, status: "info", detail });
+  if (!jsonMode) {
+    console.log(`${yellow("INFO")} ${label}: ${detail}`);
+  }
 }

@@ -6,11 +6,28 @@ export interface ActionsCommandDeps {
   getActionRegistry: typeof defaultGetActionRegistry;
 }
 
-export async function actionsCommand(deps: Partial<ActionsCommandDeps> = {}): Promise<void> {
+export async function actionsCommand(
+  deps: Partial<ActionsCommandDeps> & { json?: boolean } = {}
+): Promise<void> {
   const getConfig = deps.getConfig ?? defaultGetConfig;
   const getActionRegistry = deps.getActionRegistry ?? defaultGetActionRegistry;
   try {
     const [config, registry] = await Promise.all([getConfig(), getActionRegistry()]);
+
+    if (deps.json) {
+      const items = registry.actions.map((action) => {
+        const actionConfig = config.actions[action.id];
+        return {
+          id: action.id,
+          description: action.description,
+          aliases: action.aliases ?? [],
+          enabled: actionConfig?.enabled ?? false,
+          trigger: actionConfig?.trigger ?? "",
+        };
+      });
+      console.log(JSON.stringify(items, null, 2));
+      return;
+    }
 
     console.log("Registered actions");
     console.log("──────────────────");

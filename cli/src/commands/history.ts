@@ -11,7 +11,7 @@ export interface HistoryCommandDeps {
 }
 
 export async function historyCommand(
-  options: { limit?: number; clear?: boolean; before?: string } = {},
+  options: { limit?: number; clear?: boolean; before?: string; json?: boolean } = {},
   deps: Partial<HistoryCommandDeps> = {}
 ): Promise<void> {
   const clearHistoryRecords = deps.clearHistoryRecords ?? defaultClearHistoryRecords;
@@ -37,6 +37,11 @@ export async function historyCommand(
 
     const limit = options.limit ?? 20;
     const records = await readHistoryRecords(limit);
+
+    if (options.json) {
+      console.log(JSON.stringify(records, null, 2));
+      return;
+    }
 
     if (records.length === 0) {
       console.log("No history records found.");

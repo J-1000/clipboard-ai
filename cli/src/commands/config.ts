@@ -4,10 +4,17 @@ export interface ConfigCommandDeps {
   getConfig: typeof defaultGetConfig;
 }
 
-export async function configCommand(deps: Partial<ConfigCommandDeps> = {}): Promise<void> {
+export async function configCommand(
+  deps: Partial<ConfigCommandDeps> & { json?: boolean } = {}
+): Promise<void> {
   const getConfig = deps.getConfig ?? defaultGetConfig;
   try {
     const config = await getConfig();
+
+    if (deps.json) {
+      console.log(JSON.stringify(config, null, 2));
+      return;
+    }
 
     console.log("clipboard-ai configuration");
     console.log("──────────────────────────");
