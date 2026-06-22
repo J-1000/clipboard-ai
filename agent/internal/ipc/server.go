@@ -146,6 +146,9 @@ func (s *Server) Start(ctx context.Context) error {
 		return err
 	}
 	s.listener = listener
+	// Remove the socket file when Serve returns so a stale socket isn't left on
+	// disk after shutdown.
+	defer os.Remove(s.socketPath)
 
 	// Set socket permissions
 	if err := os.Chmod(s.socketPath, 0600); err != nil {
