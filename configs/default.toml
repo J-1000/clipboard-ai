@@ -92,3 +92,12 @@ trigger = "mime:code"
 # Fetches matching URLs over the network before summarizing.
 # Safe mode controls LLM provider calls, not this URL fetch.
 # trigger = "regex:^https?://\\S+$"
+
+# Custom actions via a prompt template (no JS plugin needed). Use {{input}} for
+# the clipboard text and {{args}} for CLI args; if neither placeholder is
+# present, the clipboard text is appended after the prompt. Run with
+# `cbai run <name>`.
+# [actions.shout]
+# enabled = false
+# trigger = ""
+# prompt = "Rewrite the following in ALL CAPS:\n\n{{input}}"

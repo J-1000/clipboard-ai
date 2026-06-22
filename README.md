@@ -347,6 +347,22 @@ Detected inputs are not written to history; history records keep metadata and re
 - Use `cbai logs --file err --tail <n>` to inspect error logs
 - Agent log lines are JSON-structured for easier filtering/parsing
 
+### Custom Prompt Actions (no code)
+
+Define a custom action right in `config.toml` with a `prompt` string — no JS
+plugin required:
+
+```toml
+[actions.shout]
+enabled = false
+trigger = ""
+prompt = "Rewrite the following in ALL CAPS:\n\n{{input}}"
+```
+
+`{{input}}` is the clipboard text and `{{args}}` are CLI arguments; if neither
+placeholder appears, the clipboard text is appended after the prompt. Run it
+with `cbai run shout` (or give it a `trigger` to fire automatically).
+
 ### Custom Plugin Actions
 
 Plugin directory: `~/.clipboard-ai/actions`
