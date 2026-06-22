@@ -1,7 +1,7 @@
 package rules
 
 import (
-	"fmt"
+	"log/slog"
 	"regexp"
 	"strconv"
 	"strings"
@@ -25,23 +25,42 @@ type Match struct {
 	Config     config.ActionConfig
 }
 
-// NewEngine creates a new rules engine
+// NewEngine creates a new rules engine. Regex operands are compiled only for
+// ENABLED actions, and a single invalid pattern is logged and skipped rather
+// than aborting construction — one bad trigger must not stop the daemon.
 func NewEngine(actions map[string]config.ActionConfig) (*Engine, error) {
-	regexes := make(map[string]*regexp.Regexp)
+	e := &Engine{actions: actions, regexes: make(map[string]*regexp.Regexp)}
 	for actionName, action := range actions {
-		for _, pattern := range regexPatterns(action.Trigger) {
-			if _, ok := regexes[pattern]; ok {
+		if !action.Enabled {
+			continue
+		}
+		for _, pattern := range e.regexOperands(action.Trigger) {
+			if _, ok := e.regexes[pattern]; ok {
 				continue
 			}
 			compiled, err := regexp.Compile(pattern)
 			if err != nil {
-				return nil, fmt.Errorf("invalid regex trigger for action %q: %w", actionName, err)
+				slog.Warn("skipping invalid regex trigger",
+					"action", actionName,
+					"pattern", pattern,
+					"error", err,
+				)
+				continue
 			}
-			regexes[pattern] = compiled
+			e.regexes[pattern] = compiled
 		}
 	}
 
-	return &Engine{actions: actions, regexes: regexes}, nil
+	return e, nil
+}
+
+// regexOperands walks a trigger expression and returns the operands of all
+// regex: conditions, using the same quote-aware parser as evaluation.
+func (e *Engine) regexOperands(trigger string) []string {
+	var collected []string
+	p := triggerParser{input: strings.TrimSpace(trigger), engine: e, collectRegex: &collected}
+	p.parseExpr()
+	return collected
 }
 
 // Evaluate checks all rules against content and returns matches
@@ -90,6 +109,9 @@ type triggerParser struct {
 	pos     int
 	engine  *Engine
 	content clipboard.Content
+	// When set, conditions are not evaluated; regex: operands are collected here
+	// (used by NewEngine to compile patterns up front).
+	collectRegex *[]string
 }
 
 func (p *triggerParser) parseExpr() (bool, bool) {
@@ -162,13 +184,28 @@ func (p *triggerParser) parsePrimary() (bool, bool) {
 	if !ok {
 		return false, false
 	}
+	if p.collectRegex != nil {
+		if operand, ok := strings.CutPrefix(cond, "regex:"); ok {
+			*p.collectRegex = append(*p.collectRegex, operand)
+		}
+		return true, true
+	}
 	return p.engine.evaluateCondition(cond, p.content), true
 }
 
 func (p *triggerParser) readCondition() (string, bool) {
 	p.skipSpaces()
-	start := p.pos
 
+	// regex:/contains: operands are opaque. Support quoting so an operand may
+	// contain DSL-significant characters like ) AND OR without being split:
+	//   regex:"(https?)://"   contains:"foo AND bar"
+	for _, prefix := range []string{"regex:", "contains:"} {
+		if strings.HasPrefix(p.input[p.pos:], prefix) {
+			return p.readOperandCondition(prefix)
+		}
+	}
+
+	start := p.pos
 	for p.pos < len(p.input) {
 		if p.input[p.pos] == ')' {
 			break
@@ -184,6 +221,41 @@ func (p *triggerParser) readCondition() (string, bool) {
 		return "", false
 	}
 	return cond, true
+}
+
+// readOperandCondition reads a regex:/contains: condition whose operand is
+// treated opaquely. A quoted operand may contain any character; an unquoted
+// operand still stops at a ) or AND/OR keyword for backward compatibility.
+func (p *triggerParser) readOperandCondition(prefix string) (string, bool) {
+	p.pos += len(prefix)
+
+	if p.pos < len(p.input) && (p.input[p.pos] == '"' || p.input[p.pos] == '\'') {
+		quote := p.input[p.pos]
+		p.pos++
+		start := p.pos
+		for p.pos < len(p.input) && p.input[p.pos] != quote {
+			p.pos++
+		}
+		if p.pos >= len(p.input) {
+			return "", false // unterminated quote
+		}
+		operand := p.input[start:p.pos]
+		p.pos++ // consume closing quote
+		return prefix + operand, true
+	}
+
+	start := p.pos
+	for p.pos < len(p.input) {
+		if p.input[p.pos] == ')' {
+			break
+		}
+		if p.peekKeyword("AND") || p.peekKeyword("OR") {
+			break
+		}
+		p.pos++
+	}
+	operand := strings.TrimRight(p.input[start:p.pos], " \t\r\n")
+	return prefix + operand, true
 }
 
 func (p *triggerParser) skipSpaces() {
@@ -275,41 +347,6 @@ func (e *Engine) evaluateCondition(cond string, content clipboard.Content) bool 
 	}
 
 	return false
-}
-
-func regexPatterns(trigger string) []string {
-	var patterns []string
-	parser := triggerParser{input: trigger}
-
-	for parser.pos < len(parser.input) {
-		cond, ok := parser.readCondition()
-		if !ok {
-			parser.pos++
-			continue
-		}
-		if pattern, ok := regexPatternFromCondition(cond); ok {
-			patterns = append(patterns, pattern)
-		}
-	}
-
-	return patterns
-}
-
-func regexPatternFromCondition(cond string) (string, bool) {
-	cond = strings.TrimSpace(cond)
-	for {
-		cond = strings.TrimSpace(strings.TrimPrefix(cond, "("))
-		if !hasKeywordAt(cond, 0, "NOT") {
-			break
-		}
-		cond = strings.TrimSpace(cond[len("NOT"):])
-	}
-
-	if !strings.HasPrefix(cond, "regex:") {
-		return "", false
-	}
-
-	return strings.TrimPrefix(cond, "regex:"), true
 }
 
 // checkLength evaluates length comparisons
