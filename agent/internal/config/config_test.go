@@ -284,6 +284,82 @@ http_addr = "127.0.0.1:9159"
 	}
 }
 
+func TestLoad_RejectsNonLoopbackHTTPAddrWithoutOptIn(t *testing.T) {
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+
+	configDir := filepath.Join(tmpHome, ".clipboard-ai")
+	if err := os.MkdirAll(configDir, 0700); err != nil {
+		t.Fatalf("failed to create config dir: %v", err)
+	}
+	configFile := filepath.Join(configDir, "config.toml")
+	content := `
+[settings]
+http_enabled = true
+http_addr = "0.0.0.0:9159"
+http_auth_token = "a-long-token"
+`
+	if err := os.WriteFile(configFile, []byte(content), 0600); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	_, err := Load()
+	if err == nil {
+		t.Fatal("expected error for non-loopback http_addr without opt-in")
+	}
+	if !strings.Contains(err.Error(), "http_allow_remote") {
+		t.Fatalf("expected http_allow_remote hint, got %v", err)
+	}
+}
+
+func TestLoad_AllowsNonLoopbackHTTPAddrWithOptIn(t *testing.T) {
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+
+	configDir := filepath.Join(tmpHome, ".clipboard-ai")
+	if err := os.MkdirAll(configDir, 0700); err != nil {
+		t.Fatalf("failed to create config dir: %v", err)
+	}
+	configFile := filepath.Join(configDir, "config.toml")
+	content := `
+[settings]
+http_enabled = true
+http_addr = "0.0.0.0:9159"
+http_auth_token = "a-long-token"
+http_allow_remote = true
+`
+	if err := os.WriteFile(configFile, []byte(content), 0600); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("expected non-loopback bind to be allowed with opt-in, got %v", err)
+	}
+	if !cfg.Settings.HTTPAllowRemote {
+		t.Fatal("expected http_allow_remote to be true")
+	}
+}
+
+func TestLoad_AllowsLoopbackVariants(t *testing.T) {
+	for _, addr := range []string{"127.0.0.1:9159", "[::1]:9159", "localhost:9159"} {
+		tmpHome := t.TempDir()
+		t.Setenv("HOME", tmpHome)
+		configDir := filepath.Join(tmpHome, ".clipboard-ai")
+		if err := os.MkdirAll(configDir, 0700); err != nil {
+			t.Fatalf("failed to create config dir: %v", err)
+		}
+		configFile := filepath.Join(configDir, "config.toml")
+		content := "[settings]\nhttp_enabled = true\nhttp_addr = \"" + addr + "\"\nhttp_auth_token = \"a-long-token\"\n"
+		if err := os.WriteFile(configFile, []byte(content), 0600); err != nil {
+			t.Fatalf("failed to write config file: %v", err)
+		}
+		if _, err := Load(); err != nil {
+			t.Fatalf("expected loopback addr %q to be valid, got %v", addr, err)
+		}
+	}
+}
+
 func TestLoad_InvalidActionReliabilitySettings(t *testing.T) {
 	tmpHome := t.TempDir()
 	t.Setenv("HOME", tmpHome)

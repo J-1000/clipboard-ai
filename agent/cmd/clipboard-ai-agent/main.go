@@ -276,6 +276,11 @@ func main() {
 
 	// Start optional local HTTP server
 	if cfg.Settings.HTTPEnabled {
+		if cfg.Settings.HTTPAllowRemote {
+			logger.Warn("http server binding a non-loopback address (http_allow_remote=true); the API is reachable from the network",
+				"address", cfg.Settings.HTTPAddress,
+			)
+		}
 		httpServer := ipc.NewHTTPServer(cfg.Settings.HTTPAddress, server)
 		go func() {
 			logger.Info("http server listening", "address", cfg.Settings.HTTPAddress)

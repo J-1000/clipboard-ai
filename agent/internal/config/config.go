@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -46,6 +47,7 @@ type SettingsConfig struct {
 	HTTPEnabled           bool   `toml:"http_enabled"`               // enable local HTTP server
 	HTTPAddress           string `toml:"http_addr"`                  // local HTTP address
 	HTTPAuthToken         string `toml:"http_auth_token"`            // auth token for HTTP API
+	HTTPAllowRemote       bool   `toml:"http_allow_remote"`          // allow binding a non-loopback http_addr
 	HistoryEnabled        bool   `toml:"history_enabled"`            // write action history
 	HistoryMaxEntries     int    `toml:"history_max_entries"`        // maximum retained history records
 	HistoryTruncateChars  int    `toml:"history_truncate_chars"`     // max input/output chars per record, 0 disables truncation
@@ -127,11 +129,22 @@ func (c *Config) validate() error {
 		)
 	}
 	if c.Settings.HTTPEnabled {
-		if strings.TrimSpace(c.Settings.HTTPAddress) == "" {
+		addr := strings.TrimSpace(c.Settings.HTTPAddress)
+		if addr == "" {
 			return fmt.Errorf("invalid settings.http_addr: must be non-empty when http_enabled is true")
 		}
 		if strings.TrimSpace(c.Settings.HTTPAuthToken) == "" {
 			return fmt.Errorf("invalid settings.http_auth_token: must be non-empty when http_enabled is true")
+		}
+		host, _, err := net.SplitHostPort(addr)
+		if err != nil {
+			return fmt.Errorf("invalid settings.http_addr %q: %w", addr, err)
+		}
+		if !c.Settings.HTTPAllowRemote && !isLoopbackHost(host) {
+			return fmt.Errorf(
+				"settings.http_addr %q binds a non-loopback address, exposing the API to the network; "+
+					"set http_allow_remote = true to opt in", addr,
+			)
 		}
 	}
 	if c.Settings.HistoryMaxEntries < 0 {
@@ -171,6 +184,21 @@ func (c *Config) validate() error {
 	}
 
 	return nil
+}
+
+// isLoopbackHost reports whether an http_addr host binds only the loopback
+// interface. An empty host (e.g. ":9159") binds all interfaces and is not
+// considered loopback.
+func isLoopbackHost(host string) bool {
+	host = strings.TrimSpace(host)
+	if host == "" {
+		return false
+	}
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 // ConfigPath returns the path to the config file.
