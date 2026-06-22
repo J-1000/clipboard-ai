@@ -5,37 +5,69 @@ import (
 	"time"
 )
 
+// maxRecentSignatures bounds the dedupe LRU so memory stays constant.
+const maxRecentSignatures = 128
+
 // Controller applies clipboard dedupe and per-action cooldown policies.
 type Controller struct {
-	dedupeWindow           time.Duration
-	lastClipboardSignature string
-	lastClipboardAt        time.Time
-	actionLastRunAt        map[string]time.Time
-	mu                     sync.Mutex
+	dedupeWindow     time.Duration
+	recentSignatures map[string]time.Time
+	actionLastRunAt  map[string]time.Time
+	mu               sync.Mutex
 }
 
 // NewController creates a controller with the given dedupe window.
 func NewController(dedupeWindow time.Duration) *Controller {
 	return &Controller{
-		dedupeWindow:    dedupeWindow,
-		actionLastRunAt: make(map[string]time.Time),
+		dedupeWindow:     dedupeWindow,
+		recentSignatures: make(map[string]time.Time),
+		actionLastRunAt:  make(map[string]time.Time),
 	}
 }
 
-// ShouldSkipClipboard returns true when the clipboard signature is a duplicate inside the dedupe window.
+// ShouldSkipClipboard returns true when the clipboard signature was seen within
+// the dedupe window. It tracks a bounded set of recent signatures (not just the
+// immediately-previous one) so an A->B->A re-copy of A inside the window is
+// suppressed.
 func (c *Controller) ShouldSkipClipboard(signature string, now time.Time) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	isDuplicate := c.dedupeWindow > 0 &&
-		signature == c.lastClipboardSignature &&
-		!c.lastClipboardAt.IsZero() &&
-		now.Sub(c.lastClipboardAt) <= c.dedupeWindow
+	if c.dedupeWindow <= 0 {
+		return false
+	}
 
-	c.lastClipboardSignature = signature
-	c.lastClipboardAt = now
+	// Drop signatures that have aged out of the window.
+	for sig, seen := range c.recentSignatures {
+		if now.Sub(seen) > c.dedupeWindow {
+			delete(c.recentSignatures, sig)
+		}
+	}
 
-	return isDuplicate
+	seen, ok := c.recentSignatures[signature]
+	duplicate := ok && now.Sub(seen) <= c.dedupeWindow
+
+	if !ok && len(c.recentSignatures) >= maxRecentSignatures {
+		c.evictOldestLocked()
+	}
+	c.recentSignatures[signature] = now
+
+	return duplicate
+}
+
+// evictOldestLocked removes the least-recently-seen signature. Caller holds mu.
+func (c *Controller) evictOldestLocked() {
+	var oldestSig string
+	var oldestAt time.Time
+	first := true
+	for sig, at := range c.recentSignatures {
+		if first || at.Before(oldestAt) {
+			oldestSig, oldestAt, first = sig, at, false
+		}
+	}
+	if !first {
+		delete(c.recentSignatures, oldestSig)
+	}
 }
 
 // AllowAction returns true when action cooldown permits execution and records the action run timestamp.
