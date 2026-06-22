@@ -2,6 +2,8 @@ package ipc
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/subtle"
 	"net/http"
 	"strings"
 )
@@ -59,18 +61,30 @@ func isAuthorized(r *http.Request, token string) bool {
 	if authHeader != "" {
 		if strings.HasPrefix(strings.ToLower(authHeader), "bearer ") {
 			value := strings.TrimSpace(authHeader[7:])
-			if value == token {
+			if tokenEqual(value, token) {
 				return true
 			}
 		}
 	}
 
-	if r.Header.Get("X-API-Key") == token {
+	if tokenEqual(r.Header.Get("X-API-Key"), token) {
 		return true
 	}
-	if r.Header.Get("X-Clipboard-AI-Token") == token {
+	if tokenEqual(r.Header.Get("X-Clipboard-AI-Token"), token) {
 		return true
 	}
 
 	return false
+}
+
+// tokenEqual compares a presented credential against the configured token in
+// constant time. SHA-256 digests are compared so the comparison runs over a
+// fixed length and doesn't leak the token length via timing.
+func tokenEqual(presented, token string) bool {
+	if presented == "" || token == "" {
+		return false
+	}
+	p := sha256.Sum256([]byte(presented))
+	t := sha256.Sum256([]byte(token))
+	return subtle.ConstantTimeCompare(p[:], t[:]) == 1
 }
