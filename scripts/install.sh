@@ -30,13 +30,17 @@ if [[ ! -f "$CONFIG_DIR/config.toml" ]]; then
     cp "$SCRIPT_DIR/../configs/default.toml" "$CONFIG_DIR/config.toml"
 fi
 
+# Resolve a version to stamp into both binaries so `cbai doctor`'s daemon/CLI
+# version match is meaningful for source installs (not just tagged releases).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CBAI_VERSION="$(git -C "$SCRIPT_DIR/.." describe --tags --always 2>/dev/null || echo dev)"
+
 # Build the Go agent
 echo "Building clipboard-ai-agent..."
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR/../agent"
 
 if command -v go &> /dev/null; then
-    go build -o clipboard-ai-agent ./cmd/clipboard-ai-agent/
+    go build -ldflags "-X main.version=$CBAI_VERSION" -o clipboard-ai-agent ./cmd/clipboard-ai-agent/
 
     echo "Installing agent to $INSTALL_DIR..."
     sudo cp clipboard-ai-agent "$INSTALL_DIR/"
@@ -52,7 +56,7 @@ cd "$SCRIPT_DIR/../cli"
 
 if command -v bun &> /dev/null; then
     bun install
-    bun run build
+    bun build src/index.ts --outdir dist --target node --define "__CBAI_VERSION__=\"$CBAI_VERSION\""
 
     echo "Installing CLI to $INSTALL_DIR..."
     sudo cp dist/index.js "$INSTALL_DIR/cbai"
