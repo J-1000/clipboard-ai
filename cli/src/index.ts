@@ -267,6 +267,14 @@ yargs(hideBin(process.argv))
     }
   )
   .demandCommand(1, "Please specify a command")
+  .example("$0 summary", "Summarize the current clipboard")
+  .example("$0 translate Spanish", "Translate the clipboard to Spanish")
+  .example("$0 run <action>", "Run any registered action")
+  .example("$0 caption", "Caption an image on the clipboard")
+  .epilogue(
+    "List actions with `cbai actions`; run any of them with `cbai run <action>`.\n" +
+      "Check your setup with `cbai doctor`."
+  )
   .help()
   .version(VERSION)
   .strict()
