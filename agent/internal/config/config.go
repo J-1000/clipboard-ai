@@ -52,6 +52,7 @@ type SettingsConfig struct {
 	HistoryMaxEntries     int    `toml:"history_max_entries"`        // maximum retained history records
 	HistoryTruncateChars  int    `toml:"history_truncate_chars"`     // max input/output chars per record, 0 disables truncation
 	SensitiveGuard        string `toml:"sensitive_guard"`            // block, warn, off
+	MaxConcurrentActions  int    `toml:"max_concurrent_actions"`     // cap on simultaneously running actions, 0 = unlimited
 }
 
 // Default returns a config with sensible defaults
@@ -80,6 +81,7 @@ func Default() *Config {
 			HistoryMaxEntries:     1000,
 			HistoryTruncateChars:  2000,
 			SensitiveGuard:        "warn",
+			MaxConcurrentActions:  4,
 		},
 	}
 }
@@ -152,6 +154,9 @@ func (c *Config) validate() error {
 	}
 	if c.Settings.HistoryTruncateChars < 0 {
 		return fmt.Errorf("invalid settings.history_truncate_chars %d: must be greater than or equal to 0", c.Settings.HistoryTruncateChars)
+	}
+	if c.Settings.MaxConcurrentActions < 0 {
+		return fmt.Errorf("invalid settings.max_concurrent_actions %d: must be greater than or equal to 0", c.Settings.MaxConcurrentActions)
 	}
 	switch strings.ToLower(strings.TrimSpace(c.Settings.SensitiveGuard)) {
 	case "", "block", "warn", "off":

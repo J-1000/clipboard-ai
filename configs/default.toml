@@ -44,6 +44,10 @@ history_truncate_chars = 2000
 # Sensitive-data guard: "block", "warn", or "off"
 sensitive_guard = "warn"
 
+# Maximum actions allowed to run simultaneously (0 = unlimited). Bounds the
+# number of cbai subprocesses a burst of clipboard changes can spawn at once.
+max_concurrent_actions = 4
+
 [actions.summarize]
 enabled = true
 # Trigger when clipboard content is longer than 200 characters
