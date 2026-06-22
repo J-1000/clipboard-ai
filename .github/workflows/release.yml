@@ -66,8 +66,15 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           merge-multiple: true
+      - name: Generate checksums
+        # Lets users verify downloaded assets (no codesigning/notarization yet).
+        run: |
+          shopt -s nullglob
+          sha256sum clipboard-ai-agent-* cli-dist/* > SHA256SUMS
+          cat SHA256SUMS
       - uses: softprops/action-gh-release@v2
         with:
           files: |
             clipboard-ai-agent-*
             cli-dist/**
+            SHA256SUMS
