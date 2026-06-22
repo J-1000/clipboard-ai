@@ -20,7 +20,7 @@ const TEXT_PATTERNS: Array<{ type: string; re: RegExp }> = [
   { type: "ssh_public_key", re: /ssh-(?:rsa|ed25519) AAAA[0-9A-Za-z+/]+/g },
 ];
 
-const CARD_CANDIDATE_RE = /(?:\d[ -]?){13,19}/g;
+const CARD_CANDIDATE_RE = /(?:\d[ -]?){13,}/g;
 
 export function scanSensitiveText(text: string): SensitiveFinding[] {
   const findings: SensitiveFinding[] = [];
@@ -39,7 +39,7 @@ export function scanSensitiveText(text: string): SensitiveFinding[] {
   CARD_CANDIDATE_RE.lastIndex = 0;
   for (const match of text.matchAll(CARD_CANDIDATE_RE)) {
     const digits = match[0].replace(/\D/g, "");
-    if (digits.length >= 13 && digits.length <= 19 && luhnValid(digits)) {
+    if (luhnWindowValid(digits)) {
       findings.push({
         type: "credit_card",
         start: match.index ?? 0,
@@ -49,6 +49,19 @@ export function scanSensitiveText(text: string): SensitiveFinding[] {
   }
 
   return findings;
+}
+
+// Slides every 13–19 digit window so a card embedded in a longer digit run is caught.
+function luhnWindowValid(digits: string): boolean {
+  const n = digits.length;
+  for (let size = 13; size <= 19 && size <= n; size += 1) {
+    for (let i = 0; i + size <= n; i += 1) {
+      if (luhnValid(digits.slice(i, i + size))) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 function luhnValid(digits: string): boolean {

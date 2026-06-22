@@ -31,7 +31,7 @@ var textPatterns = []struct {
 	{name: "ssh_public_key", re: regexp.MustCompile(`ssh-(?:rsa|ed25519) AAAA[0-9A-Za-z+/]+`)},
 }
 
-var cardCandidateRe = regexp.MustCompile(`(?:\d[ -]?){13,19}`)
+var cardCandidateRe = regexp.MustCompile(`(?:\d[ -]?){13,}`)
 
 func Scan(text string) []Finding {
 	var findings []Finding
@@ -49,7 +49,7 @@ func Scan(text string) []Finding {
 	for _, loc := range cardCandidateRe.FindAllStringIndex(text, -1) {
 		candidate := text[loc[0]:loc[1]]
 		digits := digitsOnly(candidate)
-		if len(digits) >= 13 && len(digits) <= 19 && luhnValid(digits) {
+		if luhnWindowValid(digits) {
 			findings = append(findings, Finding{
 				Type:  "credit_card",
 				Start: loc[0],
@@ -69,6 +69,20 @@ func digitsOnly(value string) string {
 		}
 	}
 	return b.String()
+}
+
+// luhnWindowValid slides every 13–19 digit window across a run so a card number
+// embedded in a longer digit sequence is still caught.
+func luhnWindowValid(digits string) bool {
+	n := len(digits)
+	for size := 13; size <= 19 && size <= n; size++ {
+		for i := 0; i+size <= n; i++ {
+			if luhnValid(digits[i : i+size]) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func luhnValid(digits string) bool {
