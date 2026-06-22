@@ -252,11 +252,7 @@ func main() {
 					"elapsed_ms", result.Elapsed.Milliseconds(),
 				)
 				if cfg.Settings.Notifications {
-					output := result.Output
-					if len(output) > 200 {
-						output = output[:200] + "..."
-					}
-					notify.SendWithSubtitle("clipboard-ai", actionName, output)
+					notify.SendWithSubtitle("clipboard-ai", actionName, truncateRunes(result.Output, 200))
 				}
 			}(match.ActionName, match.Config, content, guardHit)
 		}
@@ -369,6 +365,16 @@ func main() {
 		logger.Info("agent stopped")
 		return
 	}
+}
+
+// truncateRunes shortens s to at most maxRunes runes (not bytes), so a
+// multi-byte character is never cut mid-sequence in a notification.
+func truncateRunes(s string, maxRunes int) string {
+	runes := []rune(s)
+	if len(runes) <= maxRunes {
+		return s
+	}
+	return string(runes[:maxRunes]) + "..."
 }
 
 // acquireActionSlot reserves a slot in the concurrency semaphore, returning a

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/clipboard-ai/agent/internal/config"
 	"github.com/clipboard-ai/agent/internal/rules"
@@ -99,4 +100,19 @@ func TestAcquireActionSlot_BoundsConcurrency(t *testing.T) {
 	}
 	r2()
 	r3()
+}
+
+func TestTruncateRunes(t *testing.T) {
+	if got := truncateRunes("hello", 200); got != "hello" {
+		t.Fatalf("short string should be unchanged, got %q", got)
+	}
+	// 250 multi-byte runes; truncation must not split a rune.
+	long := strings.Repeat("é", 250)
+	got := truncateRunes(long, 200)
+	if !utf8.ValidString(got) {
+		t.Fatal("truncated output must remain valid UTF-8")
+	}
+	if r := []rune(got); len(r) != 203 || string(r[:200]) != strings.Repeat("é", 200) {
+		t.Fatalf("expected 200 runes + ellipsis, got %d runes", len(r))
+	}
 }
