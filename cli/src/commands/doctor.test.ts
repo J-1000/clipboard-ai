@@ -69,4 +69,36 @@ describe("doctorCommand", () => {
     expect(output).toContain("PASS history file size");
     expect(output).toContain("PASS plugin directory scan (1 file)");
   });
+
+  it("prints a summary and exits 0 when all checks pass", async () => {
+    const prev = process.exitCode;
+    process.exitCode = 0;
+    try {
+      await doctorCommand({ getStatus: mockGetStatus, getConfig: mockGetConfig, pluginDir });
+      const output = logSpy.mock.calls.map((call: unknown[]) => call[0]).join("\n");
+      expect(output).toMatch(/\d+ passed, 0 failed/);
+      expect(process.exitCode).toBe(0);
+    } finally {
+      process.exitCode = prev;
+    }
+  });
+
+  it("sets a non-zero exit code when a check fails", async () => {
+    const prev = process.exitCode;
+    process.exitCode = 0;
+    try {
+      const failingStatus = mock(() => Promise.reject(new Error("socket missing")));
+      await doctorCommand({
+        getStatus: failingStatus as unknown as typeof mockGetStatus,
+        getConfig: mockGetConfig,
+        pluginDir,
+      });
+      const output = logSpy.mock.calls.map((call: unknown[]) => call[0]).join("\n");
+      expect(output).toContain("FAIL daemon socket reachable");
+      expect(output).toMatch(/passed, [1-9]\d* failed/);
+      expect(process.exitCode).toBe(1);
+    } finally {
+      process.exitCode = prev;
+    }
+  });
 });
