@@ -15,24 +15,15 @@ jobs:
       - name: Install CLI dependencies
         run: bun install
         working-directory: cli
-      - name: Install Actions dependencies
-        run: bun install
-        working-directory: actions
       - name: Typecheck CLI
         run: bun run typecheck
         working-directory: cli
-      - name: Typecheck Actions
-        run: bun run typecheck
-        working-directory: actions
       - name: Test CLI
         run: bun test
         working-directory: cli
       - name: Build CLI
         run: bun run build
         working-directory: cli
-      - name: Build Actions
-        run: bun run build
-        working-directory: actions
 
   go:
     # Runs on macOS because golang.design/x/clipboard targets macOS here and
