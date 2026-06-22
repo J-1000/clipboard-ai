@@ -1,6 +1,11 @@
-import { getConfig } from "../lib/client.js";
+import { getConfig as defaultGetConfig } from "../lib/client.js";
 
-export async function configCommand(): Promise<void> {
+export interface ConfigCommandDeps {
+  getConfig: typeof defaultGetConfig;
+}
+
+export async function configCommand(deps: Partial<ConfigCommandDeps> = {}): Promise<void> {
+  const getConfig = deps.getConfig ?? defaultGetConfig;
   try {
     const config = await getConfig();
 

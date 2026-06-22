@@ -1,7 +1,14 @@
-import { getConfig } from "../lib/client.js";
-import { getActionRegistry } from "../lib/action-registry.js";
+import { getConfig as defaultGetConfig } from "../lib/client.js";
+import { getActionRegistry as defaultGetActionRegistry } from "../lib/action-registry.js";
 
-export async function actionsCommand(): Promise<void> {
+export interface ActionsCommandDeps {
+  getConfig: typeof defaultGetConfig;
+  getActionRegistry: typeof defaultGetActionRegistry;
+}
+
+export async function actionsCommand(deps: Partial<ActionsCommandDeps> = {}): Promise<void> {
+  const getConfig = deps.getConfig ?? defaultGetConfig;
+  const getActionRegistry = deps.getActionRegistry ?? defaultGetActionRegistry;
   try {
     const [config, registry] = await Promise.all([getConfig(), getActionRegistry()]);
 

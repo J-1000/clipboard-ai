@@ -1,11 +1,25 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
-import { getConfig, getStatus, type ConfigResponse } from "../lib/client.js";
+import {
+  getConfig as defaultGetConfig,
+  getStatus as defaultGetStatus,
+  type ConfigResponse,
+} from "../lib/client.js";
 import { DEFAULT_PLUGIN_DIR } from "../lib/plugin-actions.js";
 import pkg from "../../package.json" assert { type: "json" };
 
-export async function doctorCommand(): Promise<void> {
+export interface DoctorCommandDeps {
+  getStatus: typeof defaultGetStatus;
+  getConfig: typeof defaultGetConfig;
+  pluginDir: string;
+}
+
+export async function doctorCommand(deps: Partial<DoctorCommandDeps> = {}): Promise<void> {
+  const getStatus = deps.getStatus ?? defaultGetStatus;
+  const getConfig = deps.getConfig ?? defaultGetConfig;
+  const pluginDir = deps.pluginDir ?? DEFAULT_PLUGIN_DIR;
+
   console.log("clipboard-ai doctor");
   console.log("──────────────────");
 
@@ -40,7 +54,7 @@ export async function doctorCommand(): Promise<void> {
   }
 
   checkHistoryFile();
-  checkPluginDir(DEFAULT_PLUGIN_DIR);
+  checkPluginDir(pluginDir);
   checkDaemonInterpreter();
 }
 

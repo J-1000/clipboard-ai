@@ -1,12 +1,22 @@
 import {
-  clearHistoryRecords,
-  pruneHistoryBefore,
-  readHistoryRecords,
+  clearHistoryRecords as defaultClearHistoryRecords,
+  pruneHistoryBefore as defaultPruneHistoryBefore,
+  readHistoryRecords as defaultReadHistoryRecords,
 } from "../lib/history.js";
 
+export interface HistoryCommandDeps {
+  clearHistoryRecords: typeof defaultClearHistoryRecords;
+  pruneHistoryBefore: typeof defaultPruneHistoryBefore;
+  readHistoryRecords: typeof defaultReadHistoryRecords;
+}
+
 export async function historyCommand(
-  options: { limit?: number; clear?: boolean; before?: string } = {}
+  options: { limit?: number; clear?: boolean; before?: string } = {},
+  deps: Partial<HistoryCommandDeps> = {}
 ): Promise<void> {
+  const clearHistoryRecords = deps.clearHistoryRecords ?? defaultClearHistoryRecords;
+  const pruneHistoryBefore = deps.pruneHistoryBefore ?? defaultPruneHistoryBefore;
+  const readHistoryRecords = deps.readHistoryRecords ?? defaultReadHistoryRecords;
   try {
     if (options.clear) {
       await clearHistoryRecords();

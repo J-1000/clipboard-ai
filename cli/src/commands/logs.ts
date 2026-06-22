@@ -1,11 +1,19 @@
-import { readAgentLogs } from "../lib/logs.js";
+import { readAgentLogs as defaultReadAgentLogs } from "../lib/logs.js";
 
 export interface LogsCommandOptions {
   tail?: number;
   file?: "out" | "err";
 }
 
-export async function logsCommand(options: LogsCommandOptions = {}): Promise<void> {
+export interface LogsCommandDeps {
+  readAgentLogs: typeof defaultReadAgentLogs;
+}
+
+export async function logsCommand(
+  options: LogsCommandOptions = {},
+  deps: Partial<LogsCommandDeps> = {}
+): Promise<void> {
+  const readAgentLogs = deps.readAgentLogs ?? defaultReadAgentLogs;
   // Defensive: only "out"/"err" select a log file; anything else falls back to "out".
   const file: "out" | "err" = options.file === "err" ? "err" : "out";
 

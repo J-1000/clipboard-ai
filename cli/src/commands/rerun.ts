@@ -1,10 +1,18 @@
-import { getHistoryRecordById } from "../lib/history.js";
-import { runActionCommand } from "../lib/run-action.js";
+import { getHistoryRecordById as defaultGetHistoryRecordById } from "../lib/history.js";
+import { runActionCommand as defaultRunActionCommand } from "../lib/run-action.js";
+
+export interface RerunCommandDeps {
+  getHistoryRecordById: typeof defaultGetHistoryRecordById;
+  runActionCommand: typeof defaultRunActionCommand;
+}
 
 export async function rerunCommand(
   id: string,
-  options: { copy?: boolean; yes?: boolean; force?: boolean } = {}
+  options: { copy?: boolean; yes?: boolean; force?: boolean } = {},
+  deps: Partial<RerunCommandDeps> = {}
 ): Promise<void> {
+  const getHistoryRecordById = deps.getHistoryRecordById ?? defaultGetHistoryRecordById;
+  const runActionCommand = deps.runActionCommand ?? defaultRunActionCommand;
   try {
     const record = await getHistoryRecordById(id);
     if (!record) {

@@ -1,6 +1,11 @@
-import { getClipboard } from "../lib/client.js";
+import { getClipboard as defaultGetClipboard } from "../lib/client.js";
 
-export async function clipboardCommand(): Promise<void> {
+export interface ClipboardCommandDeps {
+  getClipboard: typeof defaultGetClipboard;
+}
+
+export async function clipboardCommand(deps: Partial<ClipboardCommandDeps> = {}): Promise<void> {
+  const getClipboard = deps.getClipboard ?? defaultGetClipboard;
   try {
     const clipboard = await getClipboard();
 
