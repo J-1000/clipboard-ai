@@ -68,6 +68,21 @@ else
     echo "Warning: Neither bun nor npm found, skipping CLI build"
 fi
 
+# The installed `cbai` is a `#!/usr/bin/env node` script. bun/npm above are only
+# *build-time* tools; at runtime the daemon needs the interpreter named by the
+# shebang on its PATH. Verify it exists so a missing node fails loudly here
+# rather than silently on the first triggered action.
+CBAI_INTERPRETER="node"
+if [[ -f "$INSTALL_DIR/cbai" ]]; then
+    SHEBANG_INTERP="$(sed -n '1s|^#!.*[ /]||p' "$INSTALL_DIR/cbai")"
+    [[ -n "$SHEBANG_INTERP" ]] && CBAI_INTERPRETER="$SHEBANG_INTERP"
+fi
+if ! command -v "$CBAI_INTERPRETER" &> /dev/null; then
+    echo "Warning: '$CBAI_INTERPRETER' (the cbai interpreter) was not found on PATH."
+    echo "         Triggered actions will fail until it is installed and on the"
+    echo "         daemon's PATH. Install it, then re-run this installer."
+fi
+
 # Install LaunchAgent
 echo "Installing LaunchAgent..."
 mkdir -p "$LAUNCH_AGENTS_DIR"
