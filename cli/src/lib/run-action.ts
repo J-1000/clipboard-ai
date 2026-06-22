@@ -48,6 +48,18 @@ export interface RunActionOptions {
   deps?: Partial<RunActionDeps>;
 }
 
+// Oversized clipboard content is truncated before it reaches the LLM so a huge
+// paste can't blow the context window or run up cost. The marker makes the
+// truncation visible in the output rather than silent.
+const MAX_INPUT_CHARS = 100_000;
+
+export function capInputSize(text: string): string {
+  if (text.length <= MAX_INPUT_CHARS) {
+    return text;
+  }
+  return `${text.slice(0, MAX_INPUT_CHARS)}\n…[truncated]`;
+}
+
 export async function runActionCommand(actionName: string, options: RunActionOptions = {}): Promise<void> {
   let resolvedActionName = actionName;
   let inputText = "";
@@ -154,8 +166,8 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
     const startedAt = Date.now();
     try {
       output = await action.run({
-        text,
-        rtf: input.rtf,
+        text: capInputSize(text),
+        rtf: input.rtf ? capInputSize(input.rtf) : input.rtf,
         imageBase64: input.imageBase64,
         imageMime: input.imageMime,
         contentType: input.type,
