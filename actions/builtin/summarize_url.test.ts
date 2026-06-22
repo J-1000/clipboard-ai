@@ -1,7 +1,7 @@
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test";
 import type { ActionContext } from "../lib/types.js";
 
-const mockCreate = mock(() =>
+const mockCreate = mock((_params: Record<string, unknown>) =>
   Promise.resolve({
     choices: [{ message: { content: "URL summary" } }],
   })

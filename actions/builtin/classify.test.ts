@@ -1,7 +1,7 @@
 import { describe, it, expect, mock, beforeEach } from "bun:test";
 import type { ActionContext } from "../lib/types.js";
 
-const mockCreate = mock(() =>
+const mockCreate = mock((_params: Record<string, unknown>) =>
   Promise.resolve({
     choices: [{ message: { content: '{"category":"code","confidence":0.95,"reasoning":"Contains function"}' } }],
   })
@@ -77,7 +77,7 @@ describe("classify action", () => {
 
   it("handles empty choices response", async () => {
     mockCreate.mockImplementationOnce(() =>
-      Promise.resolve({ choices: [{ message: { content: null } }] })
+      Promise.resolve({ choices: [{ message: { content: null as unknown as string } }] })
     );
 
     const result = await classify.execute(makeContext("test"));

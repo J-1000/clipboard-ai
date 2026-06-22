@@ -1,6 +1,6 @@
 import { describe, it, expect, mock } from "bun:test";
 
-const mockCreate = mock(() =>
+const mockCreate = mock((_params: Record<string, unknown>) =>
   Promise.resolve({
     choices: [{ message: { content: "mock" } }],
   })
