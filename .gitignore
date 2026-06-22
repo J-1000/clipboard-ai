@@ -35,3 +35,6 @@ Thumbs.db
 
 # Runtime
 .clipboard-ai/
+
+# Local planning docs (not part of the repo history)
+FIX_PLAN.md
