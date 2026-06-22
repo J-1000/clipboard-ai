@@ -50,6 +50,13 @@ type Monitor struct {
 	lastSignature string
 	mu            sync.RWMutex
 	current       Content
+
+	// Read/clock seams. Defaulted to the real clipboard in NewMonitor so the
+	// poll/dedupe logic can be exercised with fakes and no GUI/cgo dependency.
+	readText  func() []byte
+	readImage func() []byte
+	readRTF   func() string
+	now       func() time.Time
 }
 
 // NewMonitor creates a new clipboard monitor
@@ -61,6 +68,10 @@ func NewMonitor(pollIntervalMs int, handler Handler) *Monitor {
 	return &Monitor{
 		pollInterval: time.Duration(pollIntervalMs) * time.Millisecond,
 		handler:      handler,
+		readText:     func() []byte { return clipboard.Read(clipboard.FmtText) },
+		readImage:    func() []byte { return clipboard.Read(clipboard.FmtImage) },
+		readRTF:      readRTF,
+		now:          time.Now,
 	}
 }
 
@@ -86,18 +97,18 @@ func (m *Monitor) Start(ctx context.Context) error {
 
 // check reads the clipboard and fires handler if changed
 func (m *Monitor) check() {
-	if content, ok := m.readImage(); ok {
+	if content, ok := m.checkImage(); ok {
 		m.update(content)
 		return
 	}
 
-	data := clipboard.Read(clipboard.FmtText)
+	data := m.readText()
 	if data == nil {
 		return
 	}
 
 	text := string(data)
-	rtf := readRTF()
+	rtf := m.readRTF()
 	contentType := detectContentType(text)
 	signature := text
 
@@ -113,7 +124,7 @@ func (m *Monitor) check() {
 	content := Content{
 		Text:      text,
 		RTF:       rtf,
-		Timestamp: time.Now(),
+		Timestamp: m.now(),
 		Type:      contentType,
 		Signature: signature,
 	}
@@ -121,8 +132,8 @@ func (m *Monitor) check() {
 	m.update(content)
 }
 
-func (m *Monitor) readImage() (Content, bool) {
-	data := clipboard.Read(clipboard.FmtImage)
+func (m *Monitor) checkImage() (Content, bool) {
+	data := m.readImage()
 	if len(data) == 0 {
 		return Content{}, false
 	}
@@ -135,7 +146,7 @@ func (m *Monitor) readImage() (Content, bool) {
 	return Content{
 		Image:     data,
 		ImageMime: "image/png",
-		Timestamp: time.Now(),
+		Timestamp: m.now(),
 		Type:      ContentTypeImage,
 		Signature: signature,
 	}, true
