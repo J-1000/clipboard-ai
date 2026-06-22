@@ -12,6 +12,8 @@ type Finding struct {
 	End   int
 }
 
+// textPatterns are high-precision secret signatures. Keep this list in sync
+// with cli/src/lib/sensitive-guard.ts (enforced by the shared parity fixture).
 var textPatterns = []struct {
 	name string
 	re   *regexp.Regexp
@@ -20,6 +22,13 @@ var textPatterns = []struct {
 	{name: "api_key", re: regexp.MustCompile(`(?i)api[_-]?key\s*[:=]`)},
 	{name: "jwt", re: regexp.MustCompile(`eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+`)},
 	{name: "private_key", re: regexp.MustCompile(`-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----`)},
+	{name: "github_token", re: regexp.MustCompile(`gh[pousr]_[A-Za-z0-9]{36,}`)},
+	{name: "github_pat", re: regexp.MustCompile(`github_pat_[A-Za-z0-9_]{22,}`)},
+	{name: "slack_token", re: regexp.MustCompile(`xox[baprs]-[A-Za-z0-9-]{10,}`)},
+	{name: "stripe_key", re: regexp.MustCompile(`(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{10,}`)},
+	{name: "google_api_key", re: regexp.MustCompile(`AIza[0-9A-Za-z_-]{35}`)},
+	{name: "gitlab_token", re: regexp.MustCompile(`glpat-[0-9A-Za-z_-]{20,}`)},
+	{name: "ssh_public_key", re: regexp.MustCompile(`ssh-(?:rsa|ed25519) AAAA[0-9A-Za-z+/]+`)},
 }
 
 var cardCandidateRe = regexp.MustCompile(`(?:\d[ -]?){13,19}`)

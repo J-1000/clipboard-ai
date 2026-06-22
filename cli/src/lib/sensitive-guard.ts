@@ -4,12 +4,20 @@ export interface SensitiveFinding {
   end: number;
 }
 
-// Keep this pattern list in sync with agent/internal/guard/guard.go.
+// Keep this pattern list in sync with agent/internal/guard/guard.go
+// (enforced by the shared parity fixture).
 const TEXT_PATTERNS: Array<{ type: string; re: RegExp }> = [
   { type: "aws_access_key", re: /AKIA[0-9A-Z]{16}/g },
   { type: "api_key", re: /api[_-]?key\s*[:=]/gi },
   { type: "jwt", re: /eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+/g },
   { type: "private_key", re: /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/g },
+  { type: "github_token", re: /gh[pousr]_[A-Za-z0-9]{36,}/g },
+  { type: "github_pat", re: /github_pat_[A-Za-z0-9_]{22,}/g },
+  { type: "slack_token", re: /xox[baprs]-[A-Za-z0-9-]{10,}/g },
+  { type: "stripe_key", re: /(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{10,}/g },
+  { type: "google_api_key", re: /AIza[0-9A-Za-z_-]{35}/g },
+  { type: "gitlab_token", re: /glpat-[0-9A-Za-z_-]{20,}/g },
+  { type: "ssh_public_key", re: /ssh-(?:rsa|ed25519) AAAA[0-9A-Za-z+/]+/g },
 ];
 
 const CARD_CANDIDATE_RE = /(?:\d[ -]?){13,19}/g;
