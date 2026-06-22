@@ -57,5 +57,11 @@ jobs:
         run: go test -race ./...
         working-directory: agent
       - name: Build
-        run: go build ./cmd/clipboard-ai-agent/
+        run: go build -o clipboard-ai-agent ./cmd/clipboard-ai-agent/
         working-directory: agent
+        env:
+          CGO_ENABLED: '1'
+      # Boots the freshly built binary and asserts it stays alive — the
+      # regression guard for the CGO-disabled startup panic class.
+      - name: Boot smoke test
+        run: ./scripts/agent-boot-smoke.sh agent/clipboard-ai-agent
