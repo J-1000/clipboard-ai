@@ -47,6 +47,7 @@ export const builtinActions: ActionDefinition[] = [
     id: "tldr",
     description: "Get a very brief summary (1-2 sentences)",
     inputTypes: ["text"],
+    progressMessage: "Summarizing (TL;DR)...",
     outputTitle: "TL;DR",
     run: async ({ ai, text }) => {
       const response = await ai.generate(
