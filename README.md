@@ -29,7 +29,9 @@ clipboard-ai is a macOS-first lightweight agent that monitors your clipboard and
 
 - macOS 12+
 - [Go 1.21+](https://golang.org/dl/) (for building the agent)
-- [Bun](https://bun.sh/) or Node.js (for the CLI)
+- [Bun](https://bun.sh/) — required to **build** the CLI (the build uses
+  `bun build`). [Node.js](https://nodejs.org/) is required at **runtime** (the
+  installed `cbai` is a `#!/usr/bin/env node` script).
 - [Ollama](https://ollama.ai/) (recommended for local LLM)
 
 ### Installation
@@ -126,6 +128,10 @@ cbai run my_plugin_action arg1 arg2
 
 # Show recent action history
 cbai history
+
+# Scaffold a config file on first run (optionally open it in $EDITOR)
+cbai init
+cbai init --edit
 
 # Replay a previous run
 cbai rerun <run-id>
@@ -245,6 +251,7 @@ When `settings.http_enabled = true`, the agent also exposes a localhost HTTP API
 
 - `length > 200` - Content longer than 200 characters
 - `length >= 200`, `length <= 200`, `length != 0` - Extended comparisons
+- `length == 200` (or `length = 200`) - Exactly 200 characters
 - `contains:http` - Contains "http"
 - `regex:^ERROR:` - Matches regex pattern
 - `mime:code` - Detected as code
@@ -254,6 +261,18 @@ When `settings.http_enabled = true`, the agent also exposes a localhost HTTP API
 - `A AND B` - Both conditions
 - `NOT A` - Negate a condition/expression
 - `(A OR B) AND C` - Grouped expressions with parentheses
+
+**Quoting `regex:`/`contains:` operands.** Their operands are opaque, but an
+unquoted operand still stops at a `)` or an `AND`/`OR` keyword. If your pattern
+or substring contains those characters, **quote it** so it isn't split as DSL
+structure:
+
+- `regex:"(https?)://\S+"` - capture groups / alternation work when quoted
+- `contains:"foo AND bar"` - matches the literal phrase, not `foo` AND `bar`
+- `regex:")"` - a literal close-paren
+
+An invalid `regex:` pattern is logged and that action is skipped — it no longer
+prevents the daemon from starting.
 
 ### URL Summarization
 
@@ -432,11 +451,14 @@ bun run build
 ### Running Tests
 
 ```bash
-# Go rule engine tests
-cd agent && go test ./internal/rules/
+# Go agent: vet, test (with the race detector), lint
+cd agent && go vet ./... && go test -race ./... && golangci-lint run ./...
 
-# TypeScript AI client tests
-cd cli && bun test
+# CLI: full test suite + typecheck
+cd cli && bun test && bun run typecheck
+
+# Raycast extension
+cd integrations/raycast && npm run lint && npx tsc --noEmit
 ```
 
 ### Running locally
@@ -453,10 +475,14 @@ bun run cli/src/index.ts status
 
 GitHub Actions runs on every push and PR to `main`:
 
-- **TypeScript**: install, typecheck, test, build (CLI + Actions)
-- **Go**: vet, test, build (agent)
+- **TypeScript**: install, typecheck, test, build (CLI)
+- **Go**: vet, race-enabled tests, build + boot smoke test (on macOS, matrix Go 1.21/1.23)
+- **golangci-lint**: Go static analysis
+- **Raycast**: lint + typecheck of the extension
 
-Releases are created automatically when a `v*` tag is pushed, producing macOS agent binaries (amd64 + arm64) and the CLI bundle.
+Releases are created automatically when a `v*` tag is pushed, producing macOS
+agent binaries (amd64 + arm64, built with cgo on a macOS runner), the CLI
+bundle, and a `SHA256SUMS` file.
 
 ## Uninstalling
 
