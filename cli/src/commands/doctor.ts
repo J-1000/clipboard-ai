@@ -7,6 +7,7 @@ import {
   type ConfigResponse,
 } from "../lib/client.js";
 import { DEFAULT_PLUGIN_DIR } from "../lib/plugin-actions.js";
+import { defaultProviderEndpoint } from "../lib/provider-endpoints.js";
 import { VERSION } from "../version.js";
 
 export interface DoctorCommandDeps {
@@ -195,13 +196,9 @@ function effectiveEndpoint(config: ConfigResponse): string {
   if (config.provider.endpoint) {
     return config.provider.endpoint;
   }
-  if (config.provider.type === "openai") {
-    return "https://api.openai.com/v1";
-  }
-  if (config.provider.type === "anthropic") {
-    return "https://api.anthropic.com/v1";
-  }
-  return "http://localhost:11434/v1";
+  // Use the same defaults as the AI client so doctor probes the exact URL the
+  // client would call (including any trailing slash).
+  return defaultProviderEndpoint(config.provider.type);
 }
 
 function formatBytes(bytes: number): string {

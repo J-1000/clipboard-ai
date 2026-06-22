@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { defaultProviderEndpoint } from "./provider-endpoints.js";
 
 export interface AIConfig {
   type: string;
@@ -45,17 +46,7 @@ export class AIClient {
     if (config.endpoint) {
       return config.endpoint;
     }
-
-    switch (config.type) {
-      case "ollama":
-        return "http://localhost:11434/v1";
-      case "openai":
-        return "https://api.openai.com/v1";
-      case "anthropic":
-        return "https://api.anthropic.com/v1/";
-      default:
-        return "http://localhost:11434/v1";
-    }
+    return defaultProviderEndpoint(config.type);
   }
 
   async generate(prompt: string, systemPrompt?: string): Promise<AIResponse> {
