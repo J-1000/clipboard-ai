@@ -20,6 +20,9 @@ export async function doctorCommand(deps: Partial<DoctorCommandDeps> = {}): Prom
   const getConfig = deps.getConfig ?? defaultGetConfig;
   const pluginDir = deps.pluginDir ?? DEFAULT_PLUGIN_DIR;
 
+  passedChecks = 0;
+  failedChecks = 0;
+
   console.log("clipboard-ai doctor");
   console.log("──────────────────");
 
@@ -56,6 +59,13 @@ export async function doctorCommand(deps: Partial<DoctorCommandDeps> = {}): Prom
   checkHistoryFile();
   checkPluginDir(pluginDir);
   checkDaemonInterpreter();
+
+  console.log("──────────────────");
+  console.log(`${passedChecks} passed, ${failedChecks} failed`);
+  if (failedChecks > 0) {
+    // Non-zero exit so launchd/CI health gating can detect a broken setup.
+    process.exitCode = 1;
+  }
 }
 
 // The daemon spawns `cbai` (a `#!/usr/bin/env node` script) using the PATH
@@ -204,11 +214,18 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+// Per-run tallies. Reset at the start of doctorCommand so the exit code and
+// summary reflect only the current run (INFO is informational, not a failure).
+let passedChecks = 0;
+let failedChecks = 0;
+
 function pass(label: string): void {
+  passedChecks += 1;
   console.log(`PASS ${label}`);
 }
 
 function fail(label: string, detail: string): void {
+  failedChecks += 1;
   console.log(`FAIL ${label}: ${detail}`);
 }
 
