@@ -29,6 +29,12 @@ Pass one of these headers with the configured token value:
 
 If auth is missing or invalid, API returns `401 Unauthorized`.
 
+## Versioning
+
+Every response carries an `X-API-Version` header (currently `1`). A breaking
+change to the API will bump this value, so clients can detect incompatibility
+without relying on a path prefix.
+
 ## Endpoints
 
 Base URL: `http://127.0.0.1:9159`

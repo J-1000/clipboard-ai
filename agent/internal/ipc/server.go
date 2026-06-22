@@ -166,6 +166,10 @@ func (s *Server) Start(ctx context.Context) error {
 	return server.Serve(listener)
 }
 
+// apiVersion is advertised on every response via the X-API-Version header so
+// clients can detect breaking changes without a path-prefix migration.
+const apiVersion = "1"
+
 // Handler returns the HTTP handler for the IPC API.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
@@ -174,7 +178,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/config", s.handleConfig)
 	mux.HandleFunc("/action", s.handleAction)
 	mux.HandleFunc("/history", s.handleHistory)
-	return mux
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-API-Version", apiVersion)
+		mux.ServeHTTP(w, r)
+	})
 }
 
 // handleStatus returns agent status

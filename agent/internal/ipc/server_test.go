@@ -740,3 +740,13 @@ func TestErrorResponsesAreJSON(t *testing.T) {
 		t.Fatalf("expected an error message, got %v", body)
 	}
 }
+
+func TestHandler_SetsAPIVersionHeader(t *testing.T) {
+	s := newTestServer()
+	req := httptest.NewRequest(http.MethodGet, "/status", nil)
+	w := httptest.NewRecorder()
+	s.Handler().ServeHTTP(w, req)
+	if got := w.Header().Get("X-API-Version"); got != apiVersion {
+		t.Fatalf("expected X-API-Version %q, got %q", apiVersion, got)
+	}
+}
