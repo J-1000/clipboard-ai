@@ -297,4 +297,33 @@ describe("runActionCommand history", () => {
     expect(console.log).toHaveBeenCalledWith("Classification:");
     expect(console.log).toHaveBeenCalledWith("streamed output");
   });
+
+  it("produces real output and history for an image action on a TTY", async () => {
+    // Regression: image-only actions don't stream, so enabling streaming on a TTY
+    // discarded their result as a blank line and stored "" in history.
+    Object.defineProperty(process.stdout, "isTTY", { value: true, configurable: true });
+    mockGetInput.mockReset();
+    mockGetInput.mockImplementation(() =>
+      Promise.resolve({ text: "", imageBase64: "aW1n", type: "image" } as { text: string })
+    );
+    const imageRegistry = createActionRegistry([
+      {
+        id: "caption",
+        description: "Caption",
+        inputTypes: ["image"],
+        outputTitle: "Caption",
+        run: async () => "a serene mountain lake",
+      },
+    ]);
+
+    await runActionCommand("caption", { registry: imageRegistry, deps: deps() });
+
+    // Image actions must not stream (so the result isn't lost) ...
+    expect(mockAIConfigs[0].onToken).toBeUndefined();
+    // ... and the real result is printed and recorded, not a blank line.
+    expect(console.log).toHaveBeenCalledWith("a serene mountain lake");
+    const call = mockAppendHistoryRecord.mock.calls[0][0];
+    expect(call.status).toBe("success");
+    expect(call.output).toBe("a serene mountain lake");
+  });
 });
