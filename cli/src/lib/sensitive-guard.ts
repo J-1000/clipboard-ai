@@ -8,7 +8,7 @@ export interface SensitiveFinding {
 // (enforced by the shared parity fixture).
 const TEXT_PATTERNS: Array<{ type: string; re: RegExp }> = [
   { type: "aws_access_key", re: /AKIA[0-9A-Z]{16}/g },
-  { type: "api_key", re: /api[_-]?key\s*[:=]/gi },
+  { type: "api_key", re: /api[_-]?key\s*[:=]\s*["']?[A-Za-z0-9_-]{16,}/gi },
   { type: "jwt", re: /eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+/g },
   { type: "private_key", re: /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/g },
   { type: "github_token", re: /gh[pousr]_[A-Za-z0-9]{36,}/g },

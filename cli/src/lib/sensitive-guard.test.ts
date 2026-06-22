@@ -5,7 +5,7 @@ describe("scanSensitiveText", () => {
   it("detects sensitive patterns", () => {
     const cases: Array<[string, string]> = [
       ["key AKIA1234567890ABCDEF copied", "aws_access_key"],
-      ["api-key: secret", "api_key"],
+      ["api-key: EXAMPLEKEY1234567890", "api_key"],
       ["token eyJabc.eyJdef.signature", "jwt"],
       ["-----BEGIN RSA PRIVATE KEY-----", "private_key"],
       ["card 4111 1111 1111 1111", "credit_card"],

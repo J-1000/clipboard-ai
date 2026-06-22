@@ -118,7 +118,7 @@ describe("runActionCommand history", () => {
     mockGetConfig.mockResolvedValueOnce(
       makeConfig({ settings: { sensitive_guard: "block" } })
     );
-    mockGetInput.mockResolvedValueOnce({ text: "api_key = secret" });
+    mockGetInput.mockResolvedValueOnce({ text: "api_key = EXAMPLEKEY1234567890" });
     const exitSpy = spyOn(process, "exit").mockImplementation((() => {
       throw new Error("exit");
     }) as never);
@@ -138,7 +138,7 @@ describe("runActionCommand history", () => {
     mockGetConfig.mockResolvedValueOnce(
       makeConfig({ settings: { sensitive_guard: "block" } })
     );
-    mockGetInput.mockResolvedValueOnce({ text: "api_key = secret" });
+    mockGetInput.mockResolvedValueOnce({ text: "api_key = EXAMPLEKEY1234567890" });
 
     await runActionCommand("summary", { registry, deps: deps(), force: true });
 

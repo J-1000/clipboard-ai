@@ -9,7 +9,7 @@ func TestScanDetectsSensitivePatterns(t *testing.T) {
 		wantType string
 	}{
 		{"aws key", "key AKIA1234567890ABCDEF copied", "aws_access_key"},
-		{"api key", "api_key = secret", "api_key"},
+		{"api key", "api_key = EXAMPLEKEY1234567890", "api_key"},
 		{"jwt", "token eyJabc.eyJdef.signature", "jwt"},
 		{"private key", "-----BEGIN RSA PRIVATE KEY-----", "private_key"},
 		{"credit card", "card 4111 1111 1111 1111", "credit_card"},

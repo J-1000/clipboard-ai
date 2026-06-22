@@ -19,7 +19,7 @@ var textPatterns = []struct {
 	re   *regexp.Regexp
 }{
 	{name: "aws_access_key", re: regexp.MustCompile(`AKIA[0-9A-Z]{16}`)},
-	{name: "api_key", re: regexp.MustCompile(`(?i)api[_-]?key\s*[:=]`)},
+	{name: "api_key", re: regexp.MustCompile(`(?i)api[_-]?key\s*[:=]\s*["']?[A-Za-z0-9_\-]{16,}`)},
 	{name: "jwt", re: regexp.MustCompile(`eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+`)},
 	{name: "private_key", re: regexp.MustCompile(`-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----`)},
 	{name: "github_token", re: regexp.MustCompile(`gh[pousr]_[A-Za-z0-9]{36,}`)},
