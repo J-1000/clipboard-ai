@@ -15,13 +15,20 @@ describe("configs/default.toml action coverage", () => {
 
   const names = Array.from(toml.matchAll(/\[actions\.([A-Za-z0-9_-]+)\]/g), (m) => m[1]);
 
+  // Prompt-template actions (blocks with a `prompt =`) resolve at runtime from
+  // config, not the builtin registry, so they're excluded from the check below.
+  const promptActionNames = new Set(
+    Array.from(toml.matchAll(/\[actions\.([A-Za-z0-9_-]+)\][^[]*?prompt\s*=/g), (m) => m[1])
+  );
+
   it("references at least summarize, explain, and summarize_url", () => {
     expect(names).toContain("summarize");
     expect(names).toContain("explain");
     expect(names).toContain("summarize_url");
   });
 
-  it.each(Array.from(new Set(names)))("resolves action %s", (name) => {
+  const registryNames = Array.from(new Set(names)).filter((name) => !promptActionNames.has(name));
+  it.each(registryNames)("resolves builtin action %s", (name) => {
     expect(resolveAction(registry, name)).toBeTruthy();
   });
 });
