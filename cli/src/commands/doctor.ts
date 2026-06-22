@@ -8,6 +8,7 @@ import {
 } from "../lib/client.js";
 import { DEFAULT_PLUGIN_DIR } from "../lib/plugin-actions.js";
 import { defaultProviderEndpoint } from "../lib/provider-endpoints.js";
+import { green, red, yellow } from "../lib/colors.js";
 import { VERSION } from "../version.js";
 
 export interface DoctorCommandDeps {
@@ -218,14 +219,14 @@ let failedChecks = 0;
 
 function pass(label: string): void {
   passedChecks += 1;
-  console.log(`PASS ${label}`);
+  console.log(`${green("PASS")} ${label}`);
 }
 
 function fail(label: string, detail: string): void {
   failedChecks += 1;
-  console.log(`FAIL ${label}: ${detail}`);
+  console.log(`${red("FAIL")} ${label}: ${detail}`);
 }
 
 function info(label: string, detail: string): void {
-  console.log(`INFO ${label}: ${detail}`);
+  console.log(`${yellow("INFO")} ${label}: ${detail}`);
 }
