@@ -18,6 +18,30 @@ import { historyCommand } from "./commands/history.js";
 import { rerunCommand } from "./commands/rerun.js";
 import { logsCommand } from "./commands/logs.js";
 import { VERSION } from "./version.js";
+import type { Argv } from "yargs";
+
+// Flags scoped to action-running commands only (not global), so read-only
+// commands' help isn't cluttered with --yes/--force.
+function runFlags<T>(yargs: Argv<T>) {
+  return yargs
+    .option("copy", {
+      alias: "c",
+      type: "boolean",
+      description: "Copy result to clipboard",
+      default: false,
+    })
+    .option("yes", {
+      alias: "y",
+      type: "boolean",
+      description: "Skip safe mode confirmation prompts",
+      default: false,
+    })
+    .option("force", {
+      type: "boolean",
+      description: "Bypass sensitive-data guard for manual actions",
+      default: false,
+    });
+}
 
 yargs(hideBin(process.argv))
   .scriptName("cbai")
@@ -26,17 +50,6 @@ yargs(hideBin(process.argv))
   // options. The daemon spawns `cbai run <action> -- <args...>` so an attacker
   // can't smuggle a global flag (e.g. --force) through clipboard-derived args.
   .parserConfiguration({ "populate--": true })
-  .option("yes", {
-    alias: "y",
-    type: "boolean",
-    description: "Skip safe mode confirmation prompts",
-    default: false,
-  })
-  .option("force", {
-    type: "boolean",
-    description: "Bypass sensitive-data guard for manual actions",
-    default: false,
-  })
   .command(
     "status",
     "Show agent status",
@@ -81,21 +94,17 @@ yargs(hideBin(process.argv))
     "run <action> [args..]",
     "Run an action by name",
     (yargs) =>
-      yargs
-        .positional("action", {
-          describe: "Action id or alias",
-          type: "string",
-        })
-        .positional("args", {
-          describe: "Action arguments",
-          type: "string",
-        })
-        .option("copy", {
-          alias: "c",
-          type: "boolean",
-          description: "Copy result to clipboard",
-          default: false,
-        }),
+      runFlags(
+        yargs
+          .positional("action", {
+            describe: "Action id or alias",
+            type: "string",
+          })
+          .positional("args", {
+            describe: "Action arguments",
+            type: "string",
+          })
+      ),
     async (argv) => {
       const positional = (argv.args as string[] | undefined) ?? [];
       const afterDashDash = (argv["--"] as string[] | undefined) ?? [];
@@ -138,17 +147,12 @@ yargs(hideBin(process.argv))
     "rerun <id>",
     "Replay a previous action run from history",
     (yargs) =>
-      yargs
-        .positional("id", {
+      runFlags(
+        yargs.positional("id", {
           describe: "History run id",
           type: "string",
         })
-        .option("copy", {
-          alias: "c",
-          type: "boolean",
-          description: "Copy result to clipboard",
-          default: false,
-        }),
+      ),
     async (argv) => {
       await rerunCommand(argv.id as string, { copy: argv.copy, yes: argv.yes, force: argv.force });
     }
@@ -176,13 +180,7 @@ yargs(hideBin(process.argv))
   .command(
     "summary",
     "Summarize clipboard content",
-    (yargs) =>
-      yargs.option("copy", {
-        alias: "c",
-        type: "boolean",
-        description: "Copy result to clipboard",
-        default: false,
-      }),
+    (yargs) => runFlags(yargs),
     async (argv) => {
       await summaryCommand({ copy: argv.copy, yes: argv.yes, force: argv.force });
     }
@@ -190,13 +188,7 @@ yargs(hideBin(process.argv))
   .command(
     ["summarize", "sum"],
     false, // hidden alias
-    (yargs) =>
-      yargs.option("copy", {
-        alias: "c",
-        type: "boolean",
-        description: "Copy result to clipboard",
-        default: false,
-      }),
+    (yargs) => runFlags(yargs),
     async (argv) => {
       await summaryCommand({ copy: argv.copy, yes: argv.yes, force: argv.force });
     }
@@ -204,13 +196,7 @@ yargs(hideBin(process.argv))
   .command(
     "explain",
     "Explain clipboard content (good for code)",
-    (yargs) =>
-      yargs.option("copy", {
-        alias: "c",
-        type: "boolean",
-        description: "Copy result to clipboard",
-        default: false,
-      }),
+    (yargs) => runFlags(yargs),
     async (argv) => {
       await explainCommand({ copy: argv.copy, yes: argv.yes, force: argv.force });
     }
@@ -218,20 +204,14 @@ yargs(hideBin(process.argv))
   .command(
     "translate [lang]",
     "Translate clipboard to target language (defaults to English)",
-    (yargs) => {
-      return yargs
-        .positional("lang", {
+    (yargs) =>
+      runFlags(
+        yargs.positional("lang", {
           describe: "Target language",
           type: "string",
           default: "English",
         })
-        .option("copy", {
-          alias: "c",
-          type: "boolean",
-          description: "Copy result to clipboard",
-          default: false,
-        });
-    },
+      ),
     async (argv) => {
       await translateCommand(argv.lang as string, { copy: argv.copy, yes: argv.yes, force: argv.force });
     }
@@ -239,13 +219,7 @@ yargs(hideBin(process.argv))
   .command(
     "improve",
     "Improve writing in clipboard",
-    (yargs) =>
-      yargs.option("copy", {
-        alias: "c",
-        type: "boolean",
-        description: "Copy result to clipboard",
-        default: false,
-      }),
+    (yargs) => runFlags(yargs),
     async (argv) => {
       await improveCommand({ copy: argv.copy, yes: argv.yes, force: argv.force });
     }
@@ -253,13 +227,7 @@ yargs(hideBin(process.argv))
   .command(
     "extract",
     "Extract structured data from clipboard",
-    (yargs) =>
-      yargs.option("copy", {
-        alias: "c",
-        type: "boolean",
-        description: "Copy result to clipboard",
-        default: false,
-      }),
+    (yargs) => runFlags(yargs),
     async (argv) => {
       await extractCommand({ copy: argv.copy, yes: argv.yes, force: argv.force });
     }
@@ -267,13 +235,7 @@ yargs(hideBin(process.argv))
   .command(
     "tldr",
     "Get a very brief summary (1-2 sentences)",
-    (yargs) =>
-      yargs.option("copy", {
-        alias: "c",
-        type: "boolean",
-        description: "Copy result to clipboard",
-        default: false,
-      }),
+    (yargs) => runFlags(yargs),
     async (argv) => {
       await tldrCommand({ copy: argv.copy, yes: argv.yes, force: argv.force });
     }
@@ -281,13 +243,7 @@ yargs(hideBin(process.argv))
   .command(
     "classify",
     "Classify clipboard content by type",
-    (yargs) =>
-      yargs.option("copy", {
-        alias: "c",
-        type: "boolean",
-        description: "Copy result to clipboard",
-        default: false,
-      }),
+    (yargs) => runFlags(yargs),
     async (argv) => {
       await classifyCommand({ copy: argv.copy, yes: argv.yes, force: argv.force });
     }
