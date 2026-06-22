@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test";
+import { describe, it, expect, mock, beforeEach, afterEach, spyOn } from "bun:test";
 
 const mockConstructedOptions: Array<Record<string, unknown>> = [];
 
@@ -218,6 +218,66 @@ describe("AIClient", () => {
 
       const call = mockCreate.mock.calls[0][0] as Record<string, unknown>;
       expect(call.stream).toBe(true);
+    });
+  });
+
+  describe("max_tokens", () => {
+    it("defaults to 1024 when unset", async () => {
+      await client.generate("test");
+      const call = mockCreate.mock.calls[0][0] as Record<string, unknown>;
+      expect(call.max_tokens).toBe(1024);
+    });
+
+    it("honors a configured maxTokens", async () => {
+      const c = new AIClient({
+        type: "ollama",
+        endpoint: "http://localhost:11434/v1",
+        model: "test-model",
+        maxTokens: 4096,
+      });
+      await c.generate("test");
+      const call = mockCreate.mock.calls[0][0] as Record<string, unknown>;
+      expect(call.max_tokens).toBe(4096);
+    });
+
+    it("ignores a non-positive maxTokens and falls back to the default", async () => {
+      const c = new AIClient({
+        type: "ollama",
+        endpoint: "http://localhost:11434/v1",
+        model: "test-model",
+        maxTokens: 0,
+      });
+      await c.generate("test");
+      const call = mockCreate.mock.calls[0][0] as Record<string, unknown>;
+      expect(call.max_tokens).toBe(1024);
+    });
+  });
+
+  describe("truncation warning", () => {
+    it("warns on stderr when the completion is cut at the token limit", async () => {
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: "partial" }, finish_reason: "length" }],
+        model: "test-model",
+      });
+      const errSpy = spyOn(console, "error").mockImplementation(() => {});
+      try {
+        await client.generate("test");
+        const logged = errSpy.mock.calls.map((c: unknown[]) => String(c[0])).join("\n");
+        expect(logged).toContain("truncated");
+        expect(logged).toContain("max_tokens");
+      } finally {
+        errSpy.mockRestore();
+      }
+    });
+
+    it("does not warn on a normal stop", async () => {
+      const errSpy = spyOn(console, "error").mockImplementation(() => {});
+      try {
+        await client.generate("test");
+        expect(errSpy).not.toHaveBeenCalled();
+      } finally {
+        errSpy.mockRestore();
+      }
     });
   });
 });
