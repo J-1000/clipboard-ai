@@ -136,11 +136,13 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
 
     const shouldStreamOutput = shouldStreamActionOutput(action, source, options);
     const streamedChunks: string[] = [];
+    const maxTokens = actionConfig?.max_tokens ?? config.settings.max_tokens;
     const ai = deps.createAIClient({
       type: effectiveConfig.provider.type,
       endpoint: effectiveConfig.provider.endpoint,
       model: effectiveConfig.provider.model,
       apiKey: effectiveConfig.provider.api_key,
+      maxTokens,
       onToken: shouldStreamOutput
         ? (token) => {
             streamedChunks.push(token);

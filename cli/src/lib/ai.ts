@@ -5,8 +5,11 @@ export interface AIConfig {
   endpoint: string;
   model: string;
   apiKey?: string;
+  maxTokens?: number;
   onToken?: (token: string) => void;
 }
+
+const DEFAULT_MAX_TOKENS = 1024;
 
 export interface AIResponse {
   content: string;
@@ -20,10 +23,12 @@ export interface AIResponse {
 export class AIClient {
   private client: OpenAI;
   private model: string;
+  private maxTokens: number;
   private onToken?: (token: string) => void;
 
   constructor(config: AIConfig) {
     this.model = config.model;
+    this.maxTokens = config.maxTokens && config.maxTokens > 0 ? config.maxTokens : DEFAULT_MAX_TOKENS;
     this.onToken = config.onToken;
 
     // Configure for different providers
@@ -63,8 +68,10 @@ export class AIClient {
       model: this.model,
       messages,
       temperature: 0.7,
-      max_tokens: 1024,
+      max_tokens: this.maxTokens,
     });
+
+    warnIfTruncated(response.choices?.[0]?.finish_reason, this.maxTokens);
 
     return {
       content: completionContent(response),
@@ -88,17 +95,19 @@ export class AIClient {
       model: this.model,
       messages,
       temperature: 0.7,
-      max_tokens: 1024,
+      max_tokens: this.maxTokens,
       stream: true,
     });
 
     let content = "";
     let model = this.model;
+    let finishReason: string | null | undefined;
 
     for await (const chunk of stream) {
       if (chunk.model) {
         model = chunk.model;
       }
+      finishReason = chunk.choices?.[0]?.finish_reason ?? finishReason;
       const token = chunk.choices?.[0]?.delta?.content;
       if (!token) {
         continue;
@@ -106,6 +115,8 @@ export class AIClient {
       content += token;
       onToken?.(token);
     }
+
+    warnIfTruncated(finishReason, this.maxTokens);
 
     return { content, model };
   }
@@ -135,8 +146,10 @@ export class AIClient {
       model: this.model,
       messages,
       temperature: 0.2,
-      max_tokens: 1024,
+      max_tokens: this.maxTokens,
     });
+
+    warnIfTruncated(response.choices?.[0]?.finish_reason, this.maxTokens);
 
     return {
       content: completionContent(response),
@@ -231,6 +244,16 @@ function completionMessages(
 
   messages.push({ role: "user", content: prompt });
   return messages;
+}
+
+// warnIfTruncated alerts (on stderr) when the model stopped because it hit the
+// token cap, so a silently-cut summary/OCR/extraction is at least visible.
+export function warnIfTruncated(finishReason: string | null | undefined, maxTokens: number): void {
+  if (finishReason === "length") {
+    console.error(
+      `Warning: output was truncated at max_tokens=${maxTokens}. Raise max_tokens (settings or per-action) for a complete result.`
+    );
+  }
 }
 
 function completionContent(response: OpenAI.Chat.ChatCompletion): string {
