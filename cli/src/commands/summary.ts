@@ -1,5 +1,5 @@
-import { runActionCommand } from "../lib/run-action.js";
+import { runActionCommand, type RunActionOptions } from "../lib/run-action.js";
 
-export async function summaryCommand(options: { copy?: boolean; yes?: boolean; force?: boolean } = {}): Promise<void> {
+export async function summaryCommand(options: RunActionOptions = {}): Promise<void> {
   await runActionCommand("summary", options);
 }

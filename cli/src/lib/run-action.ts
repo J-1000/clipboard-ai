@@ -1,4 +1,4 @@
-import { AIClient } from "./ai.js";
+import { AIClient, type AIConfig } from "./ai.js";
 import { resolveAction, getActionRegistry, type ActionRegistry } from "./action-registry.js";
 import type { ActionDefinition } from "./action-types.js";
 import { copyToClipboard } from "./clipboard.js";
@@ -7,6 +7,32 @@ import { appendHistoryRecord, type HistoryRetentionSettings, type RunSource } fr
 import { getInput, type InputPayload } from "./input.js";
 import { enforceSafeMode } from "./safe-mode.js";
 import { scanSensitiveText } from "./sensitive-guard.js";
+
+// Injectable collaborators. Defaulting to the real implementations keeps
+// production callers unchanged while letting tests substitute fakes WITHOUT
+// `mock.module`, whose partial, never-reset module shapes leak across files
+// and produce false whole-suite failures.
+export interface RunActionDeps {
+  getActionRegistry: typeof getActionRegistry;
+  getConfig: typeof getConfig;
+  getInput: typeof getInput;
+  copyToClipboard: typeof copyToClipboard;
+  enforceSafeMode: typeof enforceSafeMode;
+  appendHistoryRecord: typeof appendHistoryRecord;
+  scanSensitiveText: typeof scanSensitiveText;
+  createAIClient: (config: AIConfig) => AIClient;
+}
+
+const defaultRunActionDeps: RunActionDeps = {
+  getActionRegistry,
+  getConfig,
+  getInput,
+  copyToClipboard,
+  enforceSafeMode,
+  appendHistoryRecord,
+  scanSensitiveText,
+  createAIClient: (config) => new AIClient(config),
+};
 
 export interface RunActionOptions {
   args?: string[];
@@ -19,6 +45,7 @@ export interface RunActionOptions {
   source?: RunSource;
   trigger?: string;
   replayOf?: string;
+  deps?: Partial<RunActionDeps>;
 }
 
 export async function runActionCommand(actionName: string, options: RunActionOptions = {}): Promise<void> {
@@ -35,9 +62,10 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
   let input: InputPayload | null = null;
   let historySettings: HistoryRetentionSettings | undefined;
   let guardHit = process.env.CBAI_SENSITIVE_GUARD_HIT === "true";
+  const deps = { ...defaultRunActionDeps, ...options.deps };
 
   try {
-    const registry = options.registry ?? (await getActionRegistry());
+    const registry = options.registry ?? (await deps.getActionRegistry());
     const action = resolveAction(registry, actionName);
 
     if (!action) {
@@ -47,9 +75,9 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
       process.exit(1);
     }
 
-    const config = await getConfig();
+    const config = await deps.getConfig();
     historySettings = config.settings;
-    input = options.input ?? (options.inputText ? { text: options.inputText } : await getInput());
+    input = options.input ?? (options.inputText ? { text: options.inputText } : await deps.getInput());
     const text = input.text;
     const acceptedInputs = action.inputTypes ?? ["text"];
     const hasText = text.length > 0;
@@ -85,7 +113,7 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
 
     const guardMode = config.settings.sensitive_guard ?? "warn";
     if (!guardHit && text && guardMode !== "off") {
-      const findings = scanSensitiveText(text);
+      const findings = deps.scanSensitiveText(text);
       if (findings.length > 0) {
         guardHit = true;
         if (guardMode === "block" && !options.force) {
@@ -97,7 +125,7 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
       }
     }
 
-    await enforceSafeMode(effectiveConfig, { yes: options.yes });
+    await deps.enforceSafeMode(effectiveConfig, { yes: options.yes });
 
     if (action.progressMessage) {
       console.log(`${action.progressMessage}\n`);
@@ -105,7 +133,7 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
 
     const shouldStreamOutput = shouldStreamActionOutput(action.id, source, options);
     const streamedChunks: string[] = [];
-    const ai = new AIClient({
+    const ai = deps.createAIClient({
       type: effectiveConfig.provider.type,
       endpoint: effectiveConfig.provider.endpoint,
       model: effectiveConfig.provider.model,
@@ -144,7 +172,7 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
     }
 
     if (options.copy) {
-      copyToClipboard(output);
+      deps.copyToClipboard(output);
       console.log("\n(Copied to clipboard)");
     }
   } catch (err) {
@@ -156,7 +184,7 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
     }
 
     try {
-      await appendHistoryRecord(
+      await deps.appendHistoryRecord(
         {
           action: resolvedActionName,
           args: options.args ?? [],
