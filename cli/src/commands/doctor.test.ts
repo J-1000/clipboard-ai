@@ -39,6 +39,9 @@ describe("doctorCommand", () => {
   let logSpy: ReturnType<typeof spyOn>;
 
   beforeEach(() => {
+    // Disable ANSI color so assertions match plain "PASS"/"FAIL" labels
+    // regardless of whether the test runner's stdout is a TTY.
+    process.env.NO_COLOR = "1";
     mockGetStatus.mockClear();
     mockGetConfig.mockClear();
     mkdirSync(pluginDir, { recursive: true });
@@ -55,7 +58,10 @@ describe("doctorCommand", () => {
     logSpy = spyOn(console, "log").mockImplementation(() => {});
   });
 
-  afterEach(() => mock.restore());
+  afterEach(() => {
+    mock.restore();
+    delete process.env.NO_COLOR;
+  });
 
   it("prints diagnostic pass/fail/info lines", async () => {
     await doctorCommand({ getStatus: mockGetStatus, getConfig: mockGetConfig, pluginDir });
