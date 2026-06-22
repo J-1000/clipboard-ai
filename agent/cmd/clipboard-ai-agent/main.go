@@ -236,9 +236,12 @@ func main() {
 					}
 				}
 
+				// Re-snapshot so a long-running action honors notification
+				// settings as of completion, not as of when it was triggered.
+				notifyCfg, _ := state.snapshot()
 				if result.Error != nil {
 					logger.Error("action failed", "action", actionName, "error", result.Error)
-					if cfg.Settings.Notifications {
+					if notifyCfg.Settings.Notifications {
 						if strings.Contains(result.Output, "safe mode") {
 							notify.SendWithSubtitle("clipboard-ai", "Safe mode", actionName+" blocked — cloud provider not allowed")
 						} else {
@@ -251,7 +254,7 @@ func main() {
 					"action", actionName,
 					"elapsed_ms", result.Elapsed.Milliseconds(),
 				)
-				if cfg.Settings.Notifications {
+				if notifyCfg.Settings.Notifications {
 					notify.SendWithSubtitle("clipboard-ai", actionName, truncateRunes(result.Output, 200))
 				}
 			}(match.ActionName, match.Config, content, guardHit)
