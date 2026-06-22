@@ -76,7 +76,8 @@ func TestDetectContentType_Code(t *testing.T) {
 		"const x = 42",
 		"let y = 10",
 		"var z = 5",
-		"return value",
+		"return value;",
+		"return compute(x)",
 		"package main",
 		"require('fs')",
 		"if (condition) {}",
@@ -100,6 +101,12 @@ func TestDetectContentType_Text(t *testing.T) {
 		"this is just some plain text",
 		"The quick brown fox jumps over the lazy dog",
 		"12345",
+		// Prose that contains weak code keywords/arrows but is not code.
+		"I want to return home before it gets dark",
+		"let me know if you need anything else",
+		"please return the book to the library tomorrow",
+		"click here -> the next page in the guide",
+		"the var named after the cafe was a nice touch",
 	}
 
 	for _, input := range tests {

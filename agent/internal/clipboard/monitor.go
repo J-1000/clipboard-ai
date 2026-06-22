@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"log/slog"
 	"os/exec"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -222,21 +223,32 @@ func isURL(text string) bool {
 	return false
 }
 
-// looksLikeCode checks if text appears to be code
+// Weak code signals that also occur in English ("I want to return home", "let
+// me know", "click here -> there") only count when they appear in a clearly
+// code-shaped form: a real declaration/assignment, an arrow to an identifier or
+// call, or a return that leads into a statement/call.
+var (
+	declRe   = regexp.MustCompile(`\b(?:let|var|const)\s+[A-Za-z_$][\w$]*\s*=`)
+	arrowRe  = regexp.MustCompile(`->[A-Za-z_(]`)
+	returnRe = regexp.MustCompile(`\breturn\b[^.!?\n]*[;(]`)
+)
+
+// looksLikeCode checks if text appears to be code.
 func looksLikeCode(text string) bool {
-	codeIndicators := []string{
+	// Strong indicators are code-specific enough to classify on their own.
+	strongIndicators := []string{
 		"func ", "function ", "def ", "class ",
 		"import ", "require(", "package ",
 		"if (", "for (", "while (",
-		"const ", "let ", "var ",
-		"return ", "=> {", "->",
+		"=> {",
 	}
-	for _, indicator := range codeIndicators {
+	for _, indicator := range strongIndicators {
 		if containsString(text, indicator) {
 			return true
 		}
 	}
-	return false
+
+	return declRe.MatchString(text) || arrowRe.MatchString(text) || returnRe.MatchString(text)
 }
 
 // containsString checks if text contains substr
