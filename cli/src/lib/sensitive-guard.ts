@@ -51,10 +51,19 @@ export function scanSensitiveText(text: string): SensitiveFinding[] {
   return findings;
 }
 
-// Slides every 13–19 digit window so a card embedded in a longer digit run is caught.
+// Validates a digit run as a card number. A 13–19 digit run is checked as-is; a
+// longer run is treated as a card embedded in a larger sequence, so every 13–19
+// digit window is slid across it. (Sliding is limited to oversized runs to avoid
+// spuriously matching a Luhn-valid sub-window of a single invalid card number.)
 function luhnWindowValid(digits: string): boolean {
   const n = digits.length;
-  for (let size = 13; size <= 19 && size <= n; size += 1) {
+  if (n < 13) {
+    return false;
+  }
+  if (n <= 19) {
+    return luhnValid(digits);
+  }
+  for (let size = 13; size <= 19; size += 1) {
     for (let i = 0; i + size <= n; i += 1) {
       if (luhnValid(digits.slice(i, i + size))) {
         return true;

@@ -71,11 +71,20 @@ func digitsOnly(value string) string {
 	return b.String()
 }
 
-// luhnWindowValid slides every 13–19 digit window across a run so a card number
-// embedded in a longer digit sequence is still caught.
+// luhnWindowValid validates a digit run as a card number. A 13–19 digit run is
+// checked as-is. A longer run is treated as a card embedded in a larger digit
+// sequence, so every 13–19 digit window is slid across it. (Sliding is limited
+// to oversized runs to avoid spuriously matching a Luhn-valid sub-window of a
+// single invalid card number.)
 func luhnWindowValid(digits string) bool {
 	n := len(digits)
-	for size := 13; size <= 19 && size <= n; size++ {
+	if n < 13 {
+		return false
+	}
+	if n <= 19 {
+		return luhnValid(digits)
+	}
+	for size := 13; size <= 19; size++ {
 		for i := 0; i+size <= n; i++ {
 			if luhnValid(digits[i : i+size]) {
 				return true
