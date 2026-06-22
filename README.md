@@ -67,6 +67,19 @@ sudo cp dist/index.js /usr/local/bin/cbai
 chmod +x /usr/local/bin/cbai
 ```
 
+### Install from a release (no toolchain)
+
+If you don't want to build from source, install prebuilt binaries from the latest
+GitHub release. This downloads the host-arch agent + CLI, verifies them against
+`SHA256SUMS`, clears the Gatekeeper quarantine, and sets up the LaunchAgent:
+
+```bash
+./scripts/install-from-release.sh           # latest release
+./scripts/install-from-release.sh v1.2.3    # a specific tag
+```
+
+Node.js must be installed for triggered actions to run.
+
 ### Release binaries and Gatekeeper
 
 Release artifacts are **not yet codesigned or notarized**, so macOS Gatekeeper
