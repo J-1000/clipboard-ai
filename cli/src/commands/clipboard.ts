@@ -10,7 +10,10 @@ export async function clipboardCommand(deps: Partial<ClipboardCommandDeps> = {})
     const clipboard = await getClipboard();
 
     console.log(`Type: ${clipboard.type}`);
-    console.log(`Length: ${clipboard.length} chars`);
+    // Character length is meaningless for images (length is 0 / not text).
+    if (clipboard.type !== "image") {
+      console.log(`Length: ${clipboard.length} chars`);
+    }
     console.log(`Timestamp: ${clipboard.timestamp}`);
     console.log();
     console.log("Content:");
