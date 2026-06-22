@@ -65,9 +65,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Set up structured logging
-	level := parseLogLevel(cfg.Settings.LogLevel)
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
+	// Set up structured logging via a LevelVar so a config reload can change the
+	// log level at runtime (documented as hot-reloadable).
+	levelVar := new(slog.LevelVar)
+	levelVar.Set(parseLogLevel(cfg.Settings.LogLevel))
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: levelVar}))
 	slog.SetDefault(logger)
 
 	logger.Info("agent starting",
@@ -290,6 +292,7 @@ func main() {
 		}
 
 		logRestartRequiredSettings(logger, previousCfg, nextCfg)
+		levelVar.Set(parseLogLevel(nextCfg.Settings.LogLevel))
 		state.swap(nextCfg, nextRulesEngine)
 		server.SetConfig(nextCfg)
 
