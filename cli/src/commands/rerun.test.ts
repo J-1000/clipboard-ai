@@ -53,6 +53,33 @@ describe("rerunCommand", () => {
     });
   });
 
+  it("refuses to replay a record whose input was not stored", async () => {
+    mockGetHistoryRecordById.mockResolvedValueOnce({
+      id: "run-img",
+      timestamp: "2026-02-20T00:00:00.000Z",
+      action: "caption",
+      args: [],
+      source: "manual",
+      trigger: "cli",
+      provider: "ollama",
+      model: "mistral",
+      latency_ms: 12,
+      status: "success",
+      copy: false,
+      input: "[image]",
+    });
+    const exitSpy = spyOn(process, "exit").mockImplementation(((code?: number) => {
+      throw new Error(`exit:${code}`);
+    }) as never);
+    const errSpy = spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(rerunCommand("run-img", {}, deps())).rejects.toThrow("exit:1");
+    expect(errSpy.mock.calls.map((c: unknown[]) => String(c[0])).join("\n")).toContain("not replayable");
+    expect(mockRunActionCommand).not.toHaveBeenCalled();
+
+    exitSpy.mockRestore();
+  });
+
   it("exits with error when record is missing", async () => {
     const exitSpy = spyOn(process, "exit").mockImplementation(((code?: number) => {
       throw new Error(`exit:${code}`);

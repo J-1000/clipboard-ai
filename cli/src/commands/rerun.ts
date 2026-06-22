@@ -20,6 +20,16 @@ export async function rerunCommand(
       process.exit(1);
     }
 
+    // History stores a placeholder for image and guard-suppressed inputs, so
+    // the original input can't be replayed — fail fast instead of sending the
+    // placeholder ("[image]" / "[sensitive content omitted]") to the model.
+    if (record.input === "[image]" || record.input === "[sensitive content omitted]") {
+      console.error(
+        `Error: run ${record.id} (${record.action}) is not replayable — its input was not stored (${record.input}). Re-copy the content and run the action directly.`
+      );
+      process.exit(1);
+    }
+
     await runActionCommand(record.action, {
       args: record.args,
       copy: options.copy,
