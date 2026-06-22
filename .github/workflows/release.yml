@@ -30,6 +30,11 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: '1'
           CC: ${{ matrix.cc }}
+      # Regression guard for the CGO/crash-loop class: a natively-built binary
+      # must boot and stay alive instead of panicking in clipboard.Init().
+      - name: Boot smoke test
+        if: matrix.goarch == 'arm64'
+        run: ./scripts/agent-boot-smoke.sh agent/clipboard-ai-agent-darwin-arm64
       - uses: actions/upload-artifact@v4
         with:
           name: agent-darwin-${{ matrix.goarch }}
