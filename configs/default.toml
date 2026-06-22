@@ -48,6 +48,10 @@ sensitive_guard = "warn"
 # number of cbai subprocesses a burst of clipboard changes can spawn at once.
 max_concurrent_actions = 4
 
+# Default maximum completion tokens per LLM request. Raise it for long
+# summaries/OCR; a per-action override (actions.<name>.max_tokens) wins.
+max_tokens = 1024
+
 [actions.summarize]
 enabled = true
 # Trigger when clipboard content is longer than 200 characters

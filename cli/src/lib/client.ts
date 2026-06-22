@@ -45,6 +45,7 @@ export interface ConfigResponse {
       retry_count?: number;
       retry_backoff_ms?: number;
       cooldown_ms?: number;
+      max_tokens?: number;
     }
   >;
   settings: {
@@ -60,6 +61,8 @@ export interface ConfigResponse {
     history_max_entries?: number;
     history_truncate_chars?: number;
     sensitive_guard?: "block" | "warn" | "off";
+    max_concurrent_actions?: number;
+    max_tokens?: number;
   };
 }
 

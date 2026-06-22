@@ -31,6 +31,7 @@ type ActionConfig struct {
 	Trigger        string `toml:"trigger"`          // trigger expression
 	Model          string `toml:"model"`            // optional model override
 	Endpoint       string `toml:"endpoint"`         // optional endpoint override
+	MaxTokens      int    `toml:"max_tokens"`       // optional max completion tokens override
 	TimeoutMs      int    `toml:"timeout_ms"`       // action execution timeout override
 	RetryCount     int    `toml:"retry_count"`      // retries after initial attempt
 	RetryBackoffMs int    `toml:"retry_backoff_ms"` // delay between retries
@@ -53,6 +54,7 @@ type SettingsConfig struct {
 	HistoryTruncateChars  int    `toml:"history_truncate_chars"`     // max input/output chars per record, 0 disables truncation
 	SensitiveGuard        string `toml:"sensitive_guard"`            // block, warn, off
 	MaxConcurrentActions  int    `toml:"max_concurrent_actions"`     // cap on simultaneously running actions, 0 = unlimited
+	MaxTokens             int    `toml:"max_tokens"`                 // default max completion tokens per action
 }
 
 // Default returns a config with sensible defaults
@@ -82,6 +84,7 @@ func Default() *Config {
 			HistoryTruncateChars:  2000,
 			SensitiveGuard:        "warn",
 			MaxConcurrentActions:  4,
+			MaxTokens:             1024,
 		},
 	}
 }
@@ -158,6 +161,9 @@ func (c *Config) validate() error {
 	if c.Settings.MaxConcurrentActions < 0 {
 		return fmt.Errorf("invalid settings.max_concurrent_actions %d: must be greater than or equal to 0", c.Settings.MaxConcurrentActions)
 	}
+	if c.Settings.MaxTokens < 0 {
+		return fmt.Errorf("invalid settings.max_tokens %d: must be greater than or equal to 0", c.Settings.MaxTokens)
+	}
 	switch strings.ToLower(strings.TrimSpace(c.Settings.SensitiveGuard)) {
 	case "", "block", "warn", "off":
 		if strings.TrimSpace(c.Settings.SensitiveGuard) == "" {
@@ -185,6 +191,9 @@ func (c *Config) validate() error {
 		}
 		if action.CooldownMs < 0 {
 			return fmt.Errorf("invalid actions.%s.cooldown_ms %d: must be greater than or equal to 0", name, action.CooldownMs)
+		}
+		if action.MaxTokens < 0 {
+			return fmt.Errorf("invalid actions.%s.max_tokens %d: must be greater than or equal to 0", name, action.MaxTokens)
 		}
 	}
 
