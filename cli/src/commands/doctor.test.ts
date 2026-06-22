@@ -1,49 +1,39 @@
-import { beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
+import { beforeEach, describe, expect, it, mock, afterEach, spyOn } from "bun:test";
 import { mkdtempSync, mkdirSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
+import { doctorCommand } from "./doctor.js";
+import { makeConfig } from "../test-helpers.js";
+import type { StatusResponse } from "../lib/client.js";
 
 const testRoot = mkdtempSync(join(tmpdir(), "cbai-doctor-test-"));
 const pluginDir = join(testRoot, "actions");
 const historyFile = join(testRoot, "history.jsonl");
 
-const mockGetStatus = mock(() =>
-  Promise.resolve({
-    status: "running",
-    uptime: "1s",
-    version: "0.1.0",
-    clipboard: { text: "", type: "text", timestamp: "" },
-  })
+const mockGetStatus = mock(
+  (): Promise<StatusResponse> =>
+    Promise.resolve({
+      status: "running",
+      uptime: "1s",
+      version: "0.1.0",
+      clipboard: { text: "", type: "text", timestamp: "" },
+    })
 );
 
 const mockGetConfig = mock(() =>
-  Promise.resolve({
-    provider: {
-      type: "ollama",
-      endpoint: "http://ollama.local/v1",
-      model: "mistral",
-    },
-    actions: {
-      caption: { enabled: true, trigger: "mime:image" },
-    },
-    settings: {
-      poll_interval: 150,
-      safe_mode: false,
-      notifications: false,
-      log_level: "info",
-    },
-  })
+  Promise.resolve(
+    makeConfig({
+      provider: {
+        type: "ollama",
+        endpoint: "http://ollama.local/v1",
+        model: "mistral",
+      },
+      actions: {
+        caption: { enabled: true, trigger: "mime:image" },
+      },
+    })
+  )
 );
-
-mock.module("../lib/client.js", () => ({
-  getStatus: mockGetStatus,
-  getConfig: mockGetConfig,
-}));
-mock.module("../lib/plugin-actions.js", () => ({
-  DEFAULT_PLUGIN_DIR: pluginDir,
-}));
-
-const { doctorCommand } = await import("./doctor.js");
 
 describe("doctorCommand", () => {
   let logSpy: ReturnType<typeof spyOn>;
@@ -65,10 +55,12 @@ describe("doctorCommand", () => {
     logSpy = spyOn(console, "log").mockImplementation(() => {});
   });
 
-  it("prints diagnostic pass/fail/info lines", async () => {
-    await doctorCommand();
+  afterEach(() => mock.restore());
 
-    const output = logSpy.mock.calls.map((call) => call[0]).join("\n");
+  it("prints diagnostic pass/fail/info lines", async () => {
+    await doctorCommand({ getStatus: mockGetStatus, getConfig: mockGetConfig, pluginDir });
+
+    const output = logSpy.mock.calls.map((call: unknown[]) => call[0]).join("\n");
     expect(output).toContain("PASS daemon socket reachable");
     expect(output).toContain("PASS daemon version matches CLI (0.1.0)");
     expect(output).toContain("PASS provider endpoint reachable");

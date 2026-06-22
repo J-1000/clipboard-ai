@@ -1,69 +1,65 @@
-import { describe, it, expect, mock, beforeEach } from "bun:test";
+import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test";
+import { translateCommand } from "./translate.js";
+import type { RunActionDeps } from "../lib/run-action.js";
+import { fakeAIClient, makeConfig, makeAppendHistoryMock } from "../test-helpers.js";
 
-const mockGetClipboard = mock(() =>
-  Promise.resolve({ text: "hello world", type: "text", timestamp: "", length: 11 })
+const mockGetInput = mock((): Promise<{ text: string }> =>
+  Promise.resolve({ text: "hello world" })
 );
-const mockGetConfig = mock(() =>
-  Promise.resolve({
-    provider: { type: "ollama", endpoint: "http://localhost:11434/v1", model: "mistral" },
-    actions: {},
-    settings: { poll_interval: 150, safe_mode: false, notifications: false, log_level: "info" },
-  })
-);
+const mockGetConfig = mock(() => Promise.resolve(makeConfig()));
 const mockEnforceSafeMode = mock(() => Promise.resolve());
-const mockCopyToClipboard = mock(() => undefined);
-const mockTranslate = mock(() => Promise.resolve("hola mundo"));
+const mockCopyToClipboard = mock((_text: string) => undefined);
+const mockAppendHistoryRecord = makeAppendHistoryMock();
+const mockTranslate = mock((_text: string, _lang: string) =>
+  Promise.resolve("hola mundo")
+);
 
-mock.module("../lib/client.js", () => ({
-  getClipboard: mockGetClipboard,
-  getConfig: mockGetConfig,
-}));
-mock.module("../lib/safe-mode.js", () => ({
-  enforceSafeMode: mockEnforceSafeMode,
-}));
-mock.module("../lib/clipboard.js", () => ({
-  copyToClipboard: mockCopyToClipboard,
-}));
-mock.module("../lib/ai.js", () => ({
-  AIClient: class {
-    translate = mockTranslate;
-  },
-}));
-
-const { translateCommand } = await import("./translate.js");
+function deps(): Partial<RunActionDeps> {
+  return {
+    getInput: mockGetInput,
+    getConfig: mockGetConfig,
+    enforceSafeMode: mockEnforceSafeMode,
+    copyToClipboard: mockCopyToClipboard,
+    appendHistoryRecord: mockAppendHistoryRecord,
+    createAIClient: () => fakeAIClient({ translate: mockTranslate }),
+  };
+}
 
 describe("translateCommand", () => {
   beforeEach(() => {
-    mockGetClipboard.mockClear();
+    mockGetInput.mockClear();
     mockGetConfig.mockClear();
     mockEnforceSafeMode.mockClear();
     mockCopyToClipboard.mockClear();
+    mockAppendHistoryRecord.mockClear();
     mockTranslate.mockClear();
   });
 
-  it("fetches clipboard and config", async () => {
-    await translateCommand("Spanish");
-    expect(mockGetClipboard).toHaveBeenCalledTimes(1);
+  afterEach(() => mock.restore());
+
+  it("fetches input and config", async () => {
+    await translateCommand("Spanish", { deps: deps() });
+    expect(mockGetInput).toHaveBeenCalledTimes(1);
     expect(mockGetConfig).toHaveBeenCalledTimes(1);
   });
 
   it("enforces safe mode", async () => {
-    await translateCommand("Spanish", { yes: true });
+    await translateCommand("Spanish", { deps: deps(), yes: true });
     expect(mockEnforceSafeMode).toHaveBeenCalledTimes(1);
   });
 
   it("calls ai.translate with clipboard text and target language", async () => {
-    await translateCommand("Spanish");
+    await translateCommand("Spanish", { deps: deps() });
     expect(mockTranslate).toHaveBeenCalledWith("hello world", "Spanish");
   });
 
   it("copies result when --copy is set", async () => {
-    await translateCommand("Spanish", { copy: true });
+    await translateCommand("Spanish", { deps: deps(), copy: true });
     expect(mockCopyToClipboard).toHaveBeenCalledWith("hola mundo");
   });
 
   it("does not copy when --copy is not set", async () => {
-    await translateCommand("French");
+    await translateCommand("French", { deps: deps() });
     expect(mockCopyToClipboard).not.toHaveBeenCalled();
   });
 });

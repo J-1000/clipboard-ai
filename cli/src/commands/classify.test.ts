@@ -1,69 +1,65 @@
-import { describe, it, expect, mock, beforeEach, spyOn } from "bun:test";
+import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test";
+import { classifyCommand } from "./classify.js";
+import type { RunActionDeps } from "../lib/run-action.js";
+import { fakeAIClient, makeConfig, makeAppendHistoryMock } from "../test-helpers.js";
 
-const mockGetClipboard = mock(() =>
-  Promise.resolve({ text: "func main() {}", type: "code", timestamp: "", length: 15 })
+const mockGetInput = mock((): Promise<{ text: string }> =>
+  Promise.resolve({ text: "func main() {}" })
 );
-const mockGetConfig = mock(() =>
-  Promise.resolve({
-    provider: { type: "ollama", endpoint: "http://localhost:11434/v1", model: "mistral" },
-    actions: {},
-    settings: { poll_interval: 150, safe_mode: false, notifications: false, log_level: "info" },
-  })
-);
+const mockGetConfig = mock(() => Promise.resolve(makeConfig()));
 const mockEnforceSafeMode = mock(() => Promise.resolve());
-const mockCopyToClipboard = mock(() => undefined);
-const mockClassify = mock(() => Promise.resolve('{"category":"code","confidence":0.9}'));
+const mockCopyToClipboard = mock((_text: string) => undefined);
+const mockAppendHistoryRecord = makeAppendHistoryMock();
+const mockClassify = mock((_text: string) =>
+  Promise.resolve('{"category":"code","confidence":0.9}')
+);
 
-mock.module("../lib/client.js", () => ({
-  getClipboard: mockGetClipboard,
-  getConfig: mockGetConfig,
-}));
-mock.module("../lib/safe-mode.js", () => ({
-  enforceSafeMode: mockEnforceSafeMode,
-}));
-mock.module("../lib/clipboard.js", () => ({
-  copyToClipboard: mockCopyToClipboard,
-}));
-mock.module("../lib/ai.js", () => ({
-  AIClient: class {
-    classify = mockClassify;
-  },
-}));
-
-const { classifyCommand } = await import("./classify.js");
+function deps(): Partial<RunActionDeps> {
+  return {
+    getInput: mockGetInput,
+    getConfig: mockGetConfig,
+    enforceSafeMode: mockEnforceSafeMode,
+    copyToClipboard: mockCopyToClipboard,
+    appendHistoryRecord: mockAppendHistoryRecord,
+    createAIClient: () => fakeAIClient({ classify: mockClassify }),
+  };
+}
 
 describe("classifyCommand", () => {
   beforeEach(() => {
-    mockGetClipboard.mockClear();
+    mockGetInput.mockClear();
     mockGetConfig.mockClear();
     mockEnforceSafeMode.mockClear();
     mockCopyToClipboard.mockClear();
+    mockAppendHistoryRecord.mockClear();
     mockClassify.mockClear();
   });
 
-  it("fetches clipboard and config in parallel", async () => {
-    await classifyCommand();
-    expect(mockGetClipboard).toHaveBeenCalledTimes(1);
+  afterEach(() => mock.restore());
+
+  it("fetches input and config", async () => {
+    await classifyCommand({ deps: deps() });
+    expect(mockGetInput).toHaveBeenCalledTimes(1);
     expect(mockGetConfig).toHaveBeenCalledTimes(1);
   });
 
   it("enforces safe mode with options", async () => {
-    await classifyCommand({ yes: true });
+    await classifyCommand({ deps: deps(), yes: true });
     expect(mockEnforceSafeMode).toHaveBeenCalledTimes(1);
   });
 
   it("calls ai.classify with clipboard text", async () => {
-    await classifyCommand();
+    await classifyCommand({ deps: deps() });
     expect(mockClassify).toHaveBeenCalledWith("func main() {}");
   });
 
   it("copies result to clipboard when --copy is set", async () => {
-    await classifyCommand({ copy: true });
+    await classifyCommand({ deps: deps(), copy: true });
     expect(mockCopyToClipboard).toHaveBeenCalledWith('{"category":"code","confidence":0.9}');
   });
 
   it("does not copy when --copy is not set", async () => {
-    await classifyCommand();
+    await classifyCommand({ deps: deps() });
     expect(mockCopyToClipboard).not.toHaveBeenCalled();
   });
 });

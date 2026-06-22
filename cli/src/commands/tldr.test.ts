@@ -1,61 +1,57 @@
-import { describe, it, expect, mock, beforeEach } from "bun:test";
+import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test";
+import { tldrCommand } from "./tldr.js";
+import type { RunActionDeps } from "../lib/run-action.js";
+import type { AIResponse } from "../lib/ai.js";
+import { fakeAIClient, makeConfig, makeAppendHistoryMock } from "../test-helpers.js";
 
-const mockGetClipboard = mock(() =>
-  Promise.resolve({ text: "A long article about AI and its impact...", type: "text", timestamp: "", length: 41 })
+const mockGetInput = mock((): Promise<{ text: string }> =>
+  Promise.resolve({ text: "A long article about AI and its impact..." })
 );
-const mockGetConfig = mock(() =>
-  Promise.resolve({
-    provider: { type: "ollama", endpoint: "http://localhost:11434/v1", model: "mistral" },
-    actions: {},
-    settings: { poll_interval: 150, safe_mode: false, notifications: false, log_level: "info" },
-  })
-);
+const mockGetConfig = mock(() => Promise.resolve(makeConfig()));
 const mockEnforceSafeMode = mock(() => Promise.resolve());
-const mockCopyToClipboard = mock(() => undefined);
-const mockGenerate = mock(() =>
-  Promise.resolve({ content: "AI is transforming everything.", model: "mistral" })
+const mockCopyToClipboard = mock((_text: string) => undefined);
+const mockAppendHistoryRecord = makeAppendHistoryMock();
+const mockGenerate = mock(
+  (_prompt: string, _systemPrompt?: string): Promise<AIResponse> =>
+    Promise.resolve({ content: "AI is transforming everything.", model: "mistral" })
 );
 
-mock.module("../lib/client.js", () => ({
-  getClipboard: mockGetClipboard,
-  getConfig: mockGetConfig,
-}));
-mock.module("../lib/safe-mode.js", () => ({
-  enforceSafeMode: mockEnforceSafeMode,
-}));
-mock.module("../lib/clipboard.js", () => ({
-  copyToClipboard: mockCopyToClipboard,
-}));
-mock.module("../lib/ai.js", () => ({
-  AIClient: class {
-    generate = mockGenerate;
-  },
-}));
-
-const { tldrCommand } = await import("./tldr.js");
+function deps(): Partial<RunActionDeps> {
+  return {
+    getInput: mockGetInput,
+    getConfig: mockGetConfig,
+    enforceSafeMode: mockEnforceSafeMode,
+    copyToClipboard: mockCopyToClipboard,
+    appendHistoryRecord: mockAppendHistoryRecord,
+    createAIClient: () => fakeAIClient({ generate: mockGenerate }),
+  };
+}
 
 describe("tldrCommand", () => {
   beforeEach(() => {
-    mockGetClipboard.mockClear();
+    mockGetInput.mockClear();
     mockGetConfig.mockClear();
     mockEnforceSafeMode.mockClear();
     mockCopyToClipboard.mockClear();
+    mockAppendHistoryRecord.mockClear();
     mockGenerate.mockClear();
   });
 
-  it("fetches clipboard and config", async () => {
-    await tldrCommand();
-    expect(mockGetClipboard).toHaveBeenCalledTimes(1);
+  afterEach(() => mock.restore());
+
+  it("fetches input and config", async () => {
+    await tldrCommand({ deps: deps() });
+    expect(mockGetInput).toHaveBeenCalledTimes(1);
     expect(mockGetConfig).toHaveBeenCalledTimes(1);
   });
 
   it("enforces safe mode", async () => {
-    await tldrCommand({ yes: true });
+    await tldrCommand({ deps: deps(), yes: true });
     expect(mockEnforceSafeMode).toHaveBeenCalledTimes(1);
   });
 
   it("calls ai.generate with TL;DR prompt", async () => {
-    await tldrCommand();
+    await tldrCommand({ deps: deps() });
     expect(mockGenerate).toHaveBeenCalledTimes(1);
 
     const [prompt, systemPrompt] = mockGenerate.mock.calls[0];
@@ -65,12 +61,12 @@ describe("tldrCommand", () => {
   });
 
   it("copies result when --copy is set", async () => {
-    await tldrCommand({ copy: true });
+    await tldrCommand({ deps: deps(), copy: true });
     expect(mockCopyToClipboard).toHaveBeenCalledWith("AI is transforming everything.");
   });
 
   it("does not copy when --copy is not set", async () => {
-    await tldrCommand();
+    await tldrCommand({ deps: deps() });
     expect(mockCopyToClipboard).not.toHaveBeenCalled();
   });
 });

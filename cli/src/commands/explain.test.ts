@@ -1,69 +1,63 @@
-import { describe, it, expect, mock, beforeEach } from "bun:test";
+import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test";
+import { explainCommand } from "./explain.js";
+import type { RunActionDeps } from "../lib/run-action.js";
+import { fakeAIClient, makeConfig, makeAppendHistoryMock } from "../test-helpers.js";
 
-const mockGetClipboard = mock(() =>
-  Promise.resolve({ text: "func main() {}", type: "code", timestamp: "", length: 15 })
+const mockGetInput = mock((): Promise<{ text: string }> =>
+  Promise.resolve({ text: "func main() {}" })
 );
-const mockGetConfig = mock(() =>
-  Promise.resolve({
-    provider: { type: "ollama", endpoint: "http://localhost:11434/v1", model: "mistral" },
-    actions: {},
-    settings: { poll_interval: 150, safe_mode: false, notifications: false, log_level: "info" },
-  })
-);
+const mockGetConfig = mock(() => Promise.resolve(makeConfig()));
 const mockEnforceSafeMode = mock(() => Promise.resolve());
-const mockCopyToClipboard = mock(() => undefined);
-const mockExplain = mock(() => Promise.resolve("This is a Go main function."));
+const mockCopyToClipboard = mock((_text: string) => undefined);
+const mockAppendHistoryRecord = makeAppendHistoryMock();
+const mockExplain = mock((_text: string) => Promise.resolve("This is a Go main function."));
 
-mock.module("../lib/client.js", () => ({
-  getClipboard: mockGetClipboard,
-  getConfig: mockGetConfig,
-}));
-mock.module("../lib/safe-mode.js", () => ({
-  enforceSafeMode: mockEnforceSafeMode,
-}));
-mock.module("../lib/clipboard.js", () => ({
-  copyToClipboard: mockCopyToClipboard,
-}));
-mock.module("../lib/ai.js", () => ({
-  AIClient: class {
-    explain = mockExplain;
-  },
-}));
-
-const { explainCommand } = await import("./explain.js");
+function deps(): Partial<RunActionDeps> {
+  return {
+    getInput: mockGetInput,
+    getConfig: mockGetConfig,
+    enforceSafeMode: mockEnforceSafeMode,
+    copyToClipboard: mockCopyToClipboard,
+    appendHistoryRecord: mockAppendHistoryRecord,
+    createAIClient: () => fakeAIClient({ explain: mockExplain }),
+  };
+}
 
 describe("explainCommand", () => {
   beforeEach(() => {
-    mockGetClipboard.mockClear();
+    mockGetInput.mockClear();
     mockGetConfig.mockClear();
     mockEnforceSafeMode.mockClear();
     mockCopyToClipboard.mockClear();
+    mockAppendHistoryRecord.mockClear();
     mockExplain.mockClear();
   });
 
-  it("fetches clipboard and config", async () => {
-    await explainCommand();
-    expect(mockGetClipboard).toHaveBeenCalledTimes(1);
+  afterEach(() => mock.restore());
+
+  it("fetches input and config", async () => {
+    await explainCommand({ deps: deps() });
+    expect(mockGetInput).toHaveBeenCalledTimes(1);
     expect(mockGetConfig).toHaveBeenCalledTimes(1);
   });
 
   it("enforces safe mode", async () => {
-    await explainCommand({ yes: true });
+    await explainCommand({ deps: deps(), yes: true });
     expect(mockEnforceSafeMode).toHaveBeenCalledTimes(1);
   });
 
   it("calls ai.explain with clipboard text", async () => {
-    await explainCommand();
+    await explainCommand({ deps: deps() });
     expect(mockExplain).toHaveBeenCalledWith("func main() {}");
   });
 
   it("copies result when --copy is set", async () => {
-    await explainCommand({ copy: true });
+    await explainCommand({ deps: deps(), copy: true });
     expect(mockCopyToClipboard).toHaveBeenCalledWith("This is a Go main function.");
   });
 
   it("does not copy when --copy is not set", async () => {
-    await explainCommand();
+    await explainCommand({ deps: deps() });
     expect(mockCopyToClipboard).not.toHaveBeenCalled();
   });
 });

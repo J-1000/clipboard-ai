@@ -1,69 +1,65 @@
-import { describe, it, expect, mock, beforeEach } from "bun:test";
+import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test";
+import { extractCommand } from "./extract.js";
+import type { RunActionDeps } from "../lib/run-action.js";
+import { fakeAIClient, makeConfig, makeAppendHistoryMock } from "../test-helpers.js";
 
-const mockGetClipboard = mock(() =>
-  Promise.resolve({ text: "name: John, age: 30", type: "text", timestamp: "", length: 19 })
+const mockGetInput = mock((): Promise<{ text: string }> =>
+  Promise.resolve({ text: "name: John, age: 30" })
 );
-const mockGetConfig = mock(() =>
-  Promise.resolve({
-    provider: { type: "ollama", endpoint: "http://localhost:11434/v1", model: "mistral" },
-    actions: {},
-    settings: { poll_interval: 150, safe_mode: false, notifications: false, log_level: "info" },
-  })
-);
+const mockGetConfig = mock(() => Promise.resolve(makeConfig()));
 const mockEnforceSafeMode = mock(() => Promise.resolve());
-const mockCopyToClipboard = mock(() => undefined);
-const mockExtractData = mock(() => Promise.resolve('{"name":"John","age":30}'));
+const mockCopyToClipboard = mock((_text: string) => undefined);
+const mockAppendHistoryRecord = makeAppendHistoryMock();
+const mockExtractData = mock((_text: string) =>
+  Promise.resolve('{"name":"John","age":30}')
+);
 
-mock.module("../lib/client.js", () => ({
-  getClipboard: mockGetClipboard,
-  getConfig: mockGetConfig,
-}));
-mock.module("../lib/safe-mode.js", () => ({
-  enforceSafeMode: mockEnforceSafeMode,
-}));
-mock.module("../lib/clipboard.js", () => ({
-  copyToClipboard: mockCopyToClipboard,
-}));
-mock.module("../lib/ai.js", () => ({
-  AIClient: class {
-    extractData = mockExtractData;
-  },
-}));
-
-const { extractCommand } = await import("./extract.js");
+function deps(): Partial<RunActionDeps> {
+  return {
+    getInput: mockGetInput,
+    getConfig: mockGetConfig,
+    enforceSafeMode: mockEnforceSafeMode,
+    copyToClipboard: mockCopyToClipboard,
+    appendHistoryRecord: mockAppendHistoryRecord,
+    createAIClient: () => fakeAIClient({ extractData: mockExtractData }),
+  };
+}
 
 describe("extractCommand", () => {
   beforeEach(() => {
-    mockGetClipboard.mockClear();
+    mockGetInput.mockClear();
     mockGetConfig.mockClear();
     mockEnforceSafeMode.mockClear();
     mockCopyToClipboard.mockClear();
+    mockAppendHistoryRecord.mockClear();
     mockExtractData.mockClear();
   });
 
-  it("fetches clipboard and config", async () => {
-    await extractCommand();
-    expect(mockGetClipboard).toHaveBeenCalledTimes(1);
+  afterEach(() => mock.restore());
+
+  it("fetches input and config", async () => {
+    await extractCommand({ deps: deps() });
+    expect(mockGetInput).toHaveBeenCalledTimes(1);
     expect(mockGetConfig).toHaveBeenCalledTimes(1);
   });
 
   it("enforces safe mode", async () => {
-    await extractCommand({ yes: true });
+    await extractCommand({ deps: deps(), yes: true });
     expect(mockEnforceSafeMode).toHaveBeenCalledTimes(1);
   });
 
   it("calls ai.extractData with clipboard text", async () => {
-    await extractCommand();
+    await extractCommand({ deps: deps() });
     expect(mockExtractData).toHaveBeenCalledWith("name: John, age: 30");
   });
 
   it("copies result when --copy is set", async () => {
-    await extractCommand({ copy: true });
+    await extractCommand({ deps: deps(), copy: true });
     expect(mockCopyToClipboard).toHaveBeenCalledWith('{"name":"John","age":30}');
   });
 
   it("does not copy when --copy is not set", async () => {
-    await extractCommand();
+    await extractCommand({ deps: deps() });
     expect(mockCopyToClipboard).not.toHaveBeenCalled();
   });
 });

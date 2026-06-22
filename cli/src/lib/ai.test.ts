@@ -1,14 +1,18 @@
-import { describe, it, expect, mock, beforeEach } from "bun:test";
+import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test";
 
 const mockConstructedOptions: Array<Record<string, unknown>> = [];
 
-// Mock OpenAI before importing AIClient
-const mockCreate = mock(() =>
-  Promise.resolve({
-    choices: [{ message: { content: "mock response" } }],
-    model: "test-model",
-    usage: { prompt_tokens: 10, completion_tokens: 20 },
-  })
+// Mock OpenAI before importing AIClient. The param/return types are
+// deliberately loose: the real OpenAI types are large, and tests only need a
+// typed first argument (so `.mock.calls[n][0]` is a proper tuple) plus the
+// freedom to resolve assorted shapes via `mockResolvedValueOnce`.
+const mockCreate = mock(
+  (_params: Record<string, unknown>): Promise<unknown> =>
+    Promise.resolve({
+      choices: [{ message: { content: "mock response" } }],
+      model: "test-model",
+      usage: { prompt_tokens: 10, completion_tokens: 20 },
+    })
 );
 
 async function* streamChunks(tokens: string[]) {
@@ -48,6 +52,8 @@ describe("AIClient", () => {
       apiKey: "test-key",
     });
   });
+
+  afterEach(() => mock.restore());
 
   describe("getBaseURL resolution", () => {
     it("uses endpoint when provided", () => {

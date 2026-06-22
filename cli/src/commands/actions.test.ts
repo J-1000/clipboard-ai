@@ -1,51 +1,36 @@
-import { beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
+import { beforeEach, describe, expect, it, mock, afterEach, spyOn } from "bun:test";
+import { actionsCommand } from "./actions.js";
+import { createActionRegistry } from "../lib/action-registry.js";
+import { makeConfig } from "../test-helpers.js";
 
 const mockGetConfig = mock(() =>
-  Promise.resolve({
-    provider: { type: "ollama", endpoint: "http://localhost:11434/v1", model: "mistral" },
-    actions: {
-      summary: { enabled: true, trigger: "length > 200" },
-      plugin_action: { enabled: false, trigger: "" },
-    },
-    settings: {
-      poll_interval: 150,
-      safe_mode: false,
-      notifications: false,
-      log_level: "info",
-    },
-  })
+  Promise.resolve(
+    makeConfig({
+      actions: {
+        summary: { enabled: true, trigger: "length > 200" },
+        plugin_action: { enabled: false, trigger: "" },
+      },
+    })
+  )
 );
 
-const mockGetActionRegistry = mock(() =>
-  Promise.resolve({
-    actions: [
-      {
-        id: "summary",
-        aliases: ["summarize", "sum"],
-        description: "Summarize clipboard content",
-        outputTitle: "Summary",
-        run: async () => "",
-      },
-      {
-        id: "plugin_action",
-        description: "Plugin action",
-        outputTitle: "Plugin",
-        run: async () => "",
-      },
-    ],
-    byId: new Map(),
-    byAlias: new Map(),
-  })
-);
+const registry = createActionRegistry([
+  {
+    id: "summary",
+    aliases: ["summarize", "sum"],
+    description: "Summarize clipboard content",
+    outputTitle: "Summary",
+    run: async () => "",
+  },
+  {
+    id: "plugin_action",
+    description: "Plugin action",
+    outputTitle: "Plugin",
+    run: async () => "",
+  },
+]);
 
-mock.module("../lib/client.js", () => ({
-  getConfig: mockGetConfig,
-}));
-mock.module("../lib/action-registry.js", () => ({
-  getActionRegistry: mockGetActionRegistry,
-}));
-
-const { actionsCommand } = await import("./actions.js");
+const mockGetActionRegistry = mock(() => Promise.resolve(registry));
 
 describe("actionsCommand", () => {
   let logSpy: ReturnType<typeof spyOn>;
@@ -56,12 +41,14 @@ describe("actionsCommand", () => {
     logSpy = spyOn(console, "log").mockImplementation(() => {});
   });
 
+  afterEach(() => mock.restore());
+
   it("lists registered actions with config state", async () => {
-    await actionsCommand();
+    await actionsCommand({ getConfig: mockGetConfig, getActionRegistry: mockGetActionRegistry });
 
     expect(mockGetConfig).toHaveBeenCalledTimes(1);
     expect(mockGetActionRegistry).toHaveBeenCalledTimes(1);
-    const output = logSpy.mock.calls.map((call) => call[0]).join("\n");
+    const output = logSpy.mock.calls.map((call: unknown[]) => call[0]).join("\n");
     expect(output).toContain("✓ summary");
     expect(output).toContain("Aliases:     summarize, sum");
     expect(output).toContain("Trigger:     length > 200");

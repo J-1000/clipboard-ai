@@ -6,8 +6,8 @@ import { mkdtempSync } from "fs";
 
 let historyFile: string;
 
-async function loadHistoryModule() {
-  return import(`./history.js?test=${Date.now()}`);
+async function loadHistoryModule(): Promise<typeof import("./history.js")> {
+  return import(`./history.js?test=${Date.now()}`) as Promise<typeof import("./history.js")>;
 }
 
 describe("history store", () => {

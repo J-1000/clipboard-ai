@@ -1,8 +1,12 @@
-import { describe, it, expect, mock, beforeEach } from "bun:test";
+import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test";
 
-const mockExecSync = mock(() => undefined);
+const mockExecSync = mock((_cmd: string, _opts?: { input?: string }) => undefined);
 
+// Spread the real `child_process` so the mock is a COMPLETE shape and only
+// execSync is overridden; a partial mock would leak into other test files.
+const realChildProcess = await import("child_process");
 mock.module("child_process", () => ({
+  ...realChildProcess,
   execSync: mockExecSync,
 }));
 
@@ -12,6 +16,8 @@ describe("copyToClipboard", () => {
   beforeEach(() => {
     mockExecSync.mockClear();
   });
+
+  afterEach(() => mock.restore());
 
   it("calls execSync with pbcopy and input text", () => {
     copyToClipboard("hello world");

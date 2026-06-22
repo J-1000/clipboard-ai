@@ -1,55 +1,53 @@
 import { beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
 import { createActionRegistry } from "./action-registry.js";
+import { runActionCommand, type RunActionDeps } from "./run-action.js";
+import type { AIClient, AIConfig, AIResponse } from "./ai.js";
+import type {
+  ActionRunRecord,
+  ActionRunRecordInput,
+  HistoryRetentionSettings,
+} from "./history.js";
+import type { ConfigResponse } from "./client.js";
+import { makeConfig } from "../test-helpers.js";
 
-const mockGetConfig = mock(() =>
-  Promise.resolve({
-    provider: { type: "ollama", endpoint: "http://localhost:11434/v1", model: "mistral" },
-    actions: {},
-    settings: { poll_interval: 150, safe_mode: false, notifications: false, log_level: "info" },
-  })
+const mockGetConfig = mock(() => Promise.resolve(makeConfig({ settings: { sensitive_guard: "warn" } })));
+const mockGetInput = mock((): Promise<{ text: string }> =>
+  Promise.resolve({ text: "clipboard text" })
 );
-const mockGetInput = mock(() => Promise.resolve({ text: "clipboard text" }));
-const mockEnforceSafeMode = mock(() => Promise.resolve());
-const mockCopyToClipboard = mock(() => undefined);
-const mockAppendHistoryRecord = mock(() => Promise.resolve(undefined));
-const mockAIConfigs: Array<{
-  type?: string;
-  endpoint?: string;
-  model?: string;
-  apiKey?: string;
-  onToken?: (token: string) => void;
-}> = [];
+const mockEnforceSafeMode = mock(
+  (_config: ConfigResponse, _options?: { yes?: boolean }): Promise<void> => Promise.resolve()
+);
+const mockCopyToClipboard = mock((_text: string) => undefined);
+const mockAppendHistoryRecord = mock(
+  (_input: ActionRunRecordInput, _settings?: HistoryRetentionSettings): Promise<ActionRunRecord> =>
+    Promise.resolve(undefined as unknown as ActionRunRecord)
+);
+const mockAIConfigs: AIConfig[] = [];
 
-mock.module("./client.js", () => ({
-  getConfig: mockGetConfig,
-}));
-mock.module("./input.js", () => ({
-  getInput: mockGetInput,
-}));
-mock.module("./safe-mode.js", () => ({
-  enforceSafeMode: mockEnforceSafeMode,
-}));
-mock.module("./clipboard.js", () => ({
-  copyToClipboard: mockCopyToClipboard,
-}));
-mock.module("./history.js", () => ({
-  appendHistoryRecord: mockAppendHistoryRecord,
-}));
-mock.module("./ai.js", () => ({
-  AIClient: class {
-    constructor(public config: { onToken?: (token: string) => void }) {
-      mockAIConfigs.push(config);
-    }
+// Fake AIClient whose generate() streams two tokens and returns their join,
+// matching the original mock.module class behavior.
+function createAIClient(config: AIConfig): AIClient {
+  mockAIConfigs.push(config);
+  const client = {
+    async generate(): Promise<AIResponse> {
+      config.onToken?.("streamed");
+      config.onToken?.(" output");
+      return { content: "streamed output", model: config.model };
+    },
+  };
+  return client as unknown as AIClient;
+}
 
-    async generate(): Promise<{ content: string }> {
-      this.config.onToken?.("streamed");
-      this.config.onToken?.(" output");
-      return { content: "streamed output" };
-    }
-  },
-}));
-
-const { runActionCommand } = await import("./run-action.js");
+function deps(): Partial<RunActionDeps> {
+  return {
+    getConfig: mockGetConfig,
+    getInput: mockGetInput,
+    enforceSafeMode: mockEnforceSafeMode,
+    copyToClipboard: mockCopyToClipboard,
+    appendHistoryRecord: mockAppendHistoryRecord,
+    createAIClient,
+  };
+}
 
 describe("runActionCommand history", () => {
   const registry = createActionRegistry([
@@ -63,8 +61,12 @@ describe("runActionCommand history", () => {
   ]);
 
   beforeEach(() => {
-    mockGetConfig.mockClear();
-    mockGetInput.mockClear();
+    mockGetConfig.mockReset();
+    mockGetConfig.mockImplementation(() =>
+      Promise.resolve(makeConfig({ settings: { sensitive_guard: "warn" } }))
+    );
+    mockGetInput.mockReset();
+    mockGetInput.mockImplementation(() => Promise.resolve({ text: "clipboard text" }));
     mockEnforceSafeMode.mockClear();
     mockCopyToClipboard.mockClear();
     mockAppendHistoryRecord.mockClear();
@@ -81,7 +83,7 @@ describe("runActionCommand history", () => {
   });
 
   it("records successful runs", async () => {
-    await runActionCommand("summary", { registry });
+    await runActionCommand("summary", { registry, deps: deps() });
 
     expect(mockAppendHistoryRecord).toHaveBeenCalledTimes(1);
     const call = mockAppendHistoryRecord.mock.calls[0][0];
@@ -96,6 +98,7 @@ describe("runActionCommand history", () => {
   it("records rerun metadata when provided", async () => {
     await runActionCommand("summary", {
       registry,
+      deps: deps(),
       inputText: "stored input",
       source: "rerun",
       trigger: "rerun:abc123",
@@ -112,23 +115,15 @@ describe("runActionCommand history", () => {
   });
 
   it("blocks sensitive text when guard mode is block", async () => {
-    mockGetConfig.mockResolvedValueOnce({
-      provider: { type: "ollama", endpoint: "http://localhost:11434/v1", model: "mistral" },
-      actions: {},
-      settings: {
-        poll_interval: 150,
-        safe_mode: false,
-        notifications: false,
-        log_level: "info",
-        sensitive_guard: "block",
-      },
-    });
+    mockGetConfig.mockResolvedValueOnce(
+      makeConfig({ settings: { sensitive_guard: "block" } })
+    );
     mockGetInput.mockResolvedValueOnce({ text: "api_key = secret" });
     const exitSpy = spyOn(process, "exit").mockImplementation((() => {
       throw new Error("exit");
     }) as never);
 
-    await expect(runActionCommand("summary", { registry })).rejects.toThrow("exit");
+    await expect(runActionCommand("summary", { registry, deps: deps() })).rejects.toThrow("exit");
 
     expect(exitSpy).toHaveBeenCalledWith(1);
     exitSpy.mockRestore();
@@ -140,20 +135,12 @@ describe("runActionCommand history", () => {
   });
 
   it("runs sensitive text with force while suppressing history content", async () => {
-    mockGetConfig.mockResolvedValueOnce({
-      provider: { type: "ollama", endpoint: "http://localhost:11434/v1", model: "mistral" },
-      actions: {},
-      settings: {
-        poll_interval: 150,
-        safe_mode: false,
-        notifications: false,
-        log_level: "info",
-        sensitive_guard: "block",
-      },
-    });
+    mockGetConfig.mockResolvedValueOnce(
+      makeConfig({ settings: { sensitive_guard: "block" } })
+    );
     mockGetInput.mockResolvedValueOnce({ text: "api_key = secret" });
 
-    await runActionCommand("summary", { registry, force: true });
+    await runActionCommand("summary", { registry, deps: deps(), force: true });
 
     const call = mockAppendHistoryRecord.mock.calls[0][0];
     expect(call.status).toBe("success");
@@ -162,20 +149,12 @@ describe("runActionCommand history", () => {
   });
 
   it("warns and suppresses history content in warn mode", async () => {
-    mockGetConfig.mockResolvedValueOnce({
-      provider: { type: "ollama", endpoint: "http://localhost:11434/v1", model: "mistral" },
-      actions: {},
-      settings: {
-        poll_interval: 150,
-        safe_mode: false,
-        notifications: false,
-        log_level: "info",
-        sensitive_guard: "warn",
-      },
-    });
+    mockGetConfig.mockResolvedValueOnce(
+      makeConfig({ settings: { sensitive_guard: "warn" } })
+    );
     mockGetInput.mockResolvedValueOnce({ text: "card 4111 1111 1111 1111" });
 
-    await runActionCommand("summary", { registry });
+    await runActionCommand("summary", { registry, deps: deps() });
 
     expect(console.error).toHaveBeenCalledWith(
       "Warning: clipboard looks like it contains a secret."
@@ -188,7 +167,7 @@ describe("runActionCommand history", () => {
   it("suppresses history content when daemon guard already fired", async () => {
     process.env.CBAI_SENSITIVE_GUARD_HIT = "true";
 
-    await runActionCommand("summary", { registry, inputText: "plain text" });
+    await runActionCommand("summary", { registry, deps: deps(), inputText: "plain text" });
 
     const call = mockAppendHistoryRecord.mock.calls[0][0];
     expect(call.input).toBe("[sensitive content omitted]");
@@ -197,18 +176,18 @@ describe("runActionCommand history", () => {
 
   it("uses configured action model and endpoint overrides", async () => {
     let actionConfigModel = "";
-    mockGetConfig.mockResolvedValueOnce({
-      provider: { type: "ollama", endpoint: "http://localhost:11434/v1", model: "mistral" },
-      actions: {
-        summarize: {
-          enabled: true,
-          trigger: "length > 200",
-          model: "llama3.2:1b",
-          endpoint: "http://localhost:11435/v1",
+    mockGetConfig.mockResolvedValueOnce(
+      makeConfig({
+        actions: {
+          summarize: {
+            enabled: true,
+            trigger: "length > 200",
+            model: "llama3.2:1b",
+            endpoint: "http://localhost:11435/v1",
+          },
         },
-      },
-      settings: { poll_interval: 150, safe_mode: false, notifications: false, log_level: "info" },
-    });
+      })
+    );
     const overrideRegistry = createActionRegistry([
       {
         id: "summary",
@@ -222,7 +201,7 @@ describe("runActionCommand history", () => {
       },
     ]);
 
-    await runActionCommand("summary", { registry: overrideRegistry });
+    await runActionCommand("summary", { registry: overrideRegistry, deps: deps() });
 
     expect(mockAIConfigs[0].model).toBe("llama3.2:1b");
     expect(mockAIConfigs[0].endpoint).toBe("http://localhost:11435/v1");
@@ -235,20 +214,20 @@ describe("runActionCommand history", () => {
   it("prefers daemon environment overrides over action config overrides", async () => {
     process.env.CBAI_MODEL_OVERRIDE = "qwen2.5-coder:14b";
     process.env.CBAI_ENDPOINT_OVERRIDE = "http://localhost:11436/v1";
-    mockGetConfig.mockResolvedValueOnce({
-      provider: { type: "ollama", endpoint: "http://localhost:11434/v1", model: "mistral" },
-      actions: {
-        summary: {
-          enabled: true,
-          trigger: "length > 200",
-          model: "llama3.2:1b",
-          endpoint: "http://localhost:11435/v1",
+    mockGetConfig.mockResolvedValueOnce(
+      makeConfig({
+        actions: {
+          summary: {
+            enabled: true,
+            trigger: "length > 200",
+            model: "llama3.2:1b",
+            endpoint: "http://localhost:11435/v1",
+          },
         },
-      },
-      settings: { poll_interval: 150, safe_mode: false, notifications: false, log_level: "info" },
-    });
+      })
+    );
 
-    await runActionCommand("summary", { registry });
+    await runActionCommand("summary", { registry, deps: deps() });
 
     expect(mockAIConfigs[0].model).toBe("qwen2.5-coder:14b");
     expect(mockAIConfigs[0].endpoint).toBe("http://localhost:11436/v1");
@@ -270,7 +249,7 @@ describe("runActionCommand history", () => {
       },
     ]);
 
-    await runActionCommand("summary", { registry: streamingRegistry });
+    await runActionCommand("summary", { registry: streamingRegistry, deps: deps() });
 
     expect(writeSpy).toHaveBeenCalledWith("streamed");
     expect(writeSpy).toHaveBeenCalledWith(" output");
@@ -291,7 +270,7 @@ describe("runActionCommand history", () => {
       },
     ]);
 
-    await runActionCommand("summary", { registry: streamingRegistry });
+    await runActionCommand("summary", { registry: streamingRegistry, deps: deps() });
 
     expect(mockAIConfigs[0].onToken).toBeUndefined();
     expect(console.log).toHaveBeenCalledWith("Summary:");
@@ -312,7 +291,7 @@ describe("runActionCommand history", () => {
       },
     ]);
 
-    await runActionCommand("classify", { registry: jsonRegistry });
+    await runActionCommand("classify", { registry: jsonRegistry, deps: deps() });
 
     expect(mockAIConfigs[0].onToken).toBeUndefined();
     expect(console.log).toHaveBeenCalledWith("Classification:");

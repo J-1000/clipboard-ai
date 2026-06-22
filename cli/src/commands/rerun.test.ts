@@ -1,22 +1,26 @@
-import { beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
+import { beforeEach, describe, expect, it, mock, afterEach, spyOn } from "bun:test";
+import { rerunCommand, type RerunCommandDeps } from "./rerun.js";
+import type { ActionRunRecord } from "../lib/history.js";
 
-const mockGetHistoryRecordById = mock(() => Promise.resolve(null));
+const mockGetHistoryRecordById = mock(
+  (_id: string): Promise<ActionRunRecord | null> => Promise.resolve(null)
+);
 const mockRunActionCommand = mock(() => Promise.resolve());
 
-mock.module("../lib/history.js", () => ({
-  getHistoryRecordById: mockGetHistoryRecordById,
-}));
-mock.module("../lib/run-action.js", () => ({
-  runActionCommand: mockRunActionCommand,
-}));
-
-const { rerunCommand } = await import("./rerun.js");
+function deps(): Partial<RerunCommandDeps> {
+  return {
+    getHistoryRecordById: mockGetHistoryRecordById,
+    runActionCommand: mockRunActionCommand,
+  };
+}
 
 describe("rerunCommand", () => {
   beforeEach(() => {
     mockGetHistoryRecordById.mockClear();
     mockRunActionCommand.mockClear();
   });
+
+  afterEach(() => mock.restore());
 
   it("loads record by id", async () => {
     mockGetHistoryRecordById.mockResolvedValueOnce({
@@ -34,13 +38,14 @@ describe("rerunCommand", () => {
       input: "input text",
     });
 
-    await rerunCommand("run-1", { copy: true, yes: true });
+    await rerunCommand("run-1", { copy: true, yes: true }, deps());
 
     expect(mockGetHistoryRecordById).toHaveBeenCalledWith("run-1");
     expect(mockRunActionCommand).toHaveBeenCalledWith("summary", {
       args: ["English"],
       copy: true,
       yes: true,
+      force: undefined,
       inputText: "input text",
       source: "rerun",
       trigger: "rerun:run-1",
@@ -54,7 +59,7 @@ describe("rerunCommand", () => {
     }) as never);
     const errSpy = spyOn(console, "error").mockImplementation(() => {});
 
-    await expect(rerunCommand("missing-id")).rejects.toThrow("exit:1");
+    await expect(rerunCommand("missing-id", {}, deps())).rejects.toThrow("exit:1");
     expect(errSpy).toHaveBeenCalled();
     expect(mockRunActionCommand).not.toHaveBeenCalled();
 

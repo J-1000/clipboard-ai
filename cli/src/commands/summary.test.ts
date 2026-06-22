@@ -1,85 +1,70 @@
-import { describe, it, expect, mock, beforeEach } from "bun:test";
+import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test";
+import { summaryCommand } from "./summary.js";
+import type { RunActionDeps } from "../lib/run-action.js";
+import { fakeAIClient, makeConfig, makeAppendHistoryMock } from "../test-helpers.js";
 
-const mockGetClipboard = mock(() =>
-  Promise.resolve({ text: "A very long article about technology...", type: "text", timestamp: "", length: 39 })
+const mockGetInput = mock((): Promise<{ text: string }> =>
+  Promise.resolve({ text: "A very long article about technology..." })
 );
-const mockGetConfig = mock(() =>
-  Promise.resolve({
-    provider: { type: "ollama", endpoint: "http://localhost:11434/v1", model: "mistral" },
-    actions: {},
-    settings: { poll_interval: 150, safe_mode: false, notifications: false, log_level: "info" },
-  })
-);
+const mockGetConfig = mock(() => Promise.resolve(makeConfig()));
 const mockEnforceSafeMode = mock(() => Promise.resolve());
-const mockCopyToClipboard = mock(() => undefined);
-const mockSummarize = mock(() => Promise.resolve("Brief summary of article."));
+const mockCopyToClipboard = mock((_text: string) => undefined);
+const mockAppendHistoryRecord = makeAppendHistoryMock();
+const mockSummarize = mock((_text: string) => Promise.resolve("Brief summary of article."));
 
-mock.module("../lib/client.js", () => ({
-  getClipboard: mockGetClipboard,
-  getConfig: mockGetConfig,
-}));
-mock.module("../lib/safe-mode.js", () => ({
-  enforceSafeMode: mockEnforceSafeMode,
-}));
-mock.module("../lib/clipboard.js", () => ({
-  copyToClipboard: mockCopyToClipboard,
-}));
-mock.module("../lib/ai.js", () => ({
-  AIClient: class {
-    summarize = mockSummarize;
-  },
-}));
-
-const { summaryCommand } = await import("./summary.js");
+function deps(): Partial<RunActionDeps> {
+  return {
+    getInput: mockGetInput,
+    getConfig: mockGetConfig,
+    enforceSafeMode: mockEnforceSafeMode,
+    copyToClipboard: mockCopyToClipboard,
+    appendHistoryRecord: mockAppendHistoryRecord,
+    createAIClient: () => fakeAIClient({ summarize: mockSummarize }),
+  };
+}
 
 describe("summaryCommand", () => {
   beforeEach(() => {
-    mockGetClipboard.mockClear();
+    mockGetInput.mockClear();
     mockGetConfig.mockClear();
     mockEnforceSafeMode.mockClear();
     mockCopyToClipboard.mockClear();
+    mockAppendHistoryRecord.mockClear();
     mockSummarize.mockClear();
   });
 
-  it("fetches clipboard and config", async () => {
-    await summaryCommand();
-    expect(mockGetClipboard).toHaveBeenCalledTimes(1);
+  afterEach(() => mock.restore());
+
+  it("fetches input and config", async () => {
+    await summaryCommand({ deps: deps() });
+    expect(mockGetInput).toHaveBeenCalledTimes(1);
     expect(mockGetConfig).toHaveBeenCalledTimes(1);
   });
 
   it("enforces safe mode", async () => {
-    await summaryCommand({ yes: true });
+    await summaryCommand({ deps: deps(), yes: true });
     expect(mockEnforceSafeMode).toHaveBeenCalledTimes(1);
   });
 
   it("calls ai.summarize with clipboard text", async () => {
-    await summaryCommand();
+    await summaryCommand({ deps: deps() });
     expect(mockSummarize).toHaveBeenCalledWith("A very long article about technology...");
   });
 
   it("copies result when --copy is set", async () => {
-    await summaryCommand({ copy: true });
+    await summaryCommand({ deps: deps(), copy: true });
     expect(mockCopyToClipboard).toHaveBeenCalledWith("Brief summary of article.");
   });
 
   it("does not copy when --copy is not set", async () => {
-    await summaryCommand();
+    await summaryCommand({ deps: deps() });
     expect(mockCopyToClipboard).not.toHaveBeenCalled();
   });
 
-  it("uses CBAI_INPUT_TEXT when provided", async () => {
-    const previous = process.env.CBAI_INPUT_TEXT;
-    process.env.CBAI_INPUT_TEXT = "from env";
+  it("uses provided inputText when set", async () => {
+    await summaryCommand({ deps: deps(), inputText: "from option" });
 
-    await summaryCommand();
-
-    expect(mockGetClipboard).not.toHaveBeenCalled();
-    expect(mockSummarize).toHaveBeenCalledWith("from env");
-
-    if (previous === undefined) {
-      delete process.env.CBAI_INPUT_TEXT;
-    } else {
-      process.env.CBAI_INPUT_TEXT = previous;
-    }
+    expect(mockGetInput).not.toHaveBeenCalled();
+    expect(mockSummarize).toHaveBeenCalledWith("from option");
   });
 });

@@ -41,19 +41,29 @@ function startMockServer(
 }
 
 // We need to mock the SOCKET_PATH constant used in client.ts
-// Since it's a const derived from homedir(), we mock the module
+// Since it's a const derived from homedir(), we mock the module. Spread the
+// real `os` so the mock is a COMPLETE shape and only homedir is overridden;
+// a partial mock would leak missing members into other test files.
+const realOs = await import("os");
 mock.module("os", () => ({
+  ...realOs,
   homedir: () => TEST_ROOT,
 }));
 
-const { getStatus, getClipboard, getConfig, runAction } = await import(
-  "./client.js"
-);
+// client.js captures SOCKET_PATH from homedir() at module-load time. Other test
+// files statically import client.js (transitively) WITHOUT the os mock, which
+// would cache a real-homedir SOCKET_PATH. A cache-busting query forces a fresh
+// evaluation here, after the os mock is in place, so SOCKET_PATH points at
+// TEST_ROOT regardless of evaluation order.
+const { getStatus, getClipboard, getConfig, runAction } = (await import(
+  `./client.js?test=${Date.now()}`
+)) as typeof import("./client.js");
 
 describe("IPC Client", () => {
   let server: Server;
 
   afterEach((done) => {
+    mock.restore();
     delete process.env.CBAI_IPC_TIMEOUT_MS;
     if (server) {
       server.close(() => {

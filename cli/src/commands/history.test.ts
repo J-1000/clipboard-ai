@@ -1,16 +1,20 @@
-import { beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
+import { beforeEach, describe, expect, it, mock, afterEach, spyOn } from "bun:test";
+import { historyCommand, type HistoryCommandDeps } from "./history.js";
+import type { ActionRunRecord } from "../lib/history.js";
 
-const mockReadHistoryRecords = mock(() => Promise.resolve([]));
+const mockReadHistoryRecords = mock(
+  (_limit?: number): Promise<ActionRunRecord[]> => Promise.resolve([])
+);
 const mockClearHistoryRecords = mock(() => Promise.resolve());
-const mockPruneHistoryBefore = mock(() => Promise.resolve(0));
+const mockPruneHistoryBefore = mock((_before: Date) => Promise.resolve(0));
 
-mock.module("../lib/history.js", () => ({
-  readHistoryRecords: mockReadHistoryRecords,
-  clearHistoryRecords: mockClearHistoryRecords,
-  pruneHistoryBefore: mockPruneHistoryBefore,
-}));
-
-const { historyCommand } = await import("./history.js");
+function deps(): Partial<HistoryCommandDeps> {
+  return {
+    readHistoryRecords: mockReadHistoryRecords,
+    clearHistoryRecords: mockClearHistoryRecords,
+    pruneHistoryBefore: mockPruneHistoryBefore,
+  };
+}
 
 describe("historyCommand", () => {
   let logSpy: ReturnType<typeof spyOn>;
@@ -22,15 +26,20 @@ describe("historyCommand", () => {
     logSpy = spyOn(console, "log").mockImplementation(() => {});
   });
 
+  afterEach(() => mock.restore());
+
+  function output(): string {
+    return logSpy.mock.calls.map((call: unknown[]) => call[0]).join("\n");
+  }
+
   it("loads history with default limit", async () => {
-    await historyCommand();
+    await historyCommand({}, deps());
     expect(mockReadHistoryRecords).toHaveBeenCalledWith(20);
   });
 
   it("prints empty message when no records are present", async () => {
-    await historyCommand();
-    const output = logSpy.mock.calls.map((call) => call[0]).join("\n");
-    expect(output).toContain("No history records found.");
+    await historyCommand({}, deps());
+    expect(output()).toContain("No history records found.");
   });
 
   it("prints record rows", async () => {
@@ -51,32 +60,29 @@ describe("historyCommand", () => {
       },
     ]);
 
-    await historyCommand({ limit: 5 });
-    const output = logSpy.mock.calls.map((call) => call[0]).join("\n");
-    expect(output).toContain("Recent action runs");
-    expect(output).toContain("run-1");
-    expect(output).toContain("summary");
-    expect(output).toContain("25ms");
+    await historyCommand({ limit: 5 }, deps());
+    expect(output()).toContain("Recent action runs");
+    expect(output()).toContain("run-1");
+    expect(output()).toContain("summary");
+    expect(output()).toContain("25ms");
   });
 
   it("clears history when requested", async () => {
-    await historyCommand({ clear: true });
+    await historyCommand({ clear: true }, deps());
 
     expect(mockClearHistoryRecords).toHaveBeenCalledTimes(1);
     expect(mockReadHistoryRecords).not.toHaveBeenCalled();
-    const output = logSpy.mock.calls.map((call) => call[0]).join("\n");
-    expect(output).toContain("History cleared.");
+    expect(output()).toContain("History cleared.");
   });
 
   it("prunes history before a date", async () => {
     mockPruneHistoryBefore.mockResolvedValueOnce(2);
 
-    await historyCommand({ before: "2026-01-15T00:00:00.000Z" });
+    await historyCommand({ before: "2026-01-15T00:00:00.000Z" }, deps());
 
     expect(mockPruneHistoryBefore).toHaveBeenCalledTimes(1);
-    const cutoff = mockPruneHistoryBefore.mock.calls[0][0] as Date;
+    const cutoff = mockPruneHistoryBefore.mock.calls[0][0];
     expect(cutoff.toISOString()).toBe("2026-01-15T00:00:00.000Z");
-    const output = logSpy.mock.calls.map((call) => call[0]).join("\n");
-    expect(output).toContain("Pruned 2 history entries.");
+    expect(output()).toContain("Pruned 2 history entries.");
   });
 });
