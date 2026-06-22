@@ -78,7 +78,10 @@ func runExecuteWithOptions(ctx context.Context, action string, text string, opts
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	cmdArgs := append([]string{"run", action}, opts.Args...)
+	// Separate user-controlled args with "--" so clipboard-derived values can't
+	// be parsed as cbai global flags (e.g. an injected --force bypassing the
+	// sensitive-data guard). cbai routes post-"--" tokens into the action args.
+	cmdArgs := append([]string{"run", action, "--"}, opts.Args...)
 	cmd := exec.CommandContext(ctx, "cbai", cmdArgs...)
 	cmd.Env = append(os.Environ(), "CBAI_DAEMON_MODE=true")
 	if opts.Trigger != "" {

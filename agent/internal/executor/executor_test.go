@@ -161,8 +161,33 @@ printf '%s' "$*"
 	if result.Error != nil {
 		t.Fatalf("expected fake cbai to succeed, got %v", result.Error)
 	}
-	expected := "run translate Spanish"
+	expected := "run translate -- Spanish"
 	if result.Output != expected {
 		t.Fatalf("expected output %q, got %q", expected, result.Output)
+	}
+}
+
+func TestRunExecuteWithOptions_SeparatesArgsWithDashDash(t *testing.T) {
+	dir := t.TempDir()
+	scriptPath := filepath.Join(dir, "cbai")
+	script := `#!/bin/sh
+printf '%s' "$*"
+`
+	if err := os.WriteFile(scriptPath, []byte(script), 0755); err != nil {
+		t.Fatalf("failed to write fake cbai: %v", err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	// An injected flag must be passed positionally (after --), not as a cbai flag.
+	result := runExecuteWithOptions(context.Background(), "summary", "input", Options{
+		Args: []string{"--force"},
+	})
+
+	if result.Error != nil {
+		t.Fatalf("expected fake cbai to succeed, got %v", result.Error)
+	}
+	expected := "run summary -- --force"
+	if result.Output != expected {
+		t.Fatalf("expected args separated by --, got %q", result.Output)
 	}
 }
