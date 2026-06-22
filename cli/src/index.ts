@@ -17,7 +17,7 @@ import { doctorCommand } from "./commands/doctor.js";
 import { historyCommand } from "./commands/history.js";
 import { rerunCommand } from "./commands/rerun.js";
 import { logsCommand } from "./commands/logs.js";
-import pkg from "../package.json" assert { type: "json" };
+import { VERSION } from "./version.js";
 
 yargs(hideBin(process.argv))
   .scriptName("cbai")
@@ -288,6 +288,6 @@ yargs(hideBin(process.argv))
   )
   .demandCommand(1, "Please specify a command")
   .help()
-  .version(pkg.version)
+  .version(VERSION)
   .strict()
   .parse();

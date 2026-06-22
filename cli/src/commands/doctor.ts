@@ -7,7 +7,7 @@ import {
   type ConfigResponse,
 } from "../lib/client.js";
 import { DEFAULT_PLUGIN_DIR } from "../lib/plugin-actions.js";
-import pkg from "../../package.json" assert { type: "json" };
+import { VERSION } from "../version.js";
 
 export interface DoctorCommandDeps {
   getStatus: typeof defaultGetStatus;
@@ -34,10 +34,10 @@ export async function doctorCommand(deps: Partial<DoctorCommandDeps> = {}): Prom
   }
 
   if (status) {
-    if (status.version === pkg.version) {
-      pass(`daemon version matches CLI (${pkg.version})`);
+    if (status.version === VERSION) {
+      pass(`daemon version matches CLI (${VERSION})`);
     } else {
-      fail("daemon version matches CLI", `daemon ${status.version}, cli ${pkg.version}`);
+      fail("daemon version matches CLI", `daemon ${status.version}, cli ${VERSION}`);
     }
   }
 
