@@ -2,7 +2,6 @@ package rules
 
 import (
 	"sort"
-	"strings"
 	"testing"
 
 	"github.com/clipboard-ai/agent/internal/clipboard"
@@ -289,24 +288,63 @@ func TestEvaluate_InvalidExpression(t *testing.T) {
 	}
 }
 
-func TestNewEngine_InvalidRegexRejected(t *testing.T) {
-	_, err := NewEngine(map[string]config.ActionConfig{
+func TestNewEngine_InvalidRegexIsSkippedNotFatal(t *testing.T) {
+	// An invalid regex must NOT abort construction; the action simply never
+	// matches so one bad trigger can't stop the daemon (and other actions work).
+	engine, err := NewEngine(map[string]config.ActionConfig{
 		"invalid": {Enabled: true, Trigger: `regex:(unclosed`},
+		"good":    {Enabled: true, Trigger: "length > 2"},
 	})
-	if err == nil {
-		t.Fatal("expected invalid regex error")
+	if err != nil {
+		t.Fatalf("expected no error for invalid regex, got %v", err)
 	}
-	if !strings.Contains(err.Error(), `invalid regex trigger for action "invalid"`) {
-		t.Fatalf("expected action-specific regex error, got %v", err)
+
+	names := map[string]bool{}
+	for _, m := range engine.Evaluate(makeContent("hello", clipboard.ContentTypeText)) {
+		names[m.ActionName] = true
+	}
+	if names["invalid"] {
+		t.Fatal("action with uncompilable regex must not match")
+	}
+	if !names["good"] {
+		t.Fatal("valid action alongside an invalid one must still match")
 	}
 }
 
-func TestNewEngine_InvalidGroupedNegatedRegexRejected(t *testing.T) {
-	_, err := NewEngine(map[string]config.ActionConfig{
+func TestNewEngine_InvalidGroupedNegatedRegexNotFatal(t *testing.T) {
+	if _, err := NewEngine(map[string]config.ActionConfig{
 		"invalid": {Enabled: true, Trigger: `NOT (regex:[)`},
+	}); err != nil {
+		t.Fatalf("expected no error for invalid grouped regex, got %v", err)
+	}
+}
+
+func TestEngine_QuotedRegexOperandCompiles(t *testing.T) {
+	// Capture groups / alternation in a quoted operand must compile and match.
+	engine, err := NewEngine(map[string]config.ActionConfig{
+		"url": {Enabled: true, Trigger: `regex:"(https?)://\S+"`},
 	})
-	if err == nil {
-		t.Fatal("expected invalid regex error")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(engine.Evaluate(makeContent("visit https://example.com now", clipboard.ContentTypeText))) != 1 {
+		t.Fatal("quoted regex with a capture group should match a URL")
+	}
+	if len(engine.Evaluate(makeContent("no links here", clipboard.ContentTypeText))) != 0 {
+		t.Fatal("quoted regex should not match plain text")
+	}
+}
+
+func TestEngine_QuotedContainsOperandWithKeywords(t *testing.T) {
+	// "AND" inside a quoted contains operand is literal, not a DSL operator.
+	engine := mustNewEngine(t, map[string]config.ActionConfig{
+		"phrase": {Enabled: true, Trigger: `contains:"foo AND bar"`},
+	})
+	if len(engine.Evaluate(makeContent("xx foo AND bar yy", clipboard.ContentTypeText))) != 1 {
+		t.Fatal("quoted contains operand should match the literal phrase")
+	}
+	if len(engine.Evaluate(makeContent("foo bar", clipboard.ContentTypeText))) != 0 {
+		t.Fatal("quoted contains operand should not match a different string")
 	}
 }
 
