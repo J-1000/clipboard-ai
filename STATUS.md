@@ -62,8 +62,8 @@ Last updated: 2026-06-11
   - AI provider responses with no completion choices produce a descriptive error
   - The first RTF clipboard read failure is logged once per agent process
 - Code quality:
-  - Built-in action execution in `actions/` uses a shared `executeAIAction` helper
-  - `actions/` and `cli/` action type contracts document their package boundary
+  - Built-in actions live solely in `cli/src/lib/builtin-actions.ts` (the orphaned
+    `actions/` package was removed; `summarize_url` was folded into the CLI registry)
   - Regex triggers are compiled when the rules engine is created and invalid regexes fail startup
 - Feature work:
   - Sensitive-data guard scans likely secrets/PII before actions and suppresses history content when it fires

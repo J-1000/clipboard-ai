@@ -389,11 +389,11 @@ clipboard-ai/
 │       ├── ipc/              # Unix socket server
 │       ├── notify/           # macOS notifications
 │       └── rules/            # Trigger engine
-├── cli/                      # TypeScript CLI
+├── cli/                      # TypeScript CLI (the only action runtime)
 │   └── src/
 │       ├── commands/         # CLI commands
-│       └── lib/              # IPC client, AI client, safe mode
-├── actions/                  # Built-in AI actions
+│       └── lib/              # IPC client, AI client, safe mode, built-in actions
+├── integrations/raycast/     # Raycast extension (HTTP API client)
 ├── configs/                  # Default configuration
 └── scripts/                  # Install/uninstall scripts
 ```
