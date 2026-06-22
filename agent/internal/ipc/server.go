@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -300,6 +301,39 @@ type ActionResponse struct {
 	Error   string `json:"error,omitempty"`
 }
 
+// builtinActionNames is the set of action ids and aliases the CLI registry
+// ships (see cli/src/lib/builtin-actions.ts). Kept here so the agent can reject
+// requests for unknown actions before spawning a subprocess. Custom/plugin
+// actions are still accepted when the user has configured them (see isKnownAction).
+var builtinActionNames = map[string]struct{}{
+	"summary": {}, "summarize": {}, "sum": {},
+	"explain":   {},
+	"translate": {},
+	"improve":   {},
+	"extract":   {},
+	"tldr":      {},
+	"classify":  {},
+	"summarize_url": {}, "summarize-url": {},
+	"caption": {}, "describe": {}, "describe-image": {},
+	"ocr": {}, "extract-text": {},
+}
+
+var actionNamePattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+
+// isKnownAction reports whether name is a builtin action or one the user has
+// configured (covers plugin/custom actions the agent can't enumerate itself).
+func isKnownAction(cfg *config.Config, name string) bool {
+	if _, ok := builtinActionNames[name]; ok {
+		return true
+	}
+	if cfg != nil {
+		if _, ok := cfg.Actions[name]; ok {
+			return true
+		}
+	}
+	return false
+}
+
 // handleAction triggers an AI action
 func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -316,6 +350,19 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	// Validate the action name against the known registry before spawning a
+	// subprocess. (`enabled` gates automatic clipboard triggers, not manual
+	// /action calls — mirroring `cbai run`, which runs disabled actions too.)
+	req.Action = strings.TrimSpace(req.Action)
+	if req.Action == "" || !actionNamePattern.MatchString(req.Action) {
+		http.Error(w, "Invalid action name", http.StatusBadRequest)
+		return
+	}
+	if !isKnownAction(s.configSnapshot(), req.Action) {
+		http.Error(w, "Unknown action", http.StatusBadRequest)
 		return
 	}
 

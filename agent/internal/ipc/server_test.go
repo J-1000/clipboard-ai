@@ -627,3 +627,69 @@ func setMonitorCurrent(t *testing.T, monitor *clipboard.Monitor, content clipboa
 	current := reflect.ValueOf(monitor).Elem().FieldByName("current")
 	reflect.NewAt(current.Type(), unsafe.Pointer(current.UnsafeAddr())).Elem().Set(reflect.ValueOf(content))
 }
+
+func TestHandleAction_RejectsUnknownAction(t *testing.T) {
+	s := newTestServer()
+
+	spawned := false
+	executor.SetExecuteWithOptionsFunc(func(ctx context.Context, action string, text string, opts executor.Options) executor.Result {
+		spawned = true
+		return executor.Result{Action: action, Output: "ok"}
+	})
+	defer executor.ResetExecuteFunc()
+
+	body, _ := json.Marshal(ActionRequest{Action: "definitely-not-an-action", Text: "hi"})
+	req := httptest.NewRequest(http.MethodPost, "/action", bytes.NewBuffer(body))
+	w := httptest.NewRecorder()
+
+	s.handleAction(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for unknown action, got %d", w.Code)
+	}
+	if spawned {
+		t.Fatal("unknown action must not spawn a subprocess")
+	}
+}
+
+func TestHandleAction_RejectsMalformedActionName(t *testing.T) {
+	s := newTestServer()
+	executor.SetExecuteWithOptionsFunc(func(ctx context.Context, action string, text string, opts executor.Options) executor.Result {
+		t.Fatal("malformed action name must not spawn a subprocess")
+		return executor.Result{}
+	})
+	defer executor.ResetExecuteFunc()
+
+	body, _ := json.Marshal(ActionRequest{Action: "summary; rm -rf /", Text: "hi"})
+	req := httptest.NewRequest(http.MethodPost, "/action", bytes.NewBuffer(body))
+	w := httptest.NewRecorder()
+
+	s.handleAction(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for malformed action name, got %d", w.Code)
+	}
+}
+
+func TestHandleAction_PassesInjectedFlagAsPositionalArg(t *testing.T) {
+	s := newTestServer()
+
+	var gotArgs []string
+	executor.SetExecuteWithOptionsFunc(func(ctx context.Context, action string, text string, opts executor.Options) executor.Result {
+		gotArgs = opts.Args
+		return executor.Result{Action: action, Output: "ok"}
+	})
+	defer executor.ResetExecuteFunc()
+
+	// Args flow verbatim into opts.Args; the executor separates them with --, so
+	// "--force" reaches cbai positionally and cannot toggle the global guard flag.
+	body, _ := json.Marshal(ActionRequest{Action: "summary", Text: "hi", Args: []string{"--force"}})
+	req := httptest.NewRequest(http.MethodPost, "/action", bytes.NewBuffer(body))
+	w := httptest.NewRecorder()
+
+	s.handleAction(w, req)
+
+	if len(gotArgs) != 1 || gotArgs[0] != "--force" {
+		t.Fatalf("expected args [--force] passed through to executor, got %v", gotArgs)
+	}
+}
