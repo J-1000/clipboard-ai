@@ -39,11 +39,16 @@ jobs:
     # requires cgo. On ubuntu its Linux backend needs X11 dev headers
     # (X11/Xlib.h) the runner lacks, so vet/test/build fail at the C stage.
     runs-on: macos-latest
+    strategy:
+      matrix:
+        # Floor (declared in go.mod) plus a current release, so version skew
+        # between CI and contributors' toolchains surfaces here.
+        go-version: ['1.21', '1.23']
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: ${{ matrix.go-version }}
           cache-dependency-path: agent/go.sum
       - name: Vet
         run: go vet ./...
