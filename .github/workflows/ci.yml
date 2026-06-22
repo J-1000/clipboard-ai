@@ -35,7 +35,10 @@ jobs:
         working-directory: actions
 
   go:
-    runs-on: ubuntu-latest
+    # Runs on macOS because golang.design/x/clipboard targets macOS here and
+    # requires cgo. On ubuntu its Linux backend needs X11 dev headers
+    # (X11/Xlib.h) the runner lacks, so vet/test/build fail at the C stage.
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
