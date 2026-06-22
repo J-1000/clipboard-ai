@@ -1,6 +1,6 @@
 # clipboard-ai Status
 
-Last updated: 2026-06-11
+Last updated: 2026-06-22
 
 ## Status Quo
 
@@ -78,9 +78,28 @@ Last updated: 2026-06-11
 
 ## Test Health
 
-- `agent`: `go test ./...` passing
-- `actions`: `bun test` passing
-- `cli`: `bun test` currently failing in existing client/AI command test areas and Bun module-mock isolation; focused tests for changed areas pass
+- `agent`: `go vet`, `go test -race ./...`, and `golangci-lint` all passing
+- `cli`: full `bun test` suite and `bun run typecheck` passing (cross-file
+  mock leakage eliminated via dependency injection)
+- `integrations/raycast`: `npm run lint` and `tsc --noEmit` passing
+- CI runs all of the above; the agent boot smoke test guards the startup-panic class
+
+## Roadmap (deferred, optional)
+
+The remediation pass (see `CHANGELOG.md`) shipped the tractable roadmap items
+(config prompt-template actions, token-usage stats via `cbai stats`, and an
+`X-API-Version` header). The following larger items remain as future work and
+were deliberately not attempted in this pass to avoid destabilizing the codebase:
+
+- **MCP server** (`cbai mcp`) — expose actions as MCP tools (the HTTP API is most
+  of the plumbing).
+- **Menubar viewer** — a macOS menubar app + history viewer (PRD v1.1).
+- **Long-lived CLI worker** — replace the per-trigger Node spawn with a persistent
+  worker (or move LLM calls into the daemon) to hit the PRD latency goals.
+- **Config schema codegen** — generate the TS config types from the Go structs
+  (the provider default-endpoint map is already centralized).
+- **Cross-platform seams** — a `Notifier` interface and build-tag-selected RTF
+  backend to de-risk a Linux/Windows port.
 
 ## Recent Fixes
 
