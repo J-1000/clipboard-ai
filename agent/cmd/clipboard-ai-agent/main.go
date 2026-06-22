@@ -292,6 +292,13 @@ func main() {
 		logRestartRequiredSettings(logger, previousCfg, nextCfg)
 		state.swap(nextCfg, nextRulesEngine)
 		server.SetConfig(nextCfg)
+
+		// Drop cooldown state for actions removed by this reload.
+		activeActions := make(map[string]struct{}, len(nextCfg.Actions))
+		for name := range nextCfg.Actions {
+			activeActions[name] = struct{}{}
+		}
+		controller.RetainActions(activeActions)
 		logger.Info("config reloaded",
 			"reason", reason,
 			"provider.type", nextCfg.Provider.Type,

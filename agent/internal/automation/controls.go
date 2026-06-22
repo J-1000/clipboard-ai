@@ -70,6 +70,19 @@ func (c *Controller) evictOldestLocked() {
 	}
 }
 
+// RetainActions drops cooldown bookkeeping for actions no longer in the active
+// set, keeping the map bounded across config reloads.
+func (c *Controller) RetainActions(active map[string]struct{}) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	for name := range c.actionLastRunAt {
+		if _, ok := active[name]; !ok {
+			delete(c.actionLastRunAt, name)
+		}
+	}
+}
+
 // AllowAction returns true when action cooldown permits execution and records the action run timestamp.
 func (c *Controller) AllowAction(action string, cooldown time.Duration, now time.Time) bool {
 	c.mu.Lock()

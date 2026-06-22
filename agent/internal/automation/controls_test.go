@@ -93,3 +93,21 @@ func TestAllowActionDifferentActions(t *testing.T) {
 		t.Fatal("expected explain to pass independently")
 	}
 }
+
+func TestRetainActions_PrunesRemovedActions(t *testing.T) {
+	c := NewController(0)
+	now := time.Now()
+	c.AllowAction("summarize", time.Second, now)
+	c.AllowAction("explain", time.Second, now)
+
+	c.RetainActions(map[string]struct{}{"summarize": {}})
+
+	// "explain" was pruned, so it runs immediately (no cooldown record remains).
+	if !c.AllowAction("explain", time.Hour, now.Add(time.Millisecond)) {
+		t.Fatal("pruned action should have no lingering cooldown")
+	}
+	// "summarize" was retained, so its cooldown still applies.
+	if c.AllowAction("summarize", time.Hour, now.Add(time.Millisecond)) {
+		t.Fatal("retained action should still be on cooldown")
+	}
+}
