@@ -134,7 +134,7 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
       console.log(`${action.progressMessage}\n`);
     }
 
-    const shouldStreamOutput = shouldStreamActionOutput(action.id, source, options);
+    const shouldStreamOutput = shouldStreamActionOutput(action, source, options);
     const streamedChunks: string[] = [];
     const ai = deps.createAIClient({
       type: effectiveConfig.provider.type,
@@ -165,9 +165,15 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
       latencyMs = Date.now() - startedAt;
     }
 
-    if (shouldStreamOutput) {
+    if (shouldStreamOutput && streamedChunks.length > 0) {
+      // Tokens were streamed to stdout live; the accumulated buffer is the result.
       output = streamedChunks.join("");
       process.stdout.write("\n");
+    } else if (shouldStreamOutput) {
+      // Streaming was enabled but run() returned without emitting tokens (e.g. an
+      // image action that doesn't stream, or a plugin returning a plain string).
+      // Treat run()'s return as authoritative instead of discarding it.
+      process.stdout.write(`${output ?? ""}\n`);
     } else {
       console.log(`${action.outputTitle}:`);
       console.log("─".repeat(action.outputTitle.length));
@@ -216,14 +222,20 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
 }
 
 function shouldStreamActionOutput(
-  actionId: string,
+  action: ActionDefinition,
   source: RunSource,
   options: RunActionOptions
 ): boolean {
   if (source !== "manual" || options.copy || !process.stdout.isTTY) {
     return false;
   }
-  return actionId !== "classify" && actionId !== "extract";
+  if (action.id === "classify" || action.id === "extract") {
+    return false;
+  }
+  // Image-only actions (caption/ocr) don't stream — generateWithImage buffers —
+  // so don't enable streaming or their real result would be lost as a blank line.
+  const inputs = action.inputTypes ?? ["text"];
+  return inputs.includes("text");
 }
 
 function resolveConfiguredAction(
