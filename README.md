@@ -140,6 +140,9 @@ cbai run my_plugin_action arg1 arg2
 # Show recent action history
 cbai history
 
+# Show usage statistics (runs, errors, token totals per action)
+cbai stats
+
 # Scaffold a config file on first run (optionally open it in $EDITOR)
 cbai init
 cbai init --edit
@@ -335,6 +338,17 @@ Detected inputs are not written to history; history records keep metadata and re
 - History is stored locally at `~/.clipboard-ai/history.jsonl`
 - `cbai history` shows recent runs (newest first)
 - `cbai rerun <id>` replays a previous run with the recorded input and arguments
+- Records persist token usage (`prompt_tokens`/`completion_tokens`) and latency when the provider reports them
+
+### Usage Statistics
+
+`cbai stats` aggregates the action history into per-action totals — runs, errors,
+prompt/completion token usage, and average latency:
+
+```bash
+cbai stats          # human-readable summary
+cbai stats --json   # machine-readable totals and per-action breakdown
+```
 
 ### Observability
 
@@ -500,16 +514,13 @@ bun run cli/src/index.ts status
 
 ## CI/CD
 
-GitHub Actions runs on every push and PR to `main`:
+There is no push/PR CI pipeline; run the test suites locally (see
+[Running Tests](#running-tests)) before pushing.
 
-- **TypeScript**: install, typecheck, test, build (CLI)
-- **Go**: vet, race-enabled tests, build + boot smoke test (on macOS, matrix Go 1.21/1.23)
-- **golangci-lint**: Go static analysis
-- **Raycast**: lint + typecheck of the extension
-
-Releases are created automatically when a `v*` tag is pushed, producing macOS
-agent binaries (amd64 + arm64, built with cgo on a macOS runner), the CLI
-bundle, and a `SHA256SUMS` file.
+A GitHub Actions **release** workflow (`.github/workflows/release.yml`) runs when
+a `v*` tag is pushed, producing macOS agent binaries (amd64 + arm64, built with
+cgo on a macOS runner, guarded by a boot smoke test), the CLI bundle, and a
+`SHA256SUMS` file.
 
 ## Uninstalling
 
