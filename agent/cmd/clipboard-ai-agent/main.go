@@ -339,21 +339,35 @@ func main() {
 		}
 	}()
 
-	for {
-		select {
-		case reason := <-reloadCh:
-			reloadConfig(reason)
-		case sig := <-sigCh:
-			if sig == syscall.SIGHUP {
-				reloadConfig("SIGHUP")
-				continue
+	// Process config reloads in a dedicated goroutine. A single consumer makes
+	// reloads single-flighted, and keeps the signal loop below responsive to
+	// shutdown even while a reload is in progress.
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case reason := <-reloadCh:
+				reloadConfig(reason)
 			}
-			logger.Info("shutdown signal received", "signal", sig.String())
-			cancel()
-			waitForActions(&actionWG, logger)
-			logger.Info("agent stopped")
-			return
 		}
+	}()
+
+	for {
+		sig := <-sigCh
+		if sig == syscall.SIGHUP {
+			select {
+			case reloadCh <- "SIGHUP":
+			default:
+				logger.Warn("config reload skipped because reload queue is full")
+			}
+			continue
+		}
+		logger.Info("shutdown signal received", "signal", sig.String())
+		cancel()
+		waitForActions(&actionWG, logger)
+		logger.Info("agent stopped")
+		return
 	}
 }
 
