@@ -1,4 +1,5 @@
 import type { ActionDefinition } from "./action-types.js";
+import { extractSummaryInput } from "./summarize-url.js";
 
 export const builtinActions: ActionDefinition[] = [
   {
@@ -62,6 +63,22 @@ export const builtinActions: ActionDefinition[] = [
     progressMessage: "Classifying clipboard content...",
     outputTitle: "Classification",
     run: ({ ai, text }) => ai.classify(text),
+  },
+  {
+    id: "summarize_url",
+    aliases: ["summarize-url"],
+    description: "Fetch a URL from the clipboard and summarize its contents",
+    inputTypes: ["text"],
+    progressMessage: "Fetching and summarizing URL...",
+    outputTitle: "URL Summary",
+    run: async ({ ai, text }) => {
+      const { url, text: extracted } = await extractSummaryInput(text);
+      const response = await ai.generate(
+        `Summarize the following text from ${url}:\n\n${extracted}`,
+        "You are a helpful assistant. Provide concise summaries."
+      );
+      return response.content;
+    },
   },
   {
     id: "caption",
