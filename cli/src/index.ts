@@ -19,6 +19,7 @@ import { doctorCommand } from "./commands/doctor.js";
 import { historyCommand } from "./commands/history.js";
 import { rerunCommand } from "./commands/rerun.js";
 import { logsCommand } from "./commands/logs.js";
+import { initCommand } from "./commands/init.js";
 import { VERSION } from "./version.js";
 import type { Argv } from "yargs";
 
@@ -61,6 +62,25 @@ yargs(hideBin(process.argv))
   // options. The daemon spawns `cbai run <action> -- <args...>` so an attacker
   // can't smuggle a global flag (e.g. --force) through clipboard-derived args.
   .parserConfiguration({ "populate--": true })
+  .command(
+    "init",
+    "Create a default config file (and optionally open it in $EDITOR)",
+    (yargs) =>
+      yargs
+        .option("force", {
+          type: "boolean",
+          description: "Overwrite an existing config file",
+          default: false,
+        })
+        .option("edit", {
+          type: "boolean",
+          description: "Open the config in $EDITOR after scaffolding",
+          default: false,
+        }),
+    async (argv) => {
+      initCommand({ force: argv.force, edit: argv.edit });
+    }
+  )
   .command(
     "status",
     "Show agent status",
