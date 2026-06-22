@@ -160,9 +160,8 @@ yargs(hideBin(process.argv))
         })
         .option("file", {
           choices: ["out", "err"] as const,
-          type: "string",
           description: "Select output or error log file",
-          default: "out",
+          default: "out" as const,
         }),
     async (argv) => {
       await logsCommand({ tail: argv.tail, file: argv.file });

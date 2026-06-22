@@ -6,8 +6,11 @@ export interface LogsCommandOptions {
 }
 
 export async function logsCommand(options: LogsCommandOptions = {}): Promise<void> {
+  // Defensive: only "out"/"err" select a log file; anything else falls back to "out".
+  const file: "out" | "err" = options.file === "err" ? "err" : "out";
+
   try {
-    const lines = await readAgentLogs(options);
+    const lines = await readAgentLogs({ ...options, file });
 
     if (lines.length === 0) {
       console.log("No log entries found.");
