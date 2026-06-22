@@ -150,11 +150,16 @@ describe("AIClient", () => {
   });
 
   describe("extractData", () => {
-    it("sends correct prompts", async () => {
+    it("sends correct prompts and requests JSON output", async () => {
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: '{"name":"John","age":30}' } }],
+        model: "test-model",
+      });
       const result = await client.extractData("name: John, age: 30");
-      expect(result).toBe("mock response");
+      expect(JSON.parse(result)).toEqual({ name: "John", age: 30 });
 
       const call = mockCreate.mock.calls[0][0] as Record<string, unknown>;
+      expect(call.response_format).toEqual({ type: "json_object" });
       const messages = call.messages as Array<{
         role: string;
         content: string;
@@ -162,20 +167,42 @@ describe("AIClient", () => {
       expect(messages[0].content).toContain("extraction");
       expect(messages[1].content).toContain("name: John, age: 30");
     });
+
+    it("throws a clear error when the model returns non-JSON", async () => {
+      // Both the JSON attempt and the plain fallback return non-JSON.
+      mockCreate.mockResolvedValue({
+        choices: [{ message: { content: "not json" } }],
+        model: "test-model",
+      });
+      await expect(client.extractData("x")).rejects.toThrow(/did not return valid JSON/);
+    });
   });
 
   describe("classify", () => {
-    it("sends correct prompts", async () => {
+    it("sends correct prompts and validates the category", async () => {
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: '{"category":"code","confidence":0.9,"reasoning":"has func"}' } }],
+        model: "test-model",
+      });
       const result = await client.classify("func main() {}");
-      expect(result).toBe("mock response");
+      expect(JSON.parse(result).category).toBe("code");
 
       const call = mockCreate.mock.calls[0][0] as Record<string, unknown>;
+      expect(call.response_format).toEqual({ type: "json_object" });
       const messages = call.messages as Array<{
         role: string;
         content: string;
       }>;
       expect(messages[0].content).toContain("classifier");
       expect(messages[1].content).toContain("func main() {}");
+    });
+
+    it("throws when the classifier response lacks a category", async () => {
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: '{"confidence":0.5}' } }],
+        model: "test-model",
+      });
+      await expect(client.classify("x")).rejects.toThrow(/missing a 'category'/);
     });
   });
 

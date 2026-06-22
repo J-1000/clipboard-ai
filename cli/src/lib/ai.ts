@@ -191,19 +191,47 @@ export class AIClient {
   }
 
   async extractData(text: string): Promise<string> {
-    const response = await this.generate(
-      `Extract structured data from the following text. Output as JSON if applicable:\n\n${text}`,
-      "You are a data extraction assistant. Extract key information in a structured format."
+    const response = await this.generateJSON(
+      `Extract structured data from the following text as JSON:\n\n${text}`,
+      "You are a data extraction assistant. Extract key information as a JSON object."
     );
-    return response.content;
+    return validateJSON(response.content, "data extraction");
   }
 
   async classify(text: string): Promise<string> {
-    const response = await this.generate(
+    const response = await this.generateJSON(
       `Classify this content:\n\n${text}`,
       'You are a content classifier. Categorize the given text into exactly one of these categories: email, code, url, log, article, chat, command, data, error, other. Respond with JSON only: {"category": "...", "confidence": 0.0-1.0, "reasoning": "..."}'
     );
-    return response.content;
+    const content = validateJSON(response.content, "classification");
+    const parsed = JSON.parse(content) as { category?: unknown };
+    if (typeof parsed.category !== "string") {
+      throw new Error("classifier response is missing a 'category' field");
+    }
+    return content;
+  }
+
+  // generateJSON requests a JSON object via response_format, gracefully falling
+  // back to a plain completion when the provider doesn't support it.
+  async generateJSON(prompt: string, systemPrompt?: string): Promise<AIResponse> {
+    const messages = completionMessages(prompt, systemPrompt);
+    try {
+      const response = await this.client.chat.completions.create({
+        model: this.model,
+        messages,
+        temperature: 0.2,
+        max_tokens: this.maxTokens,
+        response_format: { type: "json_object" },
+      });
+      warnIfTruncated(response.choices?.[0]?.finish_reason, this.maxTokens);
+      return {
+        content: completionContent(response),
+        model: response.model,
+      };
+    } catch {
+      // Provider may reject response_format; fall back to a plain completion.
+      return this.generate(prompt, systemPrompt);
+    }
   }
 
   async captionImage(imageBase64: string, imageMime?: string): Promise<string> {
@@ -248,6 +276,17 @@ export function warnIfTruncated(finishReason: string | null | undefined, maxToke
     console.error(
       `Warning: output was truncated at max_tokens=${maxTokens}. Raise max_tokens (settings or per-action) for a complete result.`
     );
+  }
+}
+
+// validateJSON ensures a model response is parseable JSON, returning a clear
+// error (rather than raw text) when it isn't.
+function validateJSON(content: string, label: string): string {
+  try {
+    JSON.parse(content);
+    return content;
+  } catch {
+    throw new Error(`${label} did not return valid JSON`);
   }
 }
 
