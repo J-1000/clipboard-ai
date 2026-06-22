@@ -30,7 +30,6 @@ type ExecuteFunc func(ctx context.Context, action string, text string) Result
 // ExecuteWithOptionsFunc allows tests to override ExecuteWithOptions behavior.
 type ExecuteWithOptionsFunc func(ctx context.Context, action string, text string, opts Options) Result
 
-var executeFn ExecuteFunc = runExecute
 var executeWithOptionsFn ExecuteWithOptionsFunc = runExecuteWithOptions
 
 // Result holds the outcome of an action execution
@@ -53,7 +52,6 @@ func ExecuteWithOptions(ctx context.Context, action string, text string, opts Op
 
 // SetExecuteFunc overrides the executor implementation (useful for tests).
 func SetExecuteFunc(fn ExecuteFunc) {
-	executeFn = fn
 	executeWithOptionsFn = func(ctx context.Context, action string, text string, _ Options) Result {
 		return fn(ctx, action, text)
 	}
@@ -62,14 +60,10 @@ func SetExecuteFunc(fn ExecuteFunc) {
 // SetExecuteWithOptionsFunc overrides ExecuteWithOptions behavior (useful for tests).
 func SetExecuteWithOptionsFunc(fn ExecuteWithOptionsFunc) {
 	executeWithOptionsFn = fn
-	executeFn = func(ctx context.Context, action string, text string) Result {
-		return fn(ctx, action, text, Options{})
-	}
 }
 
 // ResetExecuteFunc restores the default executor implementation.
 func ResetExecuteFunc() {
-	executeFn = runExecute
 	executeWithOptionsFn = runExecuteWithOptions
 }
 
@@ -133,10 +127,6 @@ func runExecuteWithOptions(ctx context.Context, action string, text string, opts
 		Error:   err,
 		Elapsed: elapsed,
 	}
-}
-
-func runExecute(ctx context.Context, action string, text string) Result {
-	return runExecuteWithOptions(ctx, action, text, Options{})
 }
 
 // WriteTempImage writes image bytes to a temp file and returns its path.

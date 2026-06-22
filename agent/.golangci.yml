@@ -1,0 +1,31 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  # Default set: errcheck, govet, ineffassign, staticcheck, unused.
+  default: standard
+  settings:
+    errcheck:
+      # Idiomatic fire-and-forget cleanup / best-effort response writes whose
+      # failure we deliberately ignore. (Response-error handling is tightened
+      # separately in the HTTP API contract work.)
+      exclude-functions:
+        - (*os.File).Close
+        - (net.Listener).Close
+        - (net.Conn).Close
+        - (*github.com/fsnotify/fsnotify.Watcher).Close
+        - os.Remove
+        - os.RemoveAll
+        - (*net/http.Server).Shutdown
+        - (*encoding/json.Encoder).Encode
+        - (*encoding/json.Decoder).Decode
+        - github.com/clipboard-ai/agent/internal/notify.Send
+        - github.com/clipboard-ai/agent/internal/notify.SendWithSubtitle
+  exclusions:
+    rules:
+      # Test setup/teardown ignores I/O errors deliberately.
+      - path: _test\.go
+        linters:
+          - errcheck

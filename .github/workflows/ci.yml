@@ -65,3 +65,16 @@ jobs:
       # regression guard for the CGO-disabled startup panic class.
       - name: Boot smoke test
         run: ./scripts/agent-boot-smoke.sh agent/clipboard-ai-agent
+
+  golangci:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+          cache-dependency-path: agent/go.sum
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: v2.1.6
+          working-directory: agent
