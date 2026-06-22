@@ -95,6 +95,13 @@ func main() {
 	// (their deferred temp-file cleanup must run, and subprocesses must drain).
 	var actionWG sync.WaitGroup
 
+	// Bound concurrent action subprocesses across all clipboard changes. nil
+	// (max_concurrent_actions = 0) means unlimited.
+	var actionSem chan struct{}
+	if cfg.Settings.MaxConcurrentActions > 0 {
+		actionSem = make(chan struct{}, cfg.Settings.MaxConcurrentActions)
+	}
+
 	// Create clipboard handler
 	handler := func(content clipboard.Content) {
 		cfg, rulesEngine := state.snapshot()
@@ -161,6 +168,14 @@ func main() {
 			actionWG.Add(1)
 			go func(actionName string, actionCfg config.ActionConfig, content clipboard.Content, sensitiveGuardHit bool) {
 				defer actionWG.Done()
+
+				// Acquire a concurrency slot (or bail if shutting down).
+				release, ok := acquireActionSlot(ctx, actionSem)
+				if !ok {
+					return
+				}
+				defer release()
+
 				opts := executor.Options{
 					Trigger:          actionCfg.Trigger,
 					ModelOverride:    actionCfg.Model,
@@ -339,6 +354,21 @@ func main() {
 			logger.Info("agent stopped")
 			return
 		}
+	}
+}
+
+// acquireActionSlot reserves a slot in the concurrency semaphore, returning a
+// release function. A nil semaphore means unlimited. ok is false if ctx is
+// cancelled before a slot frees up.
+func acquireActionSlot(ctx context.Context, sem chan struct{}) (release func(), ok bool) {
+	if sem == nil {
+		return func() {}, true
+	}
+	select {
+	case sem <- struct{}{}:
+		return func() { <-sem }, true
+	case <-ctx.Done():
+		return func() {}, false
 	}
 }
 
