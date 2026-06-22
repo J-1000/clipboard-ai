@@ -1,0 +1,19 @@
+[
+  { "name": "aws access key", "input": "key AKIA1234567890ABCDEF here", "expected": ["aws_access_key"] },
+  { "name": "github oauth token", "input": "token ghp_abcdefghijklmnopqrstuvwxyz0123456789 done", "expected": ["github_token"] },
+  { "name": "github fine-grained pat", "input": "github_pat_abcdefghijklmnopqrstuvwxyz here", "expected": ["github_pat"] },
+  { "name": "slack bot token", "input": "xoxb-123456789012-abcdefABCDEF here", "expected": ["slack_token"] },
+  { "name": "stripe test secret", "input": "use sk_test_EXAMPLEKEY0123456789 now", "expected": ["stripe_key"] },
+  { "name": "google api key", "input": "key AIzaSyDaGmWKabCdEfGhIjKlMnOpQrStUvWxYzAb end", "expected": ["google_api_key"] },
+  { "name": "gitlab pat", "input": "glpat-abcdefghijKLMNOPqrstuv here", "expected": ["gitlab_token"] },
+  { "name": "ssh public key", "input": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIabcdef user@host", "expected": ["ssh_public_key"] },
+  { "name": "jwt", "input": "auth eyJhbGciOiJ.eyJzdWIiOiI here", "expected": ["jwt"] },
+  { "name": "private key header", "input": "-----BEGIN RSA PRIVATE KEY-----", "expected": ["private_key"] },
+  { "name": "api key with value", "input": "api_key = EXAMPLEKEY1234567890", "expected": ["api_key"] },
+  { "name": "api key label only", "input": "the api_key field is documented", "expected": [] },
+  { "name": "api key placeholder", "input": "api_key: <your-key>", "expected": [] },
+  { "name": "valid credit card", "input": "card 4111 1111 1111 1111 ok", "expected": ["credit_card"] },
+  { "name": "invalid credit card", "input": "card 4111 1111 1111 1112 no", "expected": [] },
+  { "name": "card embedded in long digit run", "input": "ref 99994111111111111111000", "expected": ["credit_card"] },
+  { "name": "clean prose", "input": "the quick brown fox jumps over the lazy dog", "expected": [] }
+]
