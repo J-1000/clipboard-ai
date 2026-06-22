@@ -29,6 +29,7 @@ type ProviderConfig struct {
 type ActionConfig struct {
 	Enabled        bool   `toml:"enabled"`
 	Trigger        string `toml:"trigger"`          // trigger expression
+	Prompt         string `toml:"prompt"`           // custom action: prompt template (no JS plugin needed)
 	Model          string `toml:"model"`            // optional model override
 	Endpoint       string `toml:"endpoint"`         // optional endpoint override
 	MaxTokens      int    `toml:"max_tokens"`       // optional max completion tokens override

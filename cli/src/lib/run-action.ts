@@ -60,6 +60,36 @@ export function capInputSize(text: string): string {
   return `${text.slice(0, MAX_INPUT_CHARS)}\n…[truncated]`;
 }
 
+// promptActionFromConfig builds an action from a config-defined prompt template
+// (`actions.<name>.prompt = "..."`), so users can add custom actions without a
+// JS plugin. `{{input}}`/`{{args}}` are interpolated; otherwise the clipboard
+// text is appended after the prompt.
+export function promptActionFromConfig(name: string, config: ConfigResponse): ActionDefinition | null {
+  const actionConfig = config.actions[name];
+  const template = actionConfig?.prompt?.trim();
+  if (!template) {
+    return null;
+  }
+  return {
+    id: name,
+    description: `Custom action: ${name}`,
+    inputTypes: ["text"],
+    progressMessage: `Running ${name}...`,
+    outputTitle: name,
+    run: async ({ ai, text, args }) => {
+      const response = await ai.generate(renderPromptTemplate(template, text, args ?? []));
+      return response.content;
+    },
+  };
+}
+
+function renderPromptTemplate(template: string, text: string, args: string[]): string {
+  if (template.includes("{{input}}") || template.includes("{{args}}")) {
+    return template.replaceAll("{{input}}", text).replaceAll("{{args}}", args.join(" "));
+  }
+  return `${template}\n\n${text}`;
+}
+
 export async function runActionCommand(actionName: string, options: RunActionOptions = {}): Promise<void> {
   let resolvedActionName = actionName;
   let inputText = "";
@@ -78,7 +108,12 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
 
   try {
     const registry = options.registry ?? (await deps.getActionRegistry());
-    const action = resolveAction(registry, actionName);
+    const config = await deps.getConfig();
+    historySettings = config.settings;
+
+    // Resolve a built-in/plugin action, or synthesize one from a config-defined
+    // prompt template (a custom action with no JS plugin).
+    const action = resolveAction(registry, actionName) ?? promptActionFromConfig(actionName, config);
 
     if (!action) {
       const available = registry.actions.map((a) => a.id).sort().join(", ");
@@ -86,9 +121,6 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
       console.error(`Available actions: ${available}`);
       process.exit(1);
     }
-
-    const config = await deps.getConfig();
-    historySettings = config.settings;
     input = options.input ?? (options.inputText ? { text: options.inputText } : await deps.getInput());
     const text = input.text;
     const acceptedInputs = action.inputTypes ?? ["text"];

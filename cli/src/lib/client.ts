@@ -39,6 +39,7 @@ export interface ConfigResponse {
     {
       enabled: boolean;
       trigger: string;
+      prompt?: string;
       model?: string;
       endpoint?: string;
       timeout_ms?: number;
