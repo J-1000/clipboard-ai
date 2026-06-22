@@ -65,6 +65,38 @@
         "history",
         "recent"
       ]
+    },
+    {
+      "name": "classify",
+      "title": "Classify Clipboard",
+      "description": "Classify the current clipboard content by type.",
+      "mode": "view",
+      "keywords": [
+        "classify",
+        "category"
+      ]
+    },
+    {
+      "name": "extract",
+      "title": "Extract Data from Clipboard",
+      "description": "Extract structured data from the current clipboard.",
+      "mode": "view",
+      "keywords": [
+        "extract",
+        "data",
+        "json"
+      ]
+    },
+    {
+      "name": "summarize-url",
+      "title": "Summarize Clipboard URL",
+      "description": "Fetch and summarize a URL on the clipboard.",
+      "mode": "view",
+      "keywords": [
+        "url",
+        "summarize",
+        "web"
+      ]
     }
   ],
   "preferences": [
