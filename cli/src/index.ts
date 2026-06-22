@@ -22,6 +22,10 @@ import { VERSION } from "./version.js";
 yargs(hideBin(process.argv))
   .scriptName("cbai")
   .usage("$0 <command> [options]")
+  // Tokens after `--` are captured in argv["--"] instead of being parsed as
+  // options. The daemon spawns `cbai run <action> -- <args...>` so an attacker
+  // can't smuggle a global flag (e.g. --force) through clipboard-derived args.
+  .parserConfiguration({ "populate--": true })
   .option("yes", {
     alias: "y",
     type: "boolean",
@@ -93,8 +97,10 @@ yargs(hideBin(process.argv))
           default: false,
         }),
     async (argv) => {
+      const positional = (argv.args as string[] | undefined) ?? [];
+      const afterDashDash = (argv["--"] as string[] | undefined) ?? [];
       await runCommand(argv.action as string, {
-        args: (argv.args as string[] | undefined) ?? [],
+        args: [...positional, ...afterDashDash],
         copy: argv.copy,
         yes: argv.yes,
         force: argv.force,
