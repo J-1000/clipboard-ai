@@ -1,4 +1,4 @@
-import { mkdir, appendFile, chmod, readFile, unlink, writeFile } from "fs/promises";
+import { mkdir, appendFile, chmod, open, readFile, rename, stat, unlink, writeFile } from "fs/promises";
 import { existsSync } from "fs";
 import { homedir } from "os";
 import { dirname, join } from "path";
@@ -52,12 +52,16 @@ export async function appendHistoryRecord(
   const storedRecord = truncateRecord(record, settings.history_truncate_chars);
   const historyFile = getHistoryFile();
   await mkdir(dirname(historyFile), { recursive: true, mode: 0o700 });
-  await appendFile(historyFile, `${JSON.stringify(storedRecord)}\n`, {
-    encoding: "utf8",
-    mode: 0o600,
+  // Serialize append + compaction so a concurrent compaction's read-modify-write
+  // can't clobber this append (and vice versa).
+  await withHistoryLock(historyFile, async () => {
+    await appendFile(historyFile, `${JSON.stringify(storedRecord)}\n`, {
+      encoding: "utf8",
+      mode: 0o600,
+    });
+    await chmod(historyFile, 0o600);
+    await compactHistoryFile(historyFile, settings.history_max_entries);
   });
-  await chmod(historyFile, 0o600);
-  await compactHistoryFile(historyFile, settings.history_max_entries);
   return storedRecord;
 }
 
@@ -116,35 +120,36 @@ export async function pruneHistoryBefore(before: Date): Promise<number> {
     return 0;
   }
 
-  const data = await readFile(historyFile, "utf8");
-  const cutoff = before.getTime();
-  const kept: string[] = [];
-  let removed = 0;
+  return withHistoryLock(historyFile, async () => {
+    const data = await readFile(historyFile, "utf8");
+    const cutoff = before.getTime();
+    const kept: string[] = [];
+    let removed = 0;
 
-  for (const line of data.split("\n")) {
-    const trimmed = line.trim();
-    if (trimmed.length === 0) {
-      continue;
-    }
-
-    try {
-      const record = JSON.parse(trimmed) as ActionRunRecord;
-      const timestamp = Date.parse(record.timestamp);
-      if (!Number.isNaN(timestamp) && timestamp < cutoff) {
-        removed += 1;
+    for (const line of data.split("\n")) {
+      const trimmed = line.trim();
+      if (trimmed.length === 0) {
         continue;
       }
-    } catch {
-      // Corrupt-line handling is covered separately; pruning preserves unknown lines.
+
+      try {
+        const record = JSON.parse(trimmed) as ActionRunRecord;
+        const timestamp = Date.parse(record.timestamp);
+        if (!Number.isNaN(timestamp) && timestamp < cutoff) {
+          removed += 1;
+          continue;
+        }
+      } catch {
+        // Corrupt-line handling is covered separately; pruning preserves unknown lines.
+      }
+
+      kept.push(trimmed);
     }
 
-    kept.push(trimmed);
-  }
-
-  const nextData = kept.length === 0 ? "" : `${kept.join("\n")}\n`;
-  await writeFile(historyFile, nextData, { encoding: "utf8", mode: 0o600 });
-  await chmod(historyFile, 0o600);
-  return removed;
+    const nextData = kept.length === 0 ? "" : `${kept.join("\n")}\n`;
+    await writeFileAtomic(historyFile, nextData);
+    return removed;
+  });
 }
 
 function generateId(): string {
@@ -204,6 +209,63 @@ async function compactHistoryFile(
 
   const kept = maxEntries === 0 ? [] : lines.slice(-maxEntries);
   const nextData = kept.length === 0 ? "" : `${kept.join("\n")}\n`;
-  await writeFile(historyFile, nextData, { encoding: "utf8", mode: 0o600 });
-  await chmod(historyFile, 0o600);
+  await writeFileAtomic(historyFile, nextData);
+}
+
+// writeFileAtomic writes to a temp file then renames over the target, so a
+// reader never sees a half-written history file.
+async function writeFileAtomic(path: string, data: string): Promise<void> {
+  const tmp = `${path}.tmp-${process.pid}-${Date.now()}`;
+  await writeFile(tmp, data, { encoding: "utf8", mode: 0o600 });
+  await rename(tmp, path);
+  await chmod(path, 0o600);
+}
+
+const LOCK_TIMEOUT_MS = 2000;
+const LOCK_STALE_MS = 30_000;
+
+// withHistoryLock serializes mutators via an O_EXCL lockfile. On contention it
+// retries briefly; a lock older than LOCK_STALE_MS (orphaned by a crash) is
+// stolen, and if a slot still can't be acquired it proceeds best-effort rather
+// than losing the write entirely.
+async function withHistoryLock<T>(historyFile: string, fn: () => Promise<T>): Promise<T> {
+  const lockPath = `${historyFile}.lock`;
+  const deadline = Date.now() + LOCK_TIMEOUT_MS;
+
+  for (;;) {
+    try {
+      const handle = await open(lockPath, "wx", 0o600);
+      try {
+        return await fn();
+      } finally {
+        await handle.close();
+        await unlink(lockPath).catch(() => {});
+      }
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "EEXIST") {
+        throw err;
+      }
+      await stealIfStale(lockPath);
+      if (Date.now() > deadline) {
+        // Couldn't acquire in time; run anyway so the record isn't dropped.
+        return fn();
+      }
+      await sleep(20);
+    }
+  }
+}
+
+async function stealIfStale(lockPath: string): Promise<void> {
+  try {
+    const info = await stat(lockPath);
+    if (Date.now() - info.mtimeMs > LOCK_STALE_MS) {
+      await unlink(lockPath).catch(() => {});
+    }
+  } catch {
+    // Lock vanished — fine, the next attempt will acquire it.
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

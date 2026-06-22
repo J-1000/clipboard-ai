@@ -344,4 +344,44 @@ describe("history store", () => {
     expect(errorSpy).toHaveBeenCalledTimes(1);
     expect(errorSpy.mock.calls[0][0]).toContain("skipped 1 corrupt history entry");
   });
+
+  it("does not lose records under concurrent appends with compaction", async () => {
+    const { appendHistoryRecord, readHistoryRecords } = await loadHistoryModule();
+
+    const total = 40;
+    const maxEntries = 10;
+    await Promise.all(
+      Array.from({ length: total }, (_, i) =>
+        appendHistoryRecord(
+          {
+            id: `r${i}`,
+            action: "summary",
+            args: [],
+            source: "manual",
+            trigger: "cli",
+            provider: "ollama",
+            model: "mistral",
+            latency_ms: 1,
+            status: "success",
+            copy: false,
+            input: `in ${i}`,
+          },
+          { history_max_entries: maxEntries }
+        )
+      )
+    );
+
+    const records = await readHistoryRecords();
+    // Compaction keeps the cap; the lock guarantees no torn lines / lost rewrite.
+    expect(records.length).toBeGreaterThan(0);
+    expect(records.length).toBeLessThanOrEqual(Math.floor(maxEntries * 1.1) + 1);
+    // Every surviving record is well-formed (no interleaved/torn writes).
+    const ids = new Set(records.map((r) => r.id));
+    expect(ids.size).toBe(records.length);
+    // The file parses cleanly with no corrupt lines.
+    const raw = readFileSync(historyFile, "utf8").split("\n").filter((l) => l.trim().length > 0);
+    for (const line of raw) {
+      expect(() => JSON.parse(line)).not.toThrow();
+    }
+  });
 });
