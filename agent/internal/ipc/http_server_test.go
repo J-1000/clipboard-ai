@@ -94,7 +94,10 @@ func TestIsAuthorized(t *testing.T) {
 
 func TestAuthMiddleware(t *testing.T) {
 	token := "test-token"
-	httpServer := NewHTTPServer("127.0.0.1:0", token, nil)
+	cfg := config.Default()
+	cfg.Settings.HTTPAuthToken = token
+	api := NewServer("/tmp/test.sock", clipboard.NewMonitor(100, nil), cfg, "test-version")
+	httpServer := NewHTTPServer("127.0.0.1:0", api)
 
 	handler := httpServer.authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
@@ -129,7 +132,7 @@ func TestHTTPConfigDoesNotLeakCredentials(t *testing.T) {
 	cfg.Provider.APIKey = "sk-http-secret"
 	cfg.Settings.HTTPAuthToken = "http-auth-secret"
 	api := NewServer("/tmp/test.sock", clipboard.NewMonitor(100, nil), cfg, "test-version")
-	httpServer := NewHTTPServer("127.0.0.1:0", cfg.Settings.HTTPAuthToken, api)
+	httpServer := NewHTTPServer("127.0.0.1:0", api)
 	handler := httpServer.authMiddleware(api.Handler())
 
 	req := httptest.NewRequest(http.MethodGet, "/config", nil)
@@ -157,5 +160,39 @@ func TestHTTPConfigDoesNotLeakCredentials(t *testing.T) {
 	}
 	if resp.Settings.HTTPAuthToken != "<redacted>" {
 		t.Fatalf("expected redacted http auth token, got %q", resp.Settings.HTTPAuthToken)
+	}
+}
+
+func TestAuthMiddleware_HonorsRotatedTokenOnReload(t *testing.T) {
+	cfg := config.Default()
+	cfg.Settings.HTTPAuthToken = "old-token"
+	api := NewServer("/tmp/test.sock", clipboard.NewMonitor(100, nil), cfg, "test-version")
+	httpServer := NewHTTPServer("127.0.0.1:0", api)
+	handler := httpServer.authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	do := func(token string) int {
+		req := httptest.NewRequest(http.MethodGet, "/status", nil)
+		req.Header.Set("X-API-Key", token)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+		return w.Code
+	}
+
+	if do("old-token") != http.StatusNoContent {
+		t.Fatal("old token should be accepted before rotation")
+	}
+
+	// Rotate the token via the live config (as a hot-reload would).
+	rotated := config.Default()
+	rotated.Settings.HTTPAuthToken = "new-token"
+	api.SetConfig(rotated)
+
+	if do("old-token") != http.StatusUnauthorized {
+		t.Fatal("old token must be rejected after rotation")
+	}
+	if do("new-token") != http.StatusNoContent {
+		t.Fatal("new token must be accepted after rotation")
 	}
 }

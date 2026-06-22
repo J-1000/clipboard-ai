@@ -276,7 +276,7 @@ func main() {
 
 	// Start optional local HTTP server
 	if cfg.Settings.HTTPEnabled {
-		httpServer := ipc.NewHTTPServer(cfg.Settings.HTTPAddress, cfg.Settings.HTTPAuthToken, server)
+		httpServer := ipc.NewHTTPServer(cfg.Settings.HTTPAddress, server)
 		go func() {
 			logger.Info("http server listening", "address", cfg.Settings.HTTPAddress)
 			if err := httpServer.Start(ctx); err != nil && ctx.Err() == nil {

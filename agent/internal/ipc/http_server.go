@@ -8,17 +8,17 @@ import (
 
 // HTTPServer exposes the IPC API over localhost with token auth.
 type HTTPServer struct {
-	addr      string
-	authToken string
-	api       *Server
+	addr string
+	api  *Server
 }
 
-// NewHTTPServer creates a new local HTTP server.
-func NewHTTPServer(addr string, authToken string, api *Server) *HTTPServer {
+// NewHTTPServer creates a new local HTTP server. The auth token is read from the
+// shared *Server's live config per request (not captured here) so that rotating
+// settings.http_auth_token via hot-reload takes effect without a restart.
+func NewHTTPServer(addr string, api *Server) *HTTPServer {
 	return &HTTPServer{
-		addr:      addr,
-		authToken: authToken,
-		api:       api,
+		addr: addr,
+		api:  api,
 	}
 }
 
@@ -39,7 +39,10 @@ func (s *HTTPServer) Start(ctx context.Context) error {
 
 func (s *HTTPServer) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !isAuthorized(r, s.authToken) {
+		// Read the token from the live config snapshot so a hot-reload rotation
+		// is honored immediately.
+		token := s.api.configSnapshot().Settings.HTTPAuthToken
+		if !isAuthorized(r, token) {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
