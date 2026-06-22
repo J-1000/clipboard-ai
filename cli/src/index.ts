@@ -216,8 +216,8 @@ yargs(hideBin(process.argv))
     }
   )
   .command(
-    "translate <lang>",
-    "Translate clipboard to target language",
+    "translate [lang]",
+    "Translate clipboard to target language (defaults to English)",
     (yargs) => {
       return yargs
         .positional("lang", {
