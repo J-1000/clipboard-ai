@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, statSync } from "fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
 import { getConfig, getStatus, type ConfigResponse } from "../lib/client.js";
@@ -41,6 +41,54 @@ export async function doctorCommand(): Promise<void> {
 
   checkHistoryFile();
   checkPluginDir(DEFAULT_PLUGIN_DIR);
+  checkDaemonInterpreter();
+}
+
+// The daemon spawns `cbai` (a `#!/usr/bin/env node` script) using the PATH
+// baked into its LaunchAgent plist — NOT the interactive shell PATH. On Apple
+// Silicon a plist missing /opt/homebrew/bin means every triggered action fails
+// with `env: node: No such file or directory`, invisibly until a trigger fires.
+// This check resolves `node` against that exact PATH.
+function checkDaemonInterpreter(): void {
+  const plistPath = join(homedir(), "Library", "LaunchAgents", "ai.clipboard.agent.plist");
+  if (!existsSync(plistPath)) {
+    info("daemon interpreter", "LaunchAgent not installed");
+    return;
+  }
+
+  let plist: string;
+  try {
+    plist = readFileSync(plistPath, "utf8");
+  } catch (err) {
+    fail("daemon interpreter", (err as Error).message);
+    return;
+  }
+
+  const match = plist.match(/<key>PATH<\/key>\s*<string>([^<]*)<\/string>/);
+  if (!match) {
+    info("daemon interpreter", "LaunchAgent has no PATH override");
+    return;
+  }
+
+  const dirs = match[1].split(":").filter(Boolean);
+  const interpreter = "node";
+  const found = dirs.some((dir) => {
+    const candidate = join(dir, interpreter);
+    try {
+      return existsSync(candidate) && (statSync(candidate).mode & 0o111) !== 0;
+    } catch {
+      return false;
+    }
+  });
+
+  if (found) {
+    pass(`daemon PATH can resolve '${interpreter}'`);
+  } else {
+    fail(
+      `daemon PATH can resolve '${interpreter}'`,
+      `not found in LaunchAgent PATH (${match[1]}); re-run scripts/install.sh`
+    );
+  }
 }
 
 async function checkProvider(config: ConfigResponse): Promise<void> {
