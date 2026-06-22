@@ -101,6 +101,8 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
   let output: string | undefined;
   let runError: string | undefined;
   let shouldRecord = false;
+  let promptTokens: number | undefined;
+  let completionTokens: number | undefined;
   let input: InputPayload | null = null;
   let historySettings: HistoryRetentionSettings | undefined;
   let guardHit = process.env.CBAI_SENSITIVE_GUARD_HIT === "true";
@@ -209,6 +211,11 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
       });
     } finally {
       latencyMs = Date.now() - startedAt;
+      const used = ai.getUsage?.();
+      if (used && (used.promptTokens > 0 || used.completionTokens > 0)) {
+        promptTokens = used.promptTokens;
+        completionTokens = used.completionTokens;
+      }
     }
 
     if (shouldStreamOutput && streamedChunks.length > 0) {
@@ -254,6 +261,8 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
         output: guardHit ? undefined : output,
         error: runError,
           replay_of: options.replayOf,
+          prompt_tokens: promptTokens,
+          completion_tokens: completionTokens,
         },
         historySettings
       );

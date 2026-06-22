@@ -22,6 +22,8 @@ export interface ActionRunRecord {
   output?: string;
   error?: string;
   replay_of?: string;
+  prompt_tokens?: number;
+  completion_tokens?: number;
 }
 
 export type ActionRunRecordInput = Omit<ActionRunRecord, "id" | "timestamp"> & {

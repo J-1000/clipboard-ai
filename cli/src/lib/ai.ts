@@ -26,6 +26,7 @@ export class AIClient {
   private model: string;
   private maxTokens: number;
   private onToken?: (token: string) => void;
+  private usage = { promptTokens: 0, completionTokens: 0 };
 
   constructor(config: AIConfig) {
     this.model = config.model;
@@ -40,6 +41,18 @@ export class AIClient {
       baseURL,
       apiKey,
     });
+  }
+
+  private accumulateUsage(usage?: { promptTokens: number; completionTokens: number }): void {
+    if (usage) {
+      this.usage.promptTokens += usage.promptTokens;
+      this.usage.completionTokens += usage.completionTokens;
+    }
+  }
+
+  // getUsage returns the cumulative token usage across this client's calls.
+  getUsage(): { promptTokens: number; completionTokens: number } {
+    return { ...this.usage };
   }
 
   private getBaseURL(config: AIConfig): string {
@@ -64,15 +77,18 @@ export class AIClient {
 
     warnIfTruncated(response.choices?.[0]?.finish_reason, this.maxTokens);
 
+    const usage = response.usage
+      ? {
+          promptTokens: response.usage.prompt_tokens,
+          completionTokens: response.usage.completion_tokens,
+        }
+      : undefined;
+    this.accumulateUsage(usage);
+
     return {
       content: completionContent(response),
       model: response.model,
-      usage: response.usage
-        ? {
-            promptTokens: response.usage.prompt_tokens,
-            completionTokens: response.usage.completion_tokens,
-          }
-        : undefined,
+      usage,
     };
   }
 
@@ -146,15 +162,18 @@ export class AIClient {
 
     warnIfTruncated(response.choices?.[0]?.finish_reason, this.maxTokens);
 
+    const usage = response.usage
+      ? {
+          promptTokens: response.usage.prompt_tokens,
+          completionTokens: response.usage.completion_tokens,
+        }
+      : undefined;
+    this.accumulateUsage(usage);
+
     return {
       content: completionContent(response),
       model: response.model,
-      usage: response.usage
-        ? {
-            promptTokens: response.usage.prompt_tokens,
-            completionTokens: response.usage.completion_tokens,
-          }
-        : undefined,
+      usage,
     };
   }
 

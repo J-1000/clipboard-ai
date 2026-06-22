@@ -20,6 +20,7 @@ import { historyCommand } from "./commands/history.js";
 import { rerunCommand } from "./commands/rerun.js";
 import { logsCommand } from "./commands/logs.js";
 import { initCommand } from "./commands/init.js";
+import { statsCommand } from "./commands/stats.js";
 import { VERSION } from "./version.js";
 import type { Argv } from "yargs";
 
@@ -119,6 +120,14 @@ yargs(hideBin(process.argv))
     (yargs) => jsonFlag(yargs),
     async (argv) => {
       await doctorCommand({ json: argv.json });
+    }
+  )
+  .command(
+    "stats",
+    "Show usage statistics from action history",
+    (yargs) => jsonFlag(yargs),
+    async (argv) => {
+      await statsCommand({ json: argv.json });
     }
   )
   .command(
