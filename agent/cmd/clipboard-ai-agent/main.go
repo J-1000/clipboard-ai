@@ -91,6 +91,10 @@ func main() {
 	state := &runtimeState{cfg: cfg, rulesEngine: rulesEngine}
 	controller := automation.NewController(time.Duration(cfg.Settings.ClipboardDedupeWindow) * time.Millisecond)
 
+	// Track in-flight action goroutines so shutdown can wait for them to finish
+	// (their deferred temp-file cleanup must run, and subprocesses must drain).
+	var actionWG sync.WaitGroup
+
 	// Create clipboard handler
 	handler := func(content clipboard.Content) {
 		cfg, rulesEngine := state.snapshot()
@@ -154,7 +158,9 @@ func main() {
 
 			logger.Info("action triggered", "action", match.ActionName)
 
+			actionWG.Add(1)
 			go func(actionName string, actionCfg config.ActionConfig, content clipboard.Content, sensitiveGuardHit bool) {
+				defer actionWG.Done()
 				opts := executor.Options{
 					Trigger:          actionCfg.Trigger,
 					ModelOverride:    actionCfg.Model,
@@ -329,9 +335,26 @@ func main() {
 			}
 			logger.Info("shutdown signal received", "signal", sig.String())
 			cancel()
+			waitForActions(&actionWG, logger)
 			logger.Info("agent stopped")
 			return
 		}
+	}
+}
+
+// waitForActions blocks until all in-flight action goroutines finish (so their
+// deferred temp-file cleanup runs), bounded by a timeout so a hung action can't
+// wedge shutdown forever.
+func waitForActions(wg *sync.WaitGroup, logger *slog.Logger) {
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		logger.Warn("timed out waiting for in-flight actions to finish")
 	}
 }
 
