@@ -79,11 +79,14 @@ Last updated: 2026-06-22
 
 ## Test Health
 
-- `agent`: `go vet`, `go test -race ./...`, and `golangci-lint` all passing
+- `agent`: `go vet` and `go test -race ./...` passing; `golangci-lint` was not
+  available for the latest local verification
 - `cli`: full `bun test` suite and `bun run typecheck` passing (cross-file
   mock leakage eliminated via dependency injection)
 - `integrations/raycast`: `npm run lint` and `tsc --noEmit` passing
-- CI runs all of the above; the agent boot smoke test guards the startup-panic class
+- Push/PR CI is intentionally absent. Tagged releases build the agent and CLI,
+  and the agent boot smoke test guards the startup-panic class; the checks above
+  are run locally before release.
 
 ## Roadmap (deferred, optional)
 
