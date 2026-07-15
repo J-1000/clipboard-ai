@@ -253,7 +253,8 @@ When `settings.http_enabled = true`, the agent also exposes a localhost HTTP API
 - Full endpoint reference: `docs/http-api.md`
 - Integration snippets (Raycast, Alfred, editor shell): `docs/integrations/local-http-clients.md`
 - Example script: `scripts/examples/http-action.sh`
-- Raycast extension: `integrations/raycast/` includes setup, summary, explain, translate, and history commands.
+- Raycast extension: `integrations/raycast/` includes setup, summary, explain,
+  translate, history, classify, extract, and URL-summary commands.
 
 ### Diagnostics
 

@@ -74,7 +74,8 @@ Last updated: 2026-06-22
   - `anthropic` provider type routes through Anthropic's OpenAI SDK compatibility endpoint
   - Per-action model/endpoint overrides route selected actions to different OpenAI-compatible models
   - Config hot reload applies valid provider/action/rule changes without restarting the agent
-  - Raycast extension lives in `integrations/raycast/` with setup, summary, explain, translate, and history commands
+  - Raycast extension lives in `integrations/raycast/` with setup, summary,
+    explain, translate, history, classify, extract, and URL-summary commands
 
 ## Test Health
 
