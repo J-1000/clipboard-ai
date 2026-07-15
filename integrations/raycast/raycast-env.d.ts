@@ -28,6 +28,12 @@ declare namespace Preferences {
   export type Translate = ExtensionPreferences & {}
   /** Preferences accessible in the `history` command */
   export type History = ExtensionPreferences & {}
+  /** Preferences accessible in the `classify` command */
+  export type Classify = ExtensionPreferences & {}
+  /** Preferences accessible in the `extract` command */
+  export type Extract = ExtensionPreferences & {}
+  /** Preferences accessible in the `summarize-url` command */
+  export type SummarizeUrl = ExtensionPreferences & {}
 }
 
 declare namespace Arguments {
@@ -44,5 +50,11 @@ declare namespace Arguments {
 }
   /** Arguments passed to the `history` command */
   export type History = {}
+  /** Arguments passed to the `classify` command */
+  export type Classify = {}
+  /** Arguments passed to the `extract` command */
+  export type Extract = {}
+  /** Arguments passed to the `summarize-url` command */
+  export type SummarizeUrl = {}
 }
 
