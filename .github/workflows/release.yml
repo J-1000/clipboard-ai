@@ -18,8 +18,8 @@ jobs:
           - goarch: amd64
             cc: clang -arch x86_64
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
           go-version-file: agent/go.mod
           cache-dependency-path: agent/go.sum
@@ -36,7 +36,7 @@ jobs:
       - name: Boot smoke test
         if: matrix.goarch == 'arm64'
         run: ./scripts/agent-boot-smoke.sh agent/clipboard-ai-agent-darwin-arm64
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: agent-darwin-${{ matrix.goarch }}
           path: agent/clipboard-ai-agent-darwin-${{ matrix.goarch }}
@@ -44,7 +44,7 @@ jobs:
   build-cli:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: oven-sh/setup-bun@v2
       - name: Install dependencies
         run: bun install
@@ -52,7 +52,7 @@ jobs:
       - name: Build CLI
         run: bun build src/index.ts --outdir dist --target node --define "__CBAI_VERSION__=\"${GITHUB_REF_NAME}\""
         working-directory: cli
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cli-dist
           path: cli/dist/
@@ -63,7 +63,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           merge-multiple: true
       - name: Generate checksums
@@ -72,7 +72,7 @@ jobs:
           shopt -s nullglob
           sha256sum clipboard-ai-agent-* cli-dist/* > SHA256SUMS
           cat SHA256SUMS
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: |
             clipboard-ai-agent-*
