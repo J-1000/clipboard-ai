@@ -53,7 +53,10 @@ export default function Command() {
   }, []);
 
   return (
-    <List isLoading={isLoading} searchBarPlaceholder="Search recent action runs">
+    <List
+      isLoading={isLoading}
+      searchBarPlaceholder="Search recent action runs"
+    >
       {skippedCorrupt > 0 ? (
         <List.Section title={`${skippedCorrupt} corrupt record(s) skipped`}>
           {renderItems(records)}
