@@ -1,4 +1,4 @@
-import pkg from "../package.json" assert { type: "json" };
+import pkg from "../package.json" with { type: "json" };
 
 // __CBAI_VERSION__ is replaced at build time via `bun build --define`
 // (see package.json build script / the release workflow). Unstamped builds
