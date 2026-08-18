@@ -101,6 +101,22 @@ export interface ProviderChainResponse {
   max_tokens: number;
 }
 
+export interface ActionRequest {
+  text?: string;
+  rtf?: string;
+  image_base64?: string;
+  image_mime?: string;
+  type?: string;
+  args?: string[];
+}
+
+export interface ActionResponse {
+  success: boolean;
+  action: string;
+  result?: string;
+  error?: string;
+}
+
 async function makeRequest<T>(
   method: string,
   path: string,
@@ -228,6 +244,16 @@ export async function getProviderChain(action: string): Promise<ProviderChainRes
     "GET",
     `/provider-chain?action=${encodeURIComponent(action)}`
   );
+}
+
+export async function runAgentAction(
+  action: string,
+  input: ActionRequest = {}
+): Promise<ActionResponse> {
+  return makeRequest<ActionResponse>("POST", "/action", {
+    action,
+    ...input,
+  });
 }
 
 function getIPCTimeoutMs(): number {

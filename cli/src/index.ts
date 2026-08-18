@@ -22,6 +22,7 @@ import { logsCommand } from "./commands/logs.js";
 import { initCommand } from "./commands/init.js";
 import { statsCommand } from "./commands/stats.js";
 import { pauseCommand, resumeCommand, snoozeCommand } from "./commands/monitoring.js";
+import { mcpCommand } from "./commands/mcp.js";
 import { VERSION } from "./version.js";
 import type { Argv } from "yargs";
 
@@ -236,6 +237,14 @@ yargs(hideBin(process.argv))
         }),
     async (argv) => {
       await logsCommand({ tail: argv.tail, file: argv.file });
+    }
+  )
+  .command(
+    "mcp",
+    "Serve registered actions over the Model Context Protocol on stdio",
+    () => {},
+    async () => {
+      await mcpCommand();
     }
   )
   .command(
