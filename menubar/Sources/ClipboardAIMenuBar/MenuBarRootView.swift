@@ -713,7 +713,7 @@ private struct ConfigurationView: View {
         if let configuration = store.configuration {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
-                    Text("Active configuration from the local agent. Secrets are redacted and changes are made in config.yaml.")
+                    Text("Active configuration from the local agent. Secrets are redacted and changes are made in config.toml.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
