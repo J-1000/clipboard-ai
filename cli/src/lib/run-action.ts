@@ -2,11 +2,18 @@ import { AIClient, type AIConfig } from "./ai.js";
 import { resolveAction, getActionRegistry, type ActionRegistry } from "./action-registry.js";
 import type { ActionDefinition } from "./action-types.js";
 import { copyToClipboard } from "./clipboard.js";
-import { getConfig, type ConfigResponse } from "./client.js";
+import {
+  getConfig,
+  getProviderChain,
+  type ConfigResponse,
+  type ProviderChainResponse,
+  type ResolvedProviderProfile,
+} from "./client.js";
 import { appendHistoryRecord, type HistoryRetentionSettings, type RunSource } from "./history.js";
 import { getInput, type InputPayload } from "./input.js";
 import { enforceSafeMode } from "./safe-mode.js";
 import { scanSensitiveText } from "./sensitive-guard.js";
+import { appendProviderUsage, getDailyProviderUsage } from "./usage.js";
 
 // Injectable collaborators. Defaulting to the real implementations keeps
 // production callers unchanged while letting tests substitute fakes WITHOUT
@@ -15,22 +22,28 @@ import { scanSensitiveText } from "./sensitive-guard.js";
 export interface RunActionDeps {
   getActionRegistry: typeof getActionRegistry;
   getConfig: typeof getConfig;
+  getProviderChain: typeof getProviderChain;
   getInput: typeof getInput;
   copyToClipboard: typeof copyToClipboard;
   enforceSafeMode: typeof enforceSafeMode;
   appendHistoryRecord: typeof appendHistoryRecord;
   scanSensitiveText: typeof scanSensitiveText;
+  getDailyProviderUsage: typeof getDailyProviderUsage;
+  appendProviderUsage: typeof appendProviderUsage;
   createAIClient: (config: AIConfig) => AIClient;
 }
 
 const defaultRunActionDeps: RunActionDeps = {
   getActionRegistry,
   getConfig,
+  getProviderChain,
   getInput,
   copyToClipboard,
   enforceSafeMode,
   appendHistoryRecord,
   scanSensitiveText,
+  getDailyProviderUsage,
+  appendProviderUsage,
   createAIClient: (config) => new AIClient(config),
 };
 
@@ -95,14 +108,15 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
   let inputText = "";
   let providerType = "";
   let providerModel = "";
+  let providerProfile = "";
   let trigger = "";
   let source: RunSource = options.source ?? "manual";
   let latencyMs = 0;
   let output: string | undefined;
   let runError: string | undefined;
   let shouldRecord = false;
-  let promptTokens: number | undefined;
-  let completionTokens: number | undefined;
+  let promptTokens = 0;
+  let completionTokens = 0;
   let input: InputPayload | null = null;
   let historySettings: HistoryRetentionSettings | undefined;
   let guardHit = process.env.CBAI_SENSITIVE_GUARD_HIT === "true";
@@ -146,13 +160,20 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
 
     source = options.source ?? (process.env.CBAI_DAEMON_MODE === "true" ? "daemon" : "manual");
     trigger = options.trigger ?? process.env.CBAI_TRIGGER ?? (source === "manual" ? "cli" : "daemon");
-    const actionConfig = resolveConfiguredAction(config, actionName, action);
-    const effectiveConfig = withProviderOverrides(config, {
-      model: process.env.CBAI_MODEL_OVERRIDE || actionConfig?.model,
-      endpoint: process.env.CBAI_ENDPOINT_OVERRIDE || actionConfig?.endpoint,
-    });
-    providerType = effectiveConfig.provider.type;
-    providerModel = effectiveConfig.provider.model;
+    const configuredAction = resolveConfiguredAction(config, actionName, action);
+    const actionConfig = configuredAction?.config;
+    const providerChain = await loadProviderChain(
+      config,
+      configuredAction?.name ?? action.id,
+      actionConfig,
+      deps
+    );
+    if (providerChain.profiles.length === 0) {
+      throw new Error("no provider profiles are available for this action");
+    }
+    providerType = providerChain.profiles[0].type;
+    providerModel = providerChain.profiles[0].model;
+    providerProfile = providerChain.profiles[0].name;
     resolvedActionName = action.id;
     inputText = text || input.rtf || (input.imageBase64 ? "[image]" : "");
     shouldRecord = true;
@@ -174,48 +195,93 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
       }
     }
 
-    await deps.enforceSafeMode(effectiveConfig, { yes: options.yes });
-
     if (action.progressMessage) {
       console.log(`${action.progressMessage}\n`);
     }
 
-    const shouldStreamOutput = shouldStreamActionOutput(action, source, options);
+    const hasUsageLimits =
+      (providerChain.action_daily_token_limit ?? 0) > 0 ||
+      providerChain.profiles.some((profile) => (profile.daily_token_limit ?? 0) > 0);
+    const shouldStreamOutput =
+      providerChain.profiles.length === 1 &&
+      !hasUsageLimits &&
+      shouldStreamActionOutput(action, source, options);
     const streamedChunks: string[] = [];
-    const maxTokens = actionConfig?.max_tokens ?? config.settings.max_tokens;
-    const ai = deps.createAIClient({
-      type: effectiveConfig.provider.type,
-      endpoint: effectiveConfig.provider.endpoint,
-      model: effectiveConfig.provider.model,
-      apiKey: effectiveConfig.provider.api_key,
-      maxTokens,
-      onToken: shouldStreamOutput
-        ? (token) => {
-            streamedChunks.push(token);
-            process.stdout.write(token);
-          }
-        : undefined,
-    });
-
     const startedAt = Date.now();
-    try {
-      output = await action.run({
-        text: capInputSize(text),
-        rtf: input.rtf ? capInputSize(input.rtf) : input.rtf,
-        imageBase64: input.imageBase64,
-        imageMime: input.imageMime,
-        contentType: input.type,
-        ai,
-        config: effectiveConfig,
-        args: options.args ?? [],
-      });
-    } finally {
-      latencyMs = Date.now() - startedAt;
-      const used = ai.getUsage?.();
-      if (used && (used.promptTokens > 0 || used.completionTokens > 0)) {
-        promptTokens = used.promptTokens;
-        completionTokens = used.completionTokens;
+    const profileErrors: string[] = [];
+
+    for (const profile of providerChain.profiles) {
+      providerType = profile.type;
+      providerModel = profile.model;
+      providerProfile = profile.name;
+      const effectiveConfig = withProvider(config, profile);
+      let ai: AIClient | undefined;
+
+      try {
+        await enforceUsageLimits(
+          profile,
+          action.id,
+          providerChain.action_daily_token_limit,
+          deps
+        );
+        await deps.enforceSafeMode(effectiveConfig, { yes: options.yes });
+
+        ai = deps.createAIClient({
+          type: profile.type,
+          endpoint: profile.endpoint,
+          model: profile.model,
+          apiKey: profile.api_key,
+          maxTokens: providerChain.max_tokens,
+          onToken: shouldStreamOutput
+            ? (token) => {
+                streamedChunks.push(token);
+                process.stdout.write(token);
+              }
+            : undefined,
+        });
+
+        output = await action.run({
+          text: capInputSize(text),
+          rtf: input.rtf ? capInputSize(input.rtf) : input.rtf,
+          imageBase64: input.imageBase64,
+          imageMime: input.imageMime,
+          contentType: input.type,
+          ai,
+          config: effectiveConfig,
+          args: options.args ?? [],
+        });
+        break;
+      } catch (profileError) {
+        profileErrors.push(`${profile.name}: ${(profileError as Error).message}`);
+        if (profile !== providerChain.profiles.at(-1)) {
+          console.error(`Warning: provider profile "${profile.name}" failed; trying fallback.`);
+        }
+      } finally {
+        if (ai) {
+          const used = ai.getUsage?.();
+          if (used && (used.promptTokens > 0 || used.completionTokens > 0)) {
+            promptTokens += used.promptTokens;
+            completionTokens += used.completionTokens;
+            if (hasUsageLimits) {
+              try {
+                await deps.appendProviderUsage({
+                  action: action.id,
+                  profile: profile.name,
+                  prompt_tokens: used.promptTokens,
+                  completion_tokens: used.completionTokens,
+                });
+              } catch (usageError) {
+                console.error(`Warning: Failed to record provider usage: ${(usageError as Error).message}`);
+              }
+            }
+          }
+        }
       }
+    }
+
+    latencyMs = Date.now() - startedAt;
+    if (output === undefined) {
+      throw new Error(`all provider profiles failed: ${profileErrors.join("; ")}`);
     }
 
     if (shouldStreamOutput && streamedChunks.length > 0) {
@@ -253,16 +319,17 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
           source,
           trigger,
           provider: providerType,
+          provider_profile: providerProfile || undefined,
           model: providerModel,
           latency_ms: latencyMs,
           status: runError ? "error" : "success",
           copy: options.copy ?? false,
-        input: guardHit ? "[sensitive content omitted]" : inputText,
-        output: guardHit ? undefined : output,
-        error: runError,
+          input: guardHit ? "[sensitive content omitted]" : inputText,
+          output: guardHit ? undefined : output,
+          error: runError,
           replay_of: options.replayOf,
-          prompt_tokens: promptTokens,
-          completion_tokens: completionTokens,
+          prompt_tokens: promptTokens || undefined,
+          completion_tokens: completionTokens || undefined,
         },
         historySettings
       );
@@ -297,30 +364,96 @@ function resolveConfiguredAction(
   config: ConfigResponse,
   requestedName: string,
   action: ActionDefinition
-): ConfigResponse["actions"][string] | undefined {
+): { name: string; config: ConfigResponse["actions"][string] } | undefined {
   const names = [action.id, requestedName, ...(action.aliases ?? [])];
   for (const name of names) {
     const actionConfig = config.actions[name];
     if (actionConfig) {
-      return actionConfig;
+      return { name, config: actionConfig };
     }
   }
   return undefined;
 }
 
-function withProviderOverrides(
+function withProvider(
   config: ConfigResponse,
-  overrides: { model?: string; endpoint?: string }
+  profile: ResolvedProviderProfile
 ): ConfigResponse {
-  const model = overrides.model?.trim();
-  const endpoint = overrides.endpoint?.trim();
-
   return {
     ...config,
-    provider: {
-      ...config.provider,
-      model: model || config.provider.model,
-      endpoint: endpoint || config.provider.endpoint,
-    },
+    provider: profile,
   };
+}
+
+async function loadProviderChain(
+  config: ConfigResponse,
+  configuredActionName: string,
+  actionConfig: ConfigResponse["actions"][string] | undefined,
+  deps: RunActionDeps
+): Promise<ProviderChainResponse> {
+  const needsPrivateConfig =
+    config.provider.api_key === "<redacted>" ||
+    (config.provider.fallbacks?.length ?? 0) > 0 ||
+    !!actionConfig?.provider_profile ||
+    (actionConfig?.fallback_profiles?.length ?? 0) > 0;
+
+  if (needsPrivateConfig) {
+    const chain = await deps.getProviderChain(configuredActionName);
+    return applyEnvironmentOverrides(chain);
+  }
+
+  const profile: ResolvedProviderProfile = {
+    ...config.provider,
+    name: "default",
+    model: actionConfig?.model?.trim() || config.provider.model,
+    endpoint: actionConfig?.endpoint?.trim() || config.provider.endpoint,
+  };
+  return applyEnvironmentOverrides({
+    profiles: [profile],
+    action_daily_token_limit: actionConfig?.daily_token_limit,
+    max_tokens: actionConfig?.max_tokens ?? config.settings.max_tokens ?? 1024,
+  });
+}
+
+function applyEnvironmentOverrides(chain: ProviderChainResponse): ProviderChainResponse {
+  const model = process.env.CBAI_MODEL_OVERRIDE?.trim();
+  const endpoint = process.env.CBAI_ENDPOINT_OVERRIDE?.trim();
+  if (!model && !endpoint) {
+    return chain;
+  }
+  return {
+    ...chain,
+    profiles: chain.profiles.map((profile, index) =>
+      index === 0
+        ? {
+            ...profile,
+            model: model || profile.model,
+            endpoint: endpoint || profile.endpoint,
+          }
+        : profile
+    ),
+  };
+}
+
+async function enforceUsageLimits(
+  profile: ResolvedProviderProfile,
+  action: string,
+  actionLimit: number | undefined,
+  deps: RunActionDeps
+): Promise<void> {
+  const profileLimit = profile.daily_token_limit ?? 0;
+  if (profileLimit <= 0 && (actionLimit ?? 0) <= 0) {
+    return;
+  }
+  const usage = await deps.getDailyProviderUsage(profile.name, action);
+  if (profileLimit > 0 && usage.profileTokens >= profileLimit) {
+    throw new Error(
+      `daily token limit reached for profile "${profile.name}" (${usage.profileTokens}/${profileLimit})`
+    );
+  }
+  if ((actionLimit ?? 0) > 0 && usage.actionTokens >= (actionLimit ?? 0)) {
+    throw new Error(
+      `daily token limit reached for action "${action}" (${usage.actionTokens}/${actionLimit})`
+    );
+  }
 }

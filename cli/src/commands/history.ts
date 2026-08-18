@@ -55,8 +55,9 @@ export async function historyCommand(
       const status = record.status === "success" ? "ok" : "error";
       const latency = `${record.latency_ms}ms`;
       const replay = record.replay_of ? ` replay:${record.replay_of}` : "";
+      const profile = record.provider_profile ? ` profile:${record.provider_profile}` : "";
       console.log(
-        `${record.id} | ${record.timestamp} | ${status} | ${record.source} | ${record.action} | ${latency}${replay}`
+        `${record.id} | ${record.timestamp} | ${status} | ${record.source} | ${record.action} | ${latency}${profile}${replay}`
       );
     }
   } catch (err) {

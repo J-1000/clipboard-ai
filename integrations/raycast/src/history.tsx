@@ -81,7 +81,7 @@ function renderItems(records: HistoryRecord[]) {
       title={record.action}
       subtitle={record.output || record.error || record.input}
       accessories={[
-        { text: record.model },
+        { text: record.provider_profile || record.model },
         { date: new Date(record.timestamp) },
       ]}
       actions={<HistoryActions record={record} />}
@@ -113,7 +113,7 @@ function HistoryActions({ record }: { record: HistoryRecord }) {
 function HistoryDetail({ record }: { record: HistoryRecord }) {
   const sections = [
     `# ${record.action} (${record.status})`,
-    `**When:** ${new Date(record.timestamp).toLocaleString()}  ·  **Model:** ${record.model}  ·  **Source:** ${record.source}`,
+    `**When:** ${new Date(record.timestamp).toLocaleString()}  ·  **Profile:** ${record.provider_profile || "default"}  ·  **Model:** ${record.model}  ·  **Source:** ${record.source}`,
     record.input ? `## Input\n\n${record.input}` : "",
     record.output ? `## Output\n\n${record.output}` : "",
     record.error ? `## Error\n\n${record.error}` : "",

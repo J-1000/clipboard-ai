@@ -20,6 +20,7 @@ export interface HistoryRecord {
   source: string;
   trigger: string;
   provider: string;
+  provider_profile?: string;
   model: string;
   status: "success" | "error";
   latency_ms?: number;

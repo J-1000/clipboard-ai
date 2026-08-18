@@ -91,6 +91,16 @@ export interface ProviderProfile {
   daily_token_limit?: number;
 }
 
+export interface ResolvedProviderProfile extends ProviderProfile {
+  name: string;
+}
+
+export interface ProviderChainResponse {
+  profiles: ResolvedProviderProfile[];
+  action_daily_token_limit?: number;
+  max_tokens: number;
+}
+
 async function makeRequest<T>(
   method: string,
   path: string,
@@ -211,6 +221,13 @@ export async function setMonitoringControl(
     action,
     ...(durationMinutes === undefined ? {} : { duration_minutes: durationMinutes }),
   });
+}
+
+export async function getProviderChain(action: string): Promise<ProviderChainResponse> {
+  return makeRequest<ProviderChainResponse>(
+    "GET",
+    `/provider-chain?action=${encodeURIComponent(action)}`
+  );
 }
 
 function getIPCTimeoutMs(): number {

@@ -115,21 +115,22 @@ type ControlsRequest struct {
 
 // HistoryRecord mirrors CLI history records stored in history.jsonl.
 type HistoryRecord struct {
-	ID        string   `json:"id"`
-	Timestamp string   `json:"timestamp"`
-	Action    string   `json:"action"`
-	Args      []string `json:"args"`
-	Source    string   `json:"source"`
-	Trigger   string   `json:"trigger"`
-	Provider  string   `json:"provider"`
-	Model     string   `json:"model"`
-	LatencyMs int      `json:"latency_ms"`
-	Status    string   `json:"status"`
-	Copy      bool     `json:"copy"`
-	Input     string   `json:"input"`
-	Output    string   `json:"output,omitempty"`
-	Error     string   `json:"error,omitempty"`
-	ReplayOf  string   `json:"replay_of,omitempty"`
+	ID              string   `json:"id"`
+	Timestamp       string   `json:"timestamp"`
+	Action          string   `json:"action"`
+	Args            []string `json:"args"`
+	Source          string   `json:"source"`
+	Trigger         string   `json:"trigger"`
+	Provider        string   `json:"provider"`
+	ProviderProfile string   `json:"provider_profile,omitempty"`
+	Model           string   `json:"model"`
+	LatencyMs       int      `json:"latency_ms"`
+	Status          string   `json:"status"`
+	Copy            bool     `json:"copy"`
+	Input           string   `json:"input"`
+	Output          string   `json:"output,omitempty"`
+	Error           string   `json:"error,omitempty"`
+	ReplayOf        string   `json:"replay_of,omitempty"`
 }
 
 // HistoryResponse is returned by /history.
@@ -186,7 +187,7 @@ func (s *Server) Start(ctx context.Context) error {
 		return err
 	}
 
-	server := &http.Server{Handler: s.Handler()}
+	server := &http.Server{Handler: s.LocalHandler()}
 
 	go func() {
 		<-ctx.Done()
@@ -202,6 +203,16 @@ const apiVersion = "1"
 
 // Handler returns the HTTP handler for the IPC API.
 func (s *Server) Handler() http.Handler {
+	return s.handler(false)
+}
+
+// LocalHandler adds endpoints that may expose provider credentials and is used
+// only by the private, mode-0600 Unix socket.
+func (s *Server) LocalHandler() http.Handler {
+	return s.handler(true)
+}
+
+func (s *Server) handler(includeLocalSecrets bool) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/status", s.handleStatus)
 	mux.HandleFunc("/clipboard", s.handleClipboard)
@@ -209,10 +220,98 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/action", s.handleAction)
 	mux.HandleFunc("/history", s.handleHistory)
 	mux.HandleFunc("/controls", s.handleControls)
+	if includeLocalSecrets {
+		mux.HandleFunc("/provider-chain", s.handleProviderChain)
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-API-Version", apiVersion)
 		mux.ServeHTTP(w, r)
 	})
+}
+
+type ProviderChainEntry struct {
+	Name string `json:"name"`
+	config.ProviderConfig
+}
+
+type ProviderChainResponse struct {
+	Profiles              []ProviderChainEntry `json:"profiles"`
+	ActionDailyTokenLimit int                  `json:"action_daily_token_limit,omitempty"`
+	MaxTokens             int                  `json:"max_tokens"`
+}
+
+func (s *Server) handleProviderChain(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	actionName := strings.TrimSpace(r.URL.Query().Get("action"))
+	if actionName == "" || !actionNamePattern.MatchString(actionName) {
+		writeJSONError(w, http.StatusBadRequest, "Invalid action name")
+		return
+	}
+
+	cfg := s.configSnapshot()
+	actionCfg := cfg.Actions[actionName]
+	profiles := resolveProviderChain(cfg, actionCfg)
+	maxTokens := cfg.Settings.MaxTokens
+	if actionCfg.MaxTokens > 0 {
+		maxTokens = actionCfg.MaxTokens
+	}
+	writeJSON(w, ProviderChainResponse{
+		Profiles:              profiles,
+		ActionDailyTokenLimit: actionCfg.DailyTokenLimit,
+		MaxTokens:             maxTokens,
+	})
+}
+
+func resolveProviderChain(cfg *config.Config, actionCfg config.ActionConfig) []ProviderChainEntry {
+	primary := strings.TrimSpace(actionCfg.ProviderProfile)
+	if primary == "" {
+		primary = "default"
+	}
+	entries := make([]ProviderChainEntry, 0, len(cfg.Providers)+1)
+	seen := make(map[string]struct{}, len(cfg.Providers)+1)
+
+	var appendProfile func(string, bool)
+	appendProfile = func(name string, primaryEntry bool) {
+		if _, exists := seen[name]; exists {
+			return
+		}
+		provider, ok := providerProfile(cfg, name)
+		if !ok {
+			return
+		}
+		seen[name] = struct{}{}
+		if primaryEntry {
+			if model := strings.TrimSpace(actionCfg.Model); model != "" {
+				provider.Model = model
+			}
+			if endpoint := strings.TrimSpace(actionCfg.Endpoint); endpoint != "" {
+				provider.Endpoint = endpoint
+			}
+		}
+		entries = append(entries, ProviderChainEntry{Name: name, ProviderConfig: provider})
+
+		fallbacks := provider.Fallbacks
+		if primaryEntry && len(actionCfg.FallbackProfiles) > 0 {
+			fallbacks = actionCfg.FallbackProfiles
+		}
+		for _, fallback := range fallbacks {
+			appendProfile(fallback, false)
+		}
+	}
+
+	appendProfile(primary, true)
+	return entries
+}
+
+func providerProfile(cfg *config.Config, name string) (config.ProviderConfig, bool) {
+	if name == "default" {
+		return cfg.Provider, true
+	}
+	provider, ok := cfg.Providers[name]
+	return provider, ok
 }
 
 // handleStatus returns agent status

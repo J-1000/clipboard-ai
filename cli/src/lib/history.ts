@@ -14,6 +14,7 @@ export interface ActionRunRecord {
   source: RunSource;
   trigger: string;
   provider: string;
+  provider_profile?: string;
   model: string;
   latency_ms: number;
   status: RunStatus;
