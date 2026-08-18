@@ -39,6 +39,16 @@ sensitive_guard = "warn"
 max_concurrent_actions = 4
 max_tokens = 1024
 
+[privacy]
+# Start with automatic monitoring paused. Manual actions remain available.
+start_paused = false
+# Used by \`cbai snooze\` when no duration is supplied.
+default_snooze_minutes = 15
+# Foreground applications may be identified by bundle id or display name.
+# A non-empty allowlist blocks every unlisted app; the denylist always wins.
+app_allowlist = []
+app_denylist = []
+
 [actions.summarize]
 enabled = true
 trigger = "length > 200"
