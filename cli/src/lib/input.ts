@@ -61,7 +61,7 @@ export async function getInput(): Promise<InputPayload> {
   };
 }
 
-function parseStdinInput(raw: string): Pick<InputPayload, "text" | "rtf"> {
+export function parseStdinInput(raw: string): Pick<InputPayload, "text" | "rtf"> {
   let value: unknown;
   try {
     value = JSON.parse(raw);
@@ -69,7 +69,7 @@ function parseStdinInput(raw: string): Pick<InputPayload, "text" | "rtf"> {
     throw new Error("Invalid clipboard input received from agent stdin");
   }
 
-  if (!value || typeof value !== "object") {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error("Invalid clipboard input received from agent stdin");
   }
 

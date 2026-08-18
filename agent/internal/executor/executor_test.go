@@ -2,8 +2,10 @@ package executor
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -189,5 +191,57 @@ printf '%s' "$*"
 	expected := "run summary -- --force"
 	if result.Output != expected {
 		t.Fatalf("expected args separated by --, got %q", result.Output)
+	}
+}
+
+func TestRunExecuteWithOptions_UsesBoundedStdinInsteadOfPayloadEnvironment(t *testing.T) {
+	dir := t.TempDir()
+	scriptPath := filepath.Join(dir, "cbai")
+	script := `#!/bin/sh
+printf '%s|%s|%s\n' "$CBAI_INPUT_STDIN" "${CBAI_INPUT_TEXT+x}" "${CBAI_INPUT_RTF+x}"
+cat
+`
+	if err := os.WriteFile(scriptPath, []byte(script), 0755); err != nil {
+		t.Fatalf("failed to write fake cbai: %v", err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	longText := strings.Repeat("界", maxInputRunes+1)
+	result := runExecuteWithOptions(context.Background(), "summary", longText, Options{InputRTF: "{\\rtf1 styled}"})
+	if result.Error != nil {
+		t.Fatalf("expected fake cbai to succeed, got %v", result.Error)
+	}
+
+	parts := strings.SplitN(result.Output, "\n", 2)
+	if len(parts) != 2 {
+		t.Fatalf("unexpected fake cbai output %q", result.Output)
+	}
+	if parts[0] != "json||" {
+		t.Fatalf("transport environment = %q, want stdin marker and absent payload vars", parts[0])
+	}
+
+	var payload inputEnvelope
+	if err := json.Unmarshal([]byte(parts[1]), &payload); err != nil {
+		t.Fatalf("invalid stdin envelope: %v", err)
+	}
+	if got := []rune(payload.Text); len(got) != maxInputRunes+len([]rune(truncatedMark)) {
+		t.Fatalf("capped text runes = %d, want %d", len(got), maxInputRunes+len([]rune(truncatedMark)))
+	}
+	if !strings.HasSuffix(payload.Text, truncatedMark) {
+		t.Fatalf("capped text missing truncation marker")
+	}
+	if payload.RTF != "{\\rtf1 styled}" {
+		t.Fatalf("RTF = %q, want original payload", payload.RTF)
+	}
+}
+
+func TestCapInput_PreservesUnicodeRuneBoundary(t *testing.T) {
+	value := strings.Repeat("🙂", maxInputRunes) + "tail"
+	got := capInput(value)
+	if !strings.HasPrefix(got, strings.Repeat("🙂", maxInputRunes)) {
+		t.Fatal("capped input did not preserve the rune boundary")
+	}
+	if !strings.HasSuffix(got, truncatedMark) {
+		t.Fatal("capped input missing truncation marker")
 	}
 }
