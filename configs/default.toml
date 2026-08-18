@@ -52,6 +52,20 @@ max_concurrent_actions = 4
 # summaries/OCR; a per-action override (actions.<name>.max_tokens) wins.
 max_tokens = 1024
 
+[privacy]
+# Start with automatic clipboard monitoring paused. Manual CLI/API actions are
+# still available while monitoring is paused.
+start_paused = false
+
+# Used by `cbai snooze` when no duration is supplied.
+default_snooze_minutes = 15
+
+# Foreground applications may be identified by bundle id or display name.
+# If app_allowlist is non-empty, all other applications are blocked. The
+# denylist always wins. Blocked clipboard payloads are never read into memory.
+app_allowlist = []
+app_denylist = []
+
 [actions.summarize]
 enabled = true
 # Trigger when clipboard content is longer than 200 characters

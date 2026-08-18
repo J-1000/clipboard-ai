@@ -15,6 +15,7 @@ type Config struct {
 	Provider ProviderConfig          `toml:"provider"`
 	Actions  map[string]ActionConfig `toml:"actions"`
 	Settings SettingsConfig          `toml:"settings"`
+	Privacy  PrivacyConfig           `toml:"privacy"`
 }
 
 // ProviderConfig configures the LLM provider
@@ -58,6 +59,15 @@ type SettingsConfig struct {
 	MaxTokens             int    `toml:"max_tokens"`                 // default max completion tokens per action
 }
 
+// PrivacyConfig controls whether clipboard payloads may be read for automatic
+// monitoring. Applications may be identified by bundle id or display name.
+type PrivacyConfig struct {
+	StartPaused          bool     `toml:"start_paused"`
+	DefaultSnoozeMinutes int      `toml:"default_snooze_minutes"`
+	AppAllowlist         []string `toml:"app_allowlist"`
+	AppDenylist          []string `toml:"app_denylist"`
+}
+
 // Default returns a config with sensible defaults
 func Default() *Config {
 	return &Config{
@@ -86,6 +96,9 @@ func Default() *Config {
 			SensitiveGuard:        "warn",
 			MaxConcurrentActions:  4,
 			MaxTokens:             1024,
+		},
+		Privacy: PrivacyConfig{
+			DefaultSnoozeMinutes: 15,
 		},
 	}
 }
@@ -165,6 +178,31 @@ func (c *Config) validate() error {
 	if c.Settings.MaxTokens < 0 {
 		return fmt.Errorf("invalid settings.max_tokens %d: must be greater than or equal to 0", c.Settings.MaxTokens)
 	}
+	if c.Privacy.DefaultSnoozeMinutes <= 0 {
+		return fmt.Errorf(
+			"invalid privacy.default_snooze_minutes %d: must be greater than 0",
+			c.Privacy.DefaultSnoozeMinutes,
+		)
+	}
+	allowlist, err := normalizeApplicationList("privacy.app_allowlist", c.Privacy.AppAllowlist)
+	if err != nil {
+		return err
+	}
+	denylist, err := normalizeApplicationList("privacy.app_denylist", c.Privacy.AppDenylist)
+	if err != nil {
+		return err
+	}
+	allowed := make(map[string]struct{}, len(allowlist))
+	for _, app := range allowlist {
+		allowed[strings.ToLower(app)] = struct{}{}
+	}
+	for _, app := range denylist {
+		if _, exists := allowed[strings.ToLower(app)]; exists {
+			return fmt.Errorf("application %q appears in both privacy.app_allowlist and privacy.app_denylist", app)
+		}
+	}
+	c.Privacy.AppAllowlist = allowlist
+	c.Privacy.AppDenylist = denylist
 	switch strings.ToLower(strings.TrimSpace(c.Settings.SensitiveGuard)) {
 	case "", "block", "warn", "off":
 		if strings.TrimSpace(c.Settings.SensitiveGuard) == "" {
@@ -199,6 +237,27 @@ func (c *Config) validate() error {
 	}
 
 	return nil
+}
+
+func normalizeApplicationList(setting string, values []string) ([]string, error) {
+	if values == nil {
+		return nil, nil
+	}
+	normalized := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return nil, fmt.Errorf("invalid %s: application identifiers must be non-empty", setting)
+		}
+		key := strings.ToLower(value)
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		normalized = append(normalized, value)
+	}
+	return normalized, nil
 }
 
 // isLoopbackHost reports whether an http_addr host binds only the loopback
