@@ -3,12 +3,14 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"log/slog"
 	"strings"
 	"testing"
 	"unicode/utf8"
 
 	"github.com/clipboard-ai/agent/internal/config"
+	"github.com/clipboard-ai/agent/internal/executor"
 	"github.com/clipboard-ai/agent/internal/rules"
 )
 
@@ -114,5 +116,32 @@ func TestTruncateRunes(t *testing.T) {
 	}
 	if r := []rune(got); len(r) != 203 || string(r[:200]) != strings.Repeat("é", 200) {
 		t.Fatalf("expected 200 runes + ellipsis, got %d runes", len(r))
+	}
+}
+
+func TestIsTransientExecutionFailure(t *testing.T) {
+	tests := []struct {
+		name   string
+		result executor.Result
+		want   bool
+	}{
+		{name: "success", result: executor.Result{}, want: false},
+		{name: "cancelled", result: executor.Result{Error: context.Canceled}, want: false},
+		{name: "deadline", result: executor.Result{Error: context.DeadlineExceeded}, want: true},
+		{name: "rate limit", result: executor.Result{Error: errors.New("exit status 1"), Output: "Error: 429 rate limit exceeded"}, want: true},
+		{name: "server error", result: executor.Result{Error: errors.New("exit status 1"), Output: "HTTP 503 service unavailable"}, want: true},
+		{name: "network reset", result: executor.Result{Error: errors.New("exit status 1"), Output: "fetch failed: ECONNRESET"}, want: true},
+		{name: "safe mode", result: executor.Result{Error: errors.New("exit status 1"), Output: "safe mode blocks cloud providers"}, want: false},
+		{name: "authentication", result: executor.Result{Error: errors.New("exit status 1"), Output: "invalid API key (401 unauthorized)"}, want: false},
+		{name: "invalid config", result: executor.Result{Error: errors.New("exit status 1"), Output: "invalid provider configuration"}, want: false},
+		{name: "unknown failure", result: executor.Result{Error: errors.New("exit status 1")}, want: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isTransientExecutionFailure(tc.result); got != tc.want {
+				t.Fatalf("isTransientExecutionFailure() = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }

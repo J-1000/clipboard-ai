@@ -3,6 +3,7 @@ package executor
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -56,6 +57,9 @@ func TestExecute_CancelledContext(t *testing.T) {
 	// With cancelled context, command should fail
 	if result.Error == nil {
 		t.Fatal("expected error for cancelled context")
+	}
+	if !errors.Is(result.Error, context.Canceled) {
+		t.Fatalf("error = %v, want context cancellation", result.Error)
 	}
 }
 
