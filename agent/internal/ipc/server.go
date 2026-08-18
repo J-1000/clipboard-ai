@@ -324,12 +324,12 @@ type ActionResponse struct {
 // actions are still accepted when the user has configured them (see isKnownAction).
 var builtinActionNames = map[string]struct{}{
 	"summary": {}, "summarize": {}, "sum": {},
-	"explain":   {},
-	"translate": {},
-	"improve":   {},
-	"extract":   {},
-	"tldr":      {},
-	"classify":  {},
+	"explain":       {},
+	"translate":     {},
+	"improve":       {},
+	"extract":       {},
+	"tldr":          {},
+	"classify":      {},
 	"summarize_url": {}, "summarize-url": {},
 	"caption": {}, "describe": {}, "describe-image": {},
 	"ocr": {}, "extract-text": {},
@@ -465,7 +465,7 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, ActionResponse{
 			Success: false,
 			Action:  req.Action,
-			Error:   result.Error.Error(),
+			Error:   actionExecutionError(result),
 		})
 		return
 	}
@@ -475,6 +475,16 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 		Action:  req.Action,
 		Result:  result.Output,
 	})
+}
+
+func actionExecutionError(result executor.Result) string {
+	if output := strings.TrimSpace(result.Output); output != "" {
+		return output
+	}
+	if result.Error != nil {
+		return result.Error.Error()
+	}
+	return "Action failed"
 }
 
 func readHistoryRecords(path string, limit int) ([]HistoryRecord, int, error) {
