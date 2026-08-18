@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -218,6 +219,14 @@ func main() {
 					if attempt == attempts {
 						break
 					}
+					if !isTransientExecutionFailure(result) {
+						logger.Warn("action failed with non-transient error; retry skipped",
+							"action", actionName,
+							"attempt", attempt,
+							"error", result.Error,
+						)
+						break
+					}
 
 					logger.Warn("action attempt failed",
 						"action", actionName,
@@ -432,6 +441,40 @@ func parseLogLevel(level string) slog.Level {
 	default:
 		return slog.LevelInfo
 	}
+}
+
+func isTransientExecutionFailure(result executor.Result) bool {
+	if result.Error == nil {
+		return false
+	}
+	if errors.Is(result.Error, context.Canceled) {
+		return false
+	}
+	if errors.Is(result.Error, context.DeadlineExceeded) {
+		return true
+	}
+
+	diagnostic := strings.ToLower(result.Output + "\n" + result.Error.Error())
+	transientMarkers := []string{
+		"status 408", "status code 408", "http 408",
+		"status 425", "status code 425", "http 425",
+		"status 429", "status code 429", "http 429",
+		"status 500", "status code 500", "http 500", "500 internal server error",
+		"status 502", "status code 502", "http 502", "502 bad gateway",
+		"status 503", "status code 503", "http 503", "503 service unavailable",
+		"status 504", "status code 504", "http 504", "504 gateway timeout",
+		"rate limit", "rate_limit", "too many requests", "overloaded",
+		"temporarily unavailable", "temporary failure", "service unavailable",
+		"bad gateway", "gateway timeout", "connection reset", "connection refused",
+		"econnreset", "econnrefused", "etimedout", "eai_again",
+		"network error", "fetch failed", "request timed out", "timeout awaiting response",
+	}
+	for _, marker := range transientMarkers {
+		if strings.Contains(diagnostic, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func watchConfigFile(ctx context.Context, configPath string, reloadCh chan<- string, logger *slog.Logger) {

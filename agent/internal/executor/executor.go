@@ -131,6 +131,9 @@ func runExecuteWithOptions(ctx context.Context, action string, text string, opts
 	cmd.Stderr = &stderr
 
 	err := cmd.Run()
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		err = ctxErr
+	}
 
 	elapsed := time.Since(start)
 
