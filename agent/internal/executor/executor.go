@@ -3,12 +3,22 @@ package executor
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"time"
 )
 
-const defaultTimeout = 30 * time.Second
+const (
+	defaultTimeout = 30 * time.Second
+	maxInputRunes  = 100_000
+	truncatedMark  = "\n…[truncated]"
+)
+
+type inputEnvelope struct {
+	Text string `json:"text"`
+	RTF  string `json:"rtf,omitempty"`
+}
 
 // Options controls action execution behavior.
 type Options struct {
@@ -90,11 +100,16 @@ func runExecuteWithOptions(ctx context.Context, action string, text string, opts
 	if opts.InputType != "" {
 		cmd.Env = append(cmd.Env, "CBAI_INPUT_TYPE="+opts.InputType)
 	}
-	if text != "" {
-		cmd.Env = append(cmd.Env, "CBAI_INPUT_TEXT="+text)
-	}
-	if opts.InputRTF != "" {
-		cmd.Env = append(cmd.Env, "CBAI_INPUT_RTF="+opts.InputRTF)
+	if text != "" || opts.InputRTF != "" {
+		payload, err := json.Marshal(inputEnvelope{
+			Text: capInput(text),
+			RTF:  capInput(opts.InputRTF),
+		})
+		if err != nil {
+			return Result{Action: action, Error: err, Elapsed: time.Since(start)}
+		}
+		cmd.Env = append(cmd.Env, "CBAI_INPUT_STDIN=json")
+		cmd.Stdin = bytes.NewReader(payload)
 	}
 	if opts.InputImagePath != "" {
 		cmd.Env = append(cmd.Env, "CBAI_INPUT_IMAGE_PATH="+opts.InputImagePath)
@@ -130,6 +145,14 @@ func runExecuteWithOptions(ctx context.Context, action string, text string, opts
 		Error:   err,
 		Elapsed: elapsed,
 	}
+}
+
+func capInput(value string) string {
+	runes := []rune(value)
+	if len(runes) <= maxInputRunes {
+		return value
+	}
+	return string(runes[:maxInputRunes]) + truncatedMark
 }
 
 // WriteTempImage writes image bytes to a temp file and returns its path.
