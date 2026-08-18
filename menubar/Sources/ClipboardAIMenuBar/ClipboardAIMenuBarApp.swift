@@ -3,21 +3,29 @@ import SwiftUI
 
 @main
 struct ClipboardAIMenuBarApp: App {
+    @StateObject private var store: MenuBarStore
+
     init() {
         NSApplication.shared.setActivationPolicy(.accessory)
+        _store = StateObject(wrappedValue: MenuBarStore())
     }
 
     var body: some Scene {
-        MenuBarExtra("Clipboard AI", systemImage: "doc.on.clipboard") {
-            VStack(alignment: .leading, spacing: 8) {
-                Label("Clipboard AI", systemImage: "sparkles")
-                    .font(.headline)
-                Text("Native client ready")
-                    .foregroundStyle(.secondary)
-            }
-            .padding(16)
-            .frame(width: 280)
+        MenuBarExtra {
+            MenuBarRootView(store: store)
+        } label: {
+            Label("Clipboard AI", systemImage: menuBarSymbol)
         }
         .menuBarExtraStyle(.window)
+    }
+
+    private var menuBarSymbol: String {
+        if store.runningActionID != nil {
+            return "bolt.horizontal.circle"
+        }
+        if store.monitoring?.monitoring == false {
+            return "pause.circle"
+        }
+        return "doc.on.clipboard"
     }
 }
