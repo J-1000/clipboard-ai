@@ -55,7 +55,15 @@ mock.module("os", () => ({
 // would cache a real-homedir SOCKET_PATH. A cache-busting query forces a fresh
 // evaluation here, after the os mock is in place, so SOCKET_PATH points at
 // TEST_ROOT regardless of evaluation order.
-const { getStatus, getClipboard, getConfig, getControls, setMonitoringControl, getProviderChain } = (await import(
+const {
+  getStatus,
+  getClipboard,
+  getConfig,
+  getControls,
+  setMonitoringControl,
+  getProviderChain,
+  runAgentAction,
+} = (await import(
   `./client.js?test=${Date.now()}`
 )) as typeof import("./client.js");
 
@@ -207,6 +215,37 @@ describe("IPC Client", () => {
       expect(chain.profiles[0].name).toBe("cloud");
       expect(chain.profiles[0].api_key).toBe("secret");
       expect(chain.max_tokens).toBe(2048);
+    });
+  });
+
+  describe("actions", () => {
+    it("posts an action invocation to the private agent endpoint", async () => {
+      server = await startMockServer(({ method, url, body }) => {
+        expect(method).toBe("POST");
+        expect(url).toBe("/action");
+        expect(JSON.parse(body)).toEqual({
+          action: "translate",
+          text: "Hello",
+          args: ["German"],
+        });
+        return {
+          body: {
+            success: true,
+            action: "translate",
+            result: "Hallo",
+          },
+        };
+      });
+
+      const response = await runAgentAction("translate", {
+        text: "Hello",
+        args: ["German"],
+      });
+      expect(response).toEqual({
+        success: true,
+        action: "translate",
+        result: "Hallo",
+      });
     });
   });
 
