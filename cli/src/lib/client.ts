@@ -15,6 +15,16 @@ export interface StatusResponse {
     type: string;
     timestamp: string;
   };
+  monitoring?: ControlsResponse;
+}
+
+export interface ControlsResponse {
+  monitoring: boolean;
+  paused: boolean;
+  snoozed_until?: string;
+  default_snooze_minutes: number;
+  app_allowlist: string[];
+  app_denylist: string[];
 }
 
 export interface ClipboardResponse {
@@ -64,6 +74,12 @@ export interface ConfigResponse {
     sensitive_guard?: "block" | "warn" | "off";
     max_concurrent_actions?: number;
     max_tokens?: number;
+  };
+  privacy?: {
+    start_paused: boolean;
+    default_snooze_minutes: number;
+    app_allowlist: string[];
+    app_denylist: string[];
   };
 }
 
@@ -173,6 +189,20 @@ export async function getClipboard(): Promise<ClipboardResponse> {
 
 export async function getConfig(): Promise<ConfigResponse> {
   return makeRequest<ConfigResponse>("GET", "/config");
+}
+
+export async function getControls(): Promise<ControlsResponse> {
+  return makeRequest<ControlsResponse>("GET", "/controls");
+}
+
+export async function setMonitoringControl(
+  action: "pause" | "resume" | "snooze",
+  durationMinutes?: number
+): Promise<ControlsResponse> {
+  return makeRequest<ControlsResponse>("POST", "/controls", {
+    action,
+    ...(durationMinutes === undefined ? {} : { duration_minutes: durationMinutes }),
+  });
 }
 
 function getIPCTimeoutMs(): number {

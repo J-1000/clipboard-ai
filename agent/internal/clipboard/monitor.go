@@ -60,6 +60,7 @@ type Monitor struct {
 	readImage       func() []byte
 	readRTF         func() string
 	readChangeCount func() int
+	shouldRead      func() bool
 	now             func() time.Time
 }
 
@@ -112,7 +113,17 @@ func (m *Monitor) poll() {
 		m.lastChangeCount = changeCount
 		m.changeCountInitialized = true
 	}
+	if m.shouldRead != nil && !m.shouldRead() {
+		m.clear()
+		return
+	}
 	m.check()
+}
+
+// SetReadPolicy installs a policy checked after changeCount advances but before
+// any clipboard payload is read.
+func (m *Monitor) SetReadPolicy(shouldRead func() bool) {
+	m.shouldRead = shouldRead
 }
 
 // check reads the clipboard and fires handler if changed
@@ -157,6 +168,11 @@ func (m *Monitor) clear() {
 	m.mu.Lock()
 	m.current = Content{}
 	m.mu.Unlock()
+}
+
+// Clear removes all clipboard payload held by the monitor.
+func (m *Monitor) Clear() {
+	m.clear()
 }
 
 func (m *Monitor) checkImage() (Content, bool) {

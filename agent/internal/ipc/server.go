@@ -21,6 +21,7 @@ import (
 	"github.com/clipboard-ai/agent/internal/clipboard"
 	"github.com/clipboard-ai/agent/internal/config"
 	"github.com/clipboard-ai/agent/internal/executor"
+	"github.com/clipboard-ai/agent/internal/privacy"
 )
 
 const maxActionRequestBodyBytes = 10 << 20
@@ -41,6 +42,13 @@ type Server struct {
 	startTime  time.Time
 	listener   net.Listener
 	actionSem  chan struct{}
+	privacy    *privacy.Controller
+}
+
+// SetPrivacyController connects the server controls to the monitor's runtime
+// privacy state.
+func (s *Server) SetPrivacyController(controller *privacy.Controller) {
+	s.privacy = controller
 }
 
 // SetConfig atomically swaps the config used by /config and /action.
@@ -66,6 +74,7 @@ type StatusResponse struct {
 		Type      string `json:"type"`
 		Timestamp string `json:"timestamp"`
 	} `json:"clipboard"`
+	Monitoring ControlsResponse `json:"monitoring"`
 }
 
 // ClipboardResponse is returned by /clipboard endpoint
@@ -86,6 +95,21 @@ type ConfigResponse struct {
 	Provider config.ProviderConfig          `json:"provider"`
 	Actions  map[string]config.ActionConfig `json:"actions"`
 	Settings config.SettingsConfig          `json:"settings"`
+	Privacy  config.PrivacyConfig           `json:"privacy"`
+}
+
+type ControlsResponse struct {
+	Monitoring           bool     `json:"monitoring"`
+	Paused               bool     `json:"paused"`
+	SnoozedUntil         string   `json:"snoozed_until,omitempty"`
+	DefaultSnoozeMinutes int      `json:"default_snooze_minutes"`
+	AppAllowlist         []string `json:"app_allowlist"`
+	AppDenylist          []string `json:"app_denylist"`
+}
+
+type ControlsRequest struct {
+	Action          string `json:"action"`
+	DurationMinutes int    `json:"duration_minutes,omitempty"`
 }
 
 // HistoryRecord mirrors CLI history records stored in history.jsonl.
@@ -122,6 +146,11 @@ func NewServer(socketPath string, monitor *clipboard.Monitor, cfg *config.Config
 		version:    version,
 		startTime:  time.Now(),
 		actionSem:  make(chan struct{}, maxConcurrentActionRequests),
+		privacy: privacy.NewController(
+			cfg.Privacy.StartPaused,
+			cfg.Privacy.AppAllowlist,
+			cfg.Privacy.AppDenylist,
+		),
 	}
 }
 
@@ -178,6 +207,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/config", s.handleConfig)
 	mux.HandleFunc("/action", s.handleAction)
 	mux.HandleFunc("/history", s.handleHistory)
+	mux.HandleFunc("/controls", s.handleControls)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-API-Version", apiVersion)
 		mux.ServeHTTP(w, r)
@@ -206,6 +236,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	resp.Clipboard.Text = truncate(displayText, 100)
 	resp.Clipboard.Type = string(current.Type)
 	resp.Clipboard.Timestamp = current.Timestamp.Format(time.RFC3339)
+	resp.Monitoring = s.controlsResponse(time.Now())
 
 	writeJSON(w, resp)
 }
@@ -296,7 +327,62 @@ func redactedConfigResponse(cfg *config.Config) ConfigResponse {
 		Provider: provider,
 		Actions:  cfg.Actions,
 		Settings: settings,
+		Privacy:  cfg.Privacy,
 	}
+}
+
+func (s *Server) handleControls(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		writeJSON(w, s.controlsResponse(time.Now()))
+	case http.MethodPost:
+		r.Body = http.MaxBytesReader(w, r.Body, 1024)
+		var req ControlsRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSONError(w, http.StatusBadRequest, "Invalid JSON")
+			return
+		}
+		now := time.Now()
+		switch strings.ToLower(strings.TrimSpace(req.Action)) {
+		case "pause":
+			s.privacy.Pause()
+			s.monitor.Clear()
+		case "resume":
+			s.privacy.Resume()
+		case "snooze":
+			minutes := req.DurationMinutes
+			if minutes == 0 {
+				minutes = s.configSnapshot().Privacy.DefaultSnoozeMinutes
+			}
+			if minutes < 1 || minutes > 7*24*60 {
+				writeJSONError(w, http.StatusBadRequest, "duration_minutes must be between 1 and 10080")
+				return
+			}
+			s.privacy.Snooze(time.Duration(minutes)*time.Minute, now)
+			s.monitor.Clear()
+		default:
+			writeJSONError(w, http.StatusBadRequest, "action must be pause, resume, or snooze")
+			return
+		}
+		writeJSON(w, s.controlsResponse(now))
+	default:
+		writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed")
+	}
+}
+
+func (s *Server) controlsResponse(now time.Time) ControlsResponse {
+	snapshot := s.privacy.Snapshot(now)
+	response := ControlsResponse{
+		Monitoring:           snapshot.Monitoring,
+		Paused:               snapshot.Paused,
+		DefaultSnoozeMinutes: s.configSnapshot().Privacy.DefaultSnoozeMinutes,
+		AppAllowlist:         snapshot.AppAllowlist,
+		AppDenylist:          snapshot.AppDenylist,
+	}
+	if now.Before(snapshot.SnoozedUntil) {
+		response.SnoozedUntil = snapshot.SnoozedUntil.UTC().Format(time.RFC3339)
+	}
+	return response
 }
 
 // ActionRequest for triggering an action

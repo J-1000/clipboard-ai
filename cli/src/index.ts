@@ -21,6 +21,7 @@ import { rerunCommand } from "./commands/rerun.js";
 import { logsCommand } from "./commands/logs.js";
 import { initCommand } from "./commands/init.js";
 import { statsCommand } from "./commands/stats.js";
+import { pauseCommand, resumeCommand, snoozeCommand } from "./commands/monitoring.js";
 import { VERSION } from "./version.js";
 import type { Argv } from "yargs";
 
@@ -96,6 +97,24 @@ yargs(hideBin(process.argv))
     () => {},
     async () => {
       await clipboardCommand();
+    }
+  )
+  .command("pause", "Pause automatic clipboard monitoring", () => {}, async () => {
+    await pauseCommand();
+  })
+  .command("resume", "Resume automatic clipboard monitoring", () => {}, async () => {
+    await resumeCommand();
+  })
+  .command(
+    "snooze [minutes]",
+    "Snooze automatic clipboard monitoring",
+    (yargs) =>
+      yargs.positional("minutes", {
+        describe: "Snooze duration in minutes (uses configured default when omitted)",
+        type: "number",
+      }),
+    async (argv) => {
+      await snoozeCommand(argv.minutes);
     }
   )
   .command(

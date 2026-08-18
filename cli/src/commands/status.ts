@@ -21,6 +21,12 @@ export async function statusCommand(
     console.log(`Status:  ${status.status}`);
     console.log(`Version: ${status.version}`);
     console.log(`Uptime:  ${status.uptime}`);
+    const monitoringState = (status.monitoring?.monitoring ?? true)
+      ? "active"
+      : status.monitoring?.snoozed_until
+        ? `snoozed until ${status.monitoring.snoozed_until}`
+        : "paused";
+    console.log(`Monitor: ${monitoringState}`);
     console.log();
     console.log("Clipboard:");
     console.log(`  Type:      ${status.clipboard.type}`);

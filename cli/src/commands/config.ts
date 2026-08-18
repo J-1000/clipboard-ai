@@ -37,6 +37,18 @@ export async function configCommand(
         `  HTTP token:     ${config.settings.http_auth_token ? "[set]" : "[missing]"}`
       );
     }
+    const privacy = config.privacy ?? {
+      start_paused: false,
+      default_snooze_minutes: 15,
+      app_allowlist: [],
+      app_denylist: [],
+    };
+    console.log();
+    console.log("Privacy:");
+    console.log(`  Start paused:   ${privacy.start_paused}`);
+    console.log(`  Snooze default: ${privacy.default_snooze_minutes} minutes`);
+    console.log(`  App allowlist:  ${privacy.app_allowlist.join(", ") || "(all apps)"}`);
+    console.log(`  App denylist:   ${privacy.app_denylist.join(", ") || "(none)"}`);
     console.log();
     console.log("Actions:");
     for (const [name, action] of Object.entries(config.actions)) {

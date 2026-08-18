@@ -23,6 +23,7 @@ import (
 	"github.com/clipboard-ai/agent/internal/guard"
 	"github.com/clipboard-ai/agent/internal/ipc"
 	"github.com/clipboard-ai/agent/internal/notify"
+	"github.com/clipboard-ai/agent/internal/privacy"
 	"github.com/clipboard-ai/agent/internal/rules"
 )
 
@@ -94,6 +95,11 @@ func main() {
 	state := &runtimeState{cfg: cfg, rulesEngine: rulesEngine}
 	controller := automation.NewController(time.Duration(cfg.Settings.ClipboardDedupeWindow) * time.Millisecond)
 	actionGate := automation.NewConcurrencyGate(cfg.Settings.MaxConcurrentActions)
+	privacyController := privacy.NewController(
+		cfg.Privacy.StartPaused,
+		cfg.Privacy.AppAllowlist,
+		cfg.Privacy.AppDenylist,
+	)
 
 	// Track in-flight action goroutines so shutdown can wait for them to finish
 	// (their deferred temp-file cleanup must run, and subprocesses must drain).
@@ -268,10 +274,23 @@ func main() {
 
 	// Create clipboard monitor
 	monitor := clipboard.NewMonitor(cfg.Settings.PollInterval, handler)
+	monitor.SetReadPolicy(func() bool {
+		app := privacy.FrontmostApplication()
+		decision := privacyController.Decision(app, time.Now())
+		if !decision.Allowed {
+			logger.Info("clipboard read blocked by privacy controls",
+				"reason", decision.Reason,
+				"application.name", app.Name,
+				"application.bundle_id", app.BundleID,
+			)
+		}
+		return decision.Allowed
+	})
 
 	// Create IPC server
 	socketPath := config.GetSocketPath()
 	server := ipc.NewServer(socketPath, monitor, cfg, version)
+	server.SetPrivacyController(privacyController)
 	configPath := config.ConfigPath()
 
 	reloadConfig := func(reason string) {
@@ -298,6 +317,8 @@ func main() {
 		levelVar.Set(parseLogLevel(nextCfg.Settings.LogLevel))
 		controller.SetDedupeWindow(time.Duration(nextCfg.Settings.ClipboardDedupeWindow) * time.Millisecond)
 		actionGate.SetLimit(nextCfg.Settings.MaxConcurrentActions)
+		privacyController.UpdatePolicy(nextCfg.Privacy.AppAllowlist, nextCfg.Privacy.AppDenylist)
+		monitor.Clear()
 		state.swap(nextCfg, nextRulesEngine)
 		server.SetConfig(nextCfg)
 
