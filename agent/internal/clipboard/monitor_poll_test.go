@@ -81,6 +81,72 @@ func TestCheck_EmptyTextDoesNotFire(t *testing.T) {
 	}
 }
 
+func TestCheck_EmptyClipboardClearsCurrent(t *testing.T) {
+	fake := &fakeClipboard{text: []byte("previous")}
+	m := newTestMonitor(nil, fake)
+
+	m.check()
+	if got := m.Current().Text; got != "previous" {
+		t.Fatalf("current text = %q, want previous", got)
+	}
+
+	fake.text = nil
+	m.check()
+	if got := m.Current(); got.Text != "" || got.RTF != "" || len(got.Image) != 0 || got.Type != "" || got.Signature != "" || !got.Timestamp.IsZero() {
+		t.Fatalf("current content = %#v, want empty content", got)
+	}
+}
+
+func TestPoll_SkipsPayloadReadsUntilChangeCountAdvances(t *testing.T) {
+	var textReads, imageReads, rtfReads int
+	changeCount := 41
+	m := NewMonitor(150, nil)
+	m.readChangeCount = func() int { return changeCount }
+	m.readText = func() []byte {
+		textReads++
+		return []byte("payload")
+	}
+	m.readImage = func() []byte {
+		imageReads++
+		return nil
+	}
+	m.readRTF = func() string {
+		rtfReads++
+		return ""
+	}
+
+	m.poll()
+	m.poll()
+	m.poll()
+	if textReads != 1 || imageReads != 1 || rtfReads != 1 {
+		t.Fatalf("unchanged reads = text:%d image:%d rtf:%d, want one each", textReads, imageReads, rtfReads)
+	}
+
+	changeCount++
+	m.poll()
+	if textReads != 2 || imageReads != 2 || rtfReads != 2 {
+		t.Fatalf("changed reads = text:%d image:%d rtf:%d, want two each", textReads, imageReads, rtfReads)
+	}
+}
+
+func TestPoll_FallsBackToPayloadPollingWithoutChangeCount(t *testing.T) {
+	var textReads int
+	m := NewMonitor(150, nil)
+	m.readChangeCount = func() int { return -1 }
+	m.readImage = func() []byte { return nil }
+	m.readText = func() []byte {
+		textReads++
+		return []byte("payload")
+	}
+	m.readRTF = func() string { return "" }
+
+	m.poll()
+	m.poll()
+	if textReads != 2 {
+		t.Fatalf("text reads = %d, want 2 fallback reads", textReads)
+	}
+}
+
 func TestCheck_RTFTakesPrecedenceAndDedupes(t *testing.T) {
 	var got []Content
 	fake := &fakeClipboard{text: []byte("plain"), rtf: `{\rtf1 hello}`}
