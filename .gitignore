@@ -19,6 +19,7 @@ actions/node_modules/
 *.out
 *.test
 *.log
+menubar/.build/
 
 # OS
 .DS_Store
