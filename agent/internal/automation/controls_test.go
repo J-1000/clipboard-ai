@@ -67,6 +67,27 @@ func TestShouldSkipClipboard_Disabled(t *testing.T) {
 	}
 }
 
+func TestSetDedupeWindow_AppliesImmediatelyAndClearsOldSignatures(t *testing.T) {
+	c := NewController(time.Hour)
+	now := time.Now()
+	if c.ShouldSkipClipboard("same", now) {
+		t.Fatal("first clipboard value should pass")
+	}
+
+	c.SetDedupeWindow(10 * time.Millisecond)
+	if c.ShouldSkipClipboard("same", now.Add(time.Millisecond)) {
+		t.Fatal("first value after reload should not use the old signature cache")
+	}
+	if !c.ShouldSkipClipboard("same", now.Add(2*time.Millisecond)) {
+		t.Fatal("new dedupe window should apply immediately")
+	}
+
+	c.SetDedupeWindow(0)
+	if c.ShouldSkipClipboard("same", now.Add(3*time.Millisecond)) {
+		t.Fatal("reloaded zero window should disable dedupe")
+	}
+}
+
 func TestAllowActionCooldown(t *testing.T) {
 	c := NewController(0)
 	now := time.Now()

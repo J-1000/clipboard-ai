@@ -69,41 +69,6 @@ func TestLogRestartRequiredSettings(t *testing.T) {
 	}
 }
 
-func TestAcquireActionSlot_Unlimited(t *testing.T) {
-	release, ok := acquireActionSlot(context.Background(), nil)
-	if !ok {
-		t.Fatal("nil semaphore should always grant a slot")
-	}
-	release() // must be a no-op, not panic
-}
-
-func TestAcquireActionSlot_BoundsConcurrency(t *testing.T) {
-	sem := make(chan struct{}, 2)
-
-	r1, ok1 := acquireActionSlot(context.Background(), sem)
-	r2, ok2 := acquireActionSlot(context.Background(), sem)
-	if !ok1 || !ok2 {
-		t.Fatal("first two acquisitions should succeed")
-	}
-
-	// Third acquisition must block until a slot frees; with a cancelled context
-	// it returns ok=false instead of blocking forever.
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	if _, ok := acquireActionSlot(ctx, sem); ok {
-		t.Fatal("third acquisition should fail when full and ctx is cancelled")
-	}
-
-	// Release one slot; a new acquisition now succeeds.
-	r1()
-	r3, ok3 := acquireActionSlot(context.Background(), sem)
-	if !ok3 {
-		t.Fatal("acquisition should succeed after a slot is released")
-	}
-	r2()
-	r3()
-}
-
 func TestTruncateRunes(t *testing.T) {
 	if got := truncateRunes("hello", 200); got != "hello" {
 		t.Fatalf("short string should be unchanged, got %q", got)

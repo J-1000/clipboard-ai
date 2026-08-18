@@ -395,21 +395,6 @@ func truncateRunes(s string, maxRunes int) string {
 	return string(runes[:maxRunes]) + "..."
 }
 
-// acquireActionSlot reserves a slot in the concurrency semaphore, returning a
-// release function. A nil semaphore means unlimited. ok is false if ctx is
-// cancelled before a slot frees up.
-func acquireActionSlot(ctx context.Context, sem chan struct{}) (release func(), ok bool) {
-	if sem == nil {
-		return func() {}, true
-	}
-	select {
-	case sem <- struct{}{}:
-		return func() { <-sem }, true
-	case <-ctx.Done():
-		return func() {}, false
-	}
-}
-
 // waitForActions blocks until all in-flight action goroutines finish (so their
 // deferred temp-file cleanup runs), bounded by a timeout so a hung action can't
 // wedge shutdown forever.
