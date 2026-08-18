@@ -7,7 +7,7 @@ import type {
   ActionRunRecordInput,
   HistoryRetentionSettings,
 } from "./history.js";
-import type { ConfigResponse } from "./client.js";
+import type { ConfigResponse, ProviderChainResponse } from "./client.js";
 import { makeConfig } from "../test-helpers.js";
 
 const mockGetConfig = mock(() => Promise.resolve(makeConfig({ settings: { sensitive_guard: "warn" } })));
@@ -325,5 +325,146 @@ describe("runActionCommand history", () => {
     const call = mockAppendHistoryRecord.mock.calls[0][0];
     expect(call.status).toBe("success");
     expect(call.output).toBe("a serene mountain lake");
+  });
+
+  it("selects a named profile credential and falls back in order", async () => {
+    mockGetConfig.mockResolvedValueOnce(
+      makeConfig({
+        actions: {
+          summary: {
+            enabled: true,
+            trigger: "",
+            provider_profile: "cloud",
+          },
+        },
+      })
+    );
+    const chain: ProviderChainResponse = {
+      profiles: [
+        {
+          name: "cloud",
+          type: "openai",
+          endpoint: "https://api.openai.com/v1",
+          model: "gpt-5-mini",
+          api_key: "cloud-secret",
+        },
+        {
+          name: "local",
+          type: "ollama",
+          endpoint: "http://localhost:11434/v1",
+          model: "mistral",
+        },
+      ],
+      max_tokens: 2048,
+    };
+    const getProviderChain = mock(() => Promise.resolve(chain));
+    const created: AIConfig[] = [];
+    const fallbackRegistry = createActionRegistry([
+      {
+        id: "summary",
+        description: "Summary",
+        outputTitle: "Summary",
+        run: async ({ ai }) => (await ai.generate("prompt")).content,
+      },
+    ]);
+
+    await runActionCommand("summary", {
+      registry: fallbackRegistry,
+      deps: {
+        ...deps(),
+        getProviderChain,
+        createAIClient: (config) => {
+          created.push(config);
+          return {
+            generate: async () => {
+              if (config.model === "gpt-5-mini") {
+                throw new Error("503 service unavailable");
+              }
+              return { content: "local result", model: config.model };
+            },
+          } as unknown as AIClient;
+        },
+      },
+    });
+
+    expect(getProviderChain).toHaveBeenCalledWith("summary");
+    expect(created.map((config) => config.apiKey)).toEqual(["cloud-secret", undefined]);
+    expect(console.error).toHaveBeenCalledWith(
+      'Warning: provider profile "cloud" failed; trying fallback.'
+    );
+    const history = mockAppendHistoryRecord.mock.calls[0][0];
+    expect(history.provider_profile).toBe("local");
+    expect(history.provider).toBe("ollama");
+    expect(history.model).toBe("mistral");
+    expect(history.output).toBe("local result");
+  });
+
+  it("skips a profile at its daily limit and records fallback usage", async () => {
+    mockGetConfig.mockResolvedValueOnce(
+      makeConfig({
+        actions: {
+          summary: { enabled: true, trigger: "", provider_profile: "cloud" },
+        },
+      })
+    );
+    const getProviderChain = mock((): Promise<ProviderChainResponse> =>
+      Promise.resolve({
+        profiles: [
+          {
+            name: "cloud",
+            type: "openai",
+            endpoint: "https://api.openai.com/v1",
+            model: "gpt-5-mini",
+            daily_token_limit: 100,
+          },
+          {
+            name: "local",
+            type: "ollama",
+            endpoint: "http://localhost:11434/v1",
+            model: "mistral",
+          },
+        ],
+        max_tokens: 1024,
+      })
+    );
+    const getDailyProviderUsage = mock(() =>
+      Promise.resolve({ profileTokens: 100, actionTokens: 50 })
+    );
+    const appendProviderUsage = mock(() => Promise.resolve());
+    const limitedRegistry = createActionRegistry([
+      {
+        id: "summary",
+        description: "Summary",
+        outputTitle: "Summary",
+        run: async ({ ai }) => (await ai.generate("prompt")).content,
+      },
+    ]);
+
+    await runActionCommand("summary", {
+      registry: limitedRegistry,
+      deps: {
+        ...deps(),
+        getProviderChain,
+        getDailyProviderUsage,
+        appendProviderUsage,
+        createAIClient: (config) =>
+          ({
+            generate: async () => ({ content: "within budget", model: config.model }),
+            getUsage: () => ({ promptTokens: 12, completionTokens: 3 }),
+          }) as unknown as AIClient,
+      },
+    });
+
+    expect(getDailyProviderUsage).toHaveBeenCalledWith("cloud", "summary");
+    expect(appendProviderUsage).toHaveBeenCalledWith({
+      action: "summary",
+      profile: "local",
+      prompt_tokens: 12,
+      completion_tokens: 3,
+    });
+    const history = mockAppendHistoryRecord.mock.calls[0][0];
+    expect(history.provider_profile).toBe("local");
+    expect(history.prompt_tokens).toBe(12);
+    expect(history.completion_tokens).toBe(3);
   });
 });

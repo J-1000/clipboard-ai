@@ -120,6 +120,59 @@ func TestValidatePrivacySnoozeDuration(t *testing.T) {
 	}
 }
 
+func TestValidateProviderProfilesAndActionRouting(t *testing.T) {
+	cfg := Default()
+	cfg.Providers["cloud"] = ProviderConfig{
+		Type: "openai", Model: "gpt-5-mini", APIKey: "sk-secret", Fallbacks: []string{" local "}, DailyTokenLimit: 50_000,
+	}
+	cfg.Providers["local"] = ProviderConfig{Type: "ollama", Model: "mistral"}
+	action := cfg.Actions["summarize"]
+	action.ProviderProfile = " cloud "
+	action.FallbackProfiles = []string{"local"}
+	action.DailyTokenLimit = 10_000
+	cfg.Actions["summarize"] = action
+
+	if err := cfg.validate(); err != nil {
+		t.Fatalf("valid provider profiles rejected: %v", err)
+	}
+	if cfg.Actions["summarize"].ProviderProfile != "cloud" {
+		t.Fatalf("provider profile was not normalized: %#v", cfg.Actions["summarize"])
+	}
+	if got := cfg.Providers["cloud"].Fallbacks; len(got) != 1 || got[0] != "local" {
+		t.Fatalf("fallbacks were not normalized: %#v", got)
+	}
+}
+
+func TestValidateProviderProfilesRejectsUnknownAndCycles(t *testing.T) {
+	t.Run("unknown action profile", func(t *testing.T) {
+		cfg := Default()
+		action := cfg.Actions["summarize"]
+		action.ProviderProfile = "missing"
+		cfg.Actions["summarize"] = action
+		if err := cfg.validate(); err == nil || !strings.Contains(err.Error(), "unknown provider profile") {
+			t.Fatalf("expected unknown profile error, got %v", err)
+		}
+	})
+
+	t.Run("fallback cycle", func(t *testing.T) {
+		cfg := Default()
+		cfg.Providers["cloud"] = ProviderConfig{Type: "openai", Model: "gpt", Fallbacks: []string{"local"}}
+		cfg.Providers["local"] = ProviderConfig{Type: "ollama", Model: "mistral", Fallbacks: []string{"default"}}
+		cfg.Provider.Fallbacks = []string{"cloud"}
+		if err := cfg.validate(); err == nil || !strings.Contains(err.Error(), "fallback cycle") {
+			t.Fatalf("expected fallback cycle error, got %v", err)
+		}
+	})
+
+	t.Run("negative limit", func(t *testing.T) {
+		cfg := Default()
+		cfg.Providers["cloud"] = ProviderConfig{Type: "openai", Model: "gpt", DailyTokenLimit: -1}
+		if err := cfg.validate(); err == nil || !strings.Contains(err.Error(), "daily_token_limit") {
+			t.Fatalf("expected daily limit error, got %v", err)
+		}
+	})
+}
+
 func TestLoad_MissingFile(t *testing.T) {
 	// When config file doesn't exist, Load should return defaults without error
 	cfg, err := Load()

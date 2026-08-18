@@ -862,3 +862,74 @@ func TestHandler_SetsAPIVersionHeader(t *testing.T) {
 		t.Fatalf("expected X-API-Version %q, got %q", apiVersion, got)
 	}
 }
+
+func TestLocalProviderChain_ReturnsSecretsOnlyOnUnixHandler(t *testing.T) {
+	cfg := config.Default()
+	cfg.Provider.APIKey = "default-secret"
+	cfg.Providers["cloud"] = config.ProviderConfig{
+		Type: "openai", Endpoint: "https://api.openai.com/v1", Model: "gpt-5-mini", APIKey: "cloud-secret", Fallbacks: []string{"local"}, DailyTokenLimit: 50_000,
+	}
+	cfg.Providers["local"] = config.ProviderConfig{
+		Type: "ollama", Endpoint: "http://localhost:11434/v1", Model: "mistral",
+	}
+	action := cfg.Actions["summarize"]
+	action.ProviderProfile = "cloud"
+	action.DailyTokenLimit = 10_000
+	action.MaxTokens = 2048
+	cfg.Actions["summarize"] = action
+	s := NewServer("/tmp/test.sock", clipboard.NewMonitor(100, nil), cfg, "test")
+
+	request := httptest.NewRequest(http.MethodGet, "/provider-chain?action=summarize", nil)
+	localRecorder := httptest.NewRecorder()
+	s.LocalHandler().ServeHTTP(localRecorder, request)
+	if localRecorder.Code != http.StatusOK {
+		t.Fatalf("local provider chain returned %d: %s", localRecorder.Code, localRecorder.Body.String())
+	}
+	var response ProviderChainResponse
+	if err := json.NewDecoder(localRecorder.Body).Decode(&response); err != nil {
+		t.Fatalf("decode provider chain: %v", err)
+	}
+	if len(response.Profiles) != 2 || response.Profiles[0].Name != "cloud" || response.Profiles[1].Name != "local" {
+		t.Fatalf("provider chain = %#v", response.Profiles)
+	}
+	if response.Profiles[0].APIKey != "cloud-secret" {
+		t.Fatalf("local provider chain did not return selected credential")
+	}
+	if response.ActionDailyTokenLimit != 10_000 || response.MaxTokens != 2048 {
+		t.Fatalf("provider limits = %#v", response)
+	}
+
+	publicRecorder := httptest.NewRecorder()
+	s.Handler().ServeHTTP(publicRecorder, httptest.NewRequest(http.MethodGet, "/provider-chain?action=summarize", nil))
+	if publicRecorder.Code != http.StatusNotFound {
+		t.Fatalf("public HTTP handler exposed provider chain with status %d", publicRecorder.Code)
+	}
+
+	configRecorder := httptest.NewRecorder()
+	s.Handler().ServeHTTP(configRecorder, httptest.NewRequest(http.MethodGet, "/config", nil))
+	for _, secret := range []string{"default-secret", "cloud-secret"} {
+		if strings.Contains(configRecorder.Body.String(), secret) {
+			t.Fatalf("public config leaked %q: %s", secret, configRecorder.Body.String())
+		}
+	}
+	if !strings.Contains(configRecorder.Body.String(), `"providers"`) || !strings.Contains(configRecorder.Body.String(), `"daily_token_limit"`) {
+		t.Fatalf("public config did not use the documented lowercase JSON shape: %s", configRecorder.Body.String())
+	}
+}
+
+func TestResolveProviderChain_ActionFallbacksOverridePrimaryDefaults(t *testing.T) {
+	cfg := config.Default()
+	cfg.Providers["cloud"] = config.ProviderConfig{Type: "openai", Model: "gpt", Fallbacks: []string{"default"}}
+	cfg.Providers["local"] = config.ProviderConfig{Type: "ollama", Model: "mistral"}
+	action := config.ActionConfig{
+		ProviderProfile: "cloud", FallbackProfiles: []string{"local"}, Model: "action-model", Endpoint: "https://override.invalid/v1",
+	}
+
+	chain := resolveProviderChain(cfg, action)
+	if len(chain) != 2 || chain[0].Name != "cloud" || chain[1].Name != "local" {
+		t.Fatalf("chain = %#v", chain)
+	}
+	if chain[0].Model != "action-model" || chain[0].Endpoint != "https://override.invalid/v1" {
+		t.Fatalf("primary legacy overrides not applied: %#v", chain[0])
+	}
+}

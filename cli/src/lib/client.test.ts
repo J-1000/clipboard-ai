@@ -55,7 +55,7 @@ mock.module("os", () => ({
 // would cache a real-homedir SOCKET_PATH. A cache-busting query forces a fresh
 // evaluation here, after the os mock is in place, so SOCKET_PATH points at
 // TEST_ROOT regardless of evaluation order.
-const { getStatus, getClipboard, getConfig, getControls, setMonitoringControl } = (await import(
+const { getStatus, getClipboard, getConfig, getControls, setMonitoringControl, getProviderChain } = (await import(
   `./client.js?test=${Date.now()}`
 )) as typeof import("./client.js");
 
@@ -179,6 +179,34 @@ describe("IPC Client", () => {
 
       const result = await setMonitoringControl("snooze", 30);
       expect(result.snoozed_until).toBe("2026-08-18T13:00:00Z");
+    });
+  });
+
+  describe("provider profiles", () => {
+    it("loads the private provider chain for an action", async () => {
+      server = await startMockServer(({ method, url }) => {
+        expect(method).toBe("GET");
+        expect(url).toBe("/provider-chain?action=summarize%20url");
+        return {
+          body: {
+            profiles: [
+              {
+                name: "cloud",
+                type: "openai",
+                endpoint: "https://api.openai.com/v1",
+                model: "gpt-5-mini",
+                api_key: "secret",
+              },
+            ],
+            max_tokens: 2048,
+          },
+        };
+      });
+
+      const chain = await getProviderChain("summarize url");
+      expect(chain.profiles[0].name).toBe("cloud");
+      expect(chain.profiles[0].api_key).toBe("secret");
+      expect(chain.max_tokens).toBe(2048);
     });
   });
 
