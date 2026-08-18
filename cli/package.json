@@ -13,7 +13,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "openai": "^6.47.0",
+    "openai": "^6.49.0",
     "yargs": "^18.0.0"
   },
   "devDependencies": {
