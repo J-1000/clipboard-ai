@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -403,6 +404,42 @@ func TestHandleAction_UsesRequestText(t *testing.T) {
 	}
 	if resp.Result != "ok" {
 		t.Fatalf("expected result 'ok', got %q", resp.Result)
+	}
+}
+
+func TestHandleAction_ReturnsSubprocessDiagnostic(t *testing.T) {
+	s := newTestServer()
+	executor.SetExecuteWithOptionsFunc(func(context.Context, string, string, executor.Options) executor.Result {
+		return executor.Result{
+			Action: "summarize",
+			Output: "  Error: safe mode blocks cloud providers in daemon mode\n",
+			Error:  errors.New("exit status 1"),
+		}
+	})
+	defer executor.ResetExecuteFunc()
+
+	body, _ := json.Marshal(ActionRequest{Action: "summarize", Text: "hello"})
+	req := httptest.NewRequest(http.MethodPost, "/action", bytes.NewBuffer(body))
+	w := httptest.NewRecorder()
+
+	s.handleAction(w, req)
+
+	var resp ActionResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp.Success {
+		t.Fatal("expected failed action response")
+	}
+	if resp.Error != "Error: safe mode blocks cloud providers in daemon mode" {
+		t.Fatalf("error = %q, want subprocess diagnostic", resp.Error)
+	}
+}
+
+func TestActionExecutionError_FallsBackToExitError(t *testing.T) {
+	got := actionExecutionError(executor.Result{Output: " \n", Error: errors.New("signal: killed")})
+	if got != "signal: killed" {
+		t.Fatalf("error = %q, want exit error fallback", got)
 	}
 }
 
