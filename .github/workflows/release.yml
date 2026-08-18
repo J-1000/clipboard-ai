@@ -46,8 +46,10 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.9
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
         working-directory: cli
       - name: Build CLI
         run: bun build src/index.ts --outdir dist --target node --define "__CBAI_VERSION__=\"${GITHUB_REF_NAME}\""
@@ -57,8 +59,34 @@ jobs:
           name: cli-dist
           path: cli/dist/
 
+  build-menubar:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        include:
+          - goarch: arm64
+            swiftarch: arm64
+          - goarch: amd64
+            swiftarch: x86_64
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build native menubar app
+        run: swift build -c release --arch ${{ matrix.swiftarch }}
+        working-directory: menubar
+      - name: Package app bundle
+        run: >-
+          ./scripts/package-menubar.sh
+          menubar/.build/${{ matrix.swiftarch }}-apple-macosx/release/ClipboardAIMenuBar
+          menubar/release
+          "${GITHUB_REF_NAME}"
+          ${{ matrix.goarch }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: menubar-darwin-${{ matrix.goarch }}
+          path: menubar/release/clipboard-ai-menubar-darwin-${{ matrix.goarch }}.zip
+
   release:
-    needs: [build-agent, build-cli]
+    needs: [build-agent, build-cli, build-menubar]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -70,11 +98,12 @@ jobs:
         # Lets users verify downloaded assets (no codesigning/notarization yet).
         run: |
           shopt -s nullglob
-          sha256sum clipboard-ai-agent-* cli-dist/* > SHA256SUMS
+          sha256sum clipboard-ai-agent-* clipboard-ai-menubar-* index.js > SHA256SUMS
           cat SHA256SUMS
       - uses: softprops/action-gh-release@v3
         with:
           files: |
             clipboard-ai-agent-*
-            cli-dist/**
+            clipboard-ai-menubar-*
+            index.js
             SHA256SUMS
