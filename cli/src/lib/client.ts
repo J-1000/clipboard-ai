@@ -38,18 +38,17 @@ export interface ClipboardResponse {
 }
 
 export interface ConfigResponse {
-  provider: {
-    type: string;
-    endpoint: string;
-    model: string;
-    api_key?: string;
-  };
+  provider: ProviderProfile;
+  providers?: Record<string, ProviderProfile>;
   actions: Record<
     string,
     {
       enabled: boolean;
       trigger: string;
       prompt?: string;
+      provider_profile?: string;
+      fallback_profiles?: string[];
+      daily_token_limit?: number;
       model?: string;
       endpoint?: string;
       timeout_ms?: number;
@@ -81,6 +80,15 @@ export interface ConfigResponse {
     app_allowlist: string[];
     app_denylist: string[];
   };
+}
+
+export interface ProviderProfile {
+  type: string;
+  endpoint: string;
+  model: string;
+  api_key?: string;
+  fallbacks?: string[];
+  daily_token_limit?: number;
 }
 
 async function makeRequest<T>(

@@ -24,6 +24,16 @@ export async function configCommand(
     console.log(`  Model:    ${config.provider.model}`);
     console.log(`  Endpoint: ${config.provider.endpoint}`);
     console.log(`  API key:  ${config.provider.api_key ? "[set]" : "[not set]"}`);
+    const profiles = Object.entries(config.providers ?? {});
+    if (profiles.length > 0) {
+      console.log();
+      console.log("Provider profiles:");
+      for (const [name, profile] of profiles.sort(([a], [b]) => a.localeCompare(b))) {
+        const fallbacks = profile.fallbacks?.join(" → ") || "none";
+        const limit = profile.daily_token_limit ? `${profile.daily_token_limit}/day` : "unlimited";
+        console.log(`  ${name}: ${profile.type}/${profile.model} · fallback ${fallbacks} · ${limit}`);
+      }
+    }
     console.log();
     console.log("Settings:");
     console.log(`  Poll interval:  ${config.settings.poll_interval}ms`);

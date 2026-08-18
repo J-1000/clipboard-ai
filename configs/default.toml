@@ -14,6 +14,22 @@ model = "mistral"
 # API key (required for openai/anthropic, optional for local providers)
 # api_key = "sk-..."
 
+# Named profiles can carry separate models, endpoints, credentials, fallback
+# chains, and daily token budgets. The legacy [provider] above is addressed as
+# the reserved "default" profile.
+# [providers.fast]
+# type = "openai"
+# endpoint = "https://api.openai.com/v1"
+# model = "gpt-5-mini"
+# api_key = "sk-..."
+# fallbacks = ["local"]
+# daily_token_limit = 50000
+#
+# [providers.local]
+# type = "ollama"
+# endpoint = "http://localhost:11434/v1"
+# model = "mistral"
+
 [settings]
 # Polling interval in milliseconds
 poll_interval = 150
@@ -71,6 +87,9 @@ enabled = true
 # Trigger when clipboard content is longer than 200 characters
 trigger = "length > 200"
 # Optional provider overrides for this action
+# provider_profile = "fast"
+# fallback_profiles = ["local"] # overrides the profile's fallback chain
+# daily_token_limit = 10000      # limit for this action across all profiles
 # model = "llama3.2:1b"
 # endpoint = "http://localhost:11434/v1"
 # Optional reliability controls (all default to 0 when omitted)

@@ -14,6 +14,15 @@ endpoint = "http://localhost:11434/v1"
 model = "mistral"
 # api_key = "sk-..."   # required for openai/anthropic
 
+# Optional named profiles. Select one per action with provider_profile.
+# [providers.cloud]
+# type = "openai"
+# endpoint = "https://api.openai.com/v1"
+# model = "gpt-5-mini"
+# api_key = "sk-..."
+# fallbacks = ["default"]
+# daily_token_limit = 50000
+
 [settings]
 poll_interval = 150
 safe_mode = true
@@ -33,6 +42,9 @@ max_tokens = 1024
 [actions.summarize]
 enabled = true
 trigger = "length > 200"
+# provider_profile = "cloud"
+# fallback_profiles = ["default"]
+# daily_token_limit = 10000
 
 [actions.explain]
 enabled = true

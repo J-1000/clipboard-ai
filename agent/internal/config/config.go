@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -12,61 +13,69 @@ import (
 
 // Config represents the application configuration
 type Config struct {
-	Provider ProviderConfig          `toml:"provider"`
-	Actions  map[string]ActionConfig `toml:"actions"`
-	Settings SettingsConfig          `toml:"settings"`
-	Privacy  PrivacyConfig           `toml:"privacy"`
+	Provider  ProviderConfig            `toml:"provider" json:"provider"`
+	Providers map[string]ProviderConfig `toml:"providers" json:"providers,omitempty"`
+	Actions   map[string]ActionConfig   `toml:"actions" json:"actions"`
+	Settings  SettingsConfig            `toml:"settings" json:"settings"`
+	Privacy   PrivacyConfig             `toml:"privacy" json:"privacy"`
 }
 
 // ProviderConfig configures the LLM provider
 type ProviderConfig struct {
-	Type     string `toml:"type"`     // ollama, openai
-	Endpoint string `toml:"endpoint"` // API endpoint
-	Model    string `toml:"model"`    // model name
-	APIKey   string `toml:"api_key"`  // API key (optional for local)
+	Type            string   `toml:"type" json:"type"`                     // ollama, openai
+	Endpoint        string   `toml:"endpoint" json:"endpoint"`             // API endpoint
+	Model           string   `toml:"model" json:"model"`                   // model name
+	APIKey          string   `toml:"api_key" json:"api_key,omitempty"`     // API key (optional for local)
+	Fallbacks       []string `toml:"fallbacks" json:"fallbacks,omitempty"` // ordered named-profile fallbacks
+	DailyTokenLimit int      `toml:"daily_token_limit" json:"daily_token_limit,omitempty"`
 }
 
 // ActionConfig configures an individual action
 type ActionConfig struct {
-	Enabled        bool   `toml:"enabled"`
-	Trigger        string `toml:"trigger"`          // trigger expression
-	Prompt         string `toml:"prompt"`           // custom action: prompt template (no JS plugin needed)
-	Model          string `toml:"model"`            // optional model override
-	Endpoint       string `toml:"endpoint"`         // optional endpoint override
-	MaxTokens      int    `toml:"max_tokens"`       // optional max completion tokens override
-	TimeoutMs      int    `toml:"timeout_ms"`       // action execution timeout override
-	RetryCount     int    `toml:"retry_count"`      // retries after initial attempt
-	RetryBackoffMs int    `toml:"retry_backoff_ms"` // delay between retries
-	CooldownMs     int    `toml:"cooldown_ms"`      // minimum delay between invocations
+	Enabled          bool     `toml:"enabled" json:"enabled"`
+	Trigger          string   `toml:"trigger" json:"trigger"`         // trigger expression
+	Prompt           string   `toml:"prompt" json:"prompt,omitempty"` // custom action: prompt template (no JS plugin needed)
+	ProviderProfile  string   `toml:"provider_profile" json:"provider_profile,omitempty"`
+	FallbackProfiles []string `toml:"fallback_profiles" json:"fallback_profiles,omitempty"`
+	DailyTokenLimit  int      `toml:"daily_token_limit" json:"daily_token_limit,omitempty"`
+	Model            string   `toml:"model" json:"model,omitempty"`                       // legacy optional model override
+	Endpoint         string   `toml:"endpoint" json:"endpoint,omitempty"`                 // legacy optional endpoint override
+	MaxTokens        int      `toml:"max_tokens" json:"max_tokens,omitempty"`             // optional max completion tokens override
+	TimeoutMs        int      `toml:"timeout_ms" json:"timeout_ms,omitempty"`             // action execution timeout override
+	RetryCount       int      `toml:"retry_count" json:"retry_count,omitempty"`           // retries after initial attempt
+	RetryBackoffMs   int      `toml:"retry_backoff_ms" json:"retry_backoff_ms,omitempty"` // delay between retries
+	CooldownMs       int      `toml:"cooldown_ms" json:"cooldown_ms,omitempty"`           // minimum delay between invocations
 }
 
 // SettingsConfig contains general settings
 type SettingsConfig struct {
-	PollInterval          int    `toml:"poll_interval"`              // ms between clipboard checks
-	SafeMode              bool   `toml:"safe_mode"`                  // require confirmation for cloud
-	Notifications         bool   `toml:"notifications"`              // show macOS notifications
-	LogLevel              string `toml:"log_level"`                  // debug, info, warn, error
-	ClipboardDedupeWindow int    `toml:"clipboard_dedupe_window_ms"` // suppress duplicate clipboard events for this duration
-	HTTPEnabled           bool   `toml:"http_enabled"`               // enable local HTTP server
-	HTTPAddress           string `toml:"http_addr"`                  // local HTTP address
-	HTTPAuthToken         string `toml:"http_auth_token"`            // auth token for HTTP API
-	HTTPAllowRemote       bool   `toml:"http_allow_remote"`          // allow binding a non-loopback http_addr
-	HistoryEnabled        bool   `toml:"history_enabled"`            // write action history
-	HistoryMaxEntries     int    `toml:"history_max_entries"`        // maximum retained history records
-	HistoryTruncateChars  int    `toml:"history_truncate_chars"`     // max input/output chars per record, 0 disables truncation
-	SensitiveGuard        string `toml:"sensitive_guard"`            // block, warn, off
-	MaxConcurrentActions  int    `toml:"max_concurrent_actions"`     // cap on simultaneously running actions, 0 = unlimited
-	MaxTokens             int    `toml:"max_tokens"`                 // default max completion tokens per action
+	PollInterval          int    `toml:"poll_interval" json:"poll_interval"`                           // ms between clipboard checks
+	SafeMode              bool   `toml:"safe_mode" json:"safe_mode"`                                   // require confirmation for cloud
+	Notifications         bool   `toml:"notifications" json:"notifications"`                           // show macOS notifications
+	LogLevel              string `toml:"log_level" json:"log_level"`                                   // debug, info, warn, error
+	ClipboardDedupeWindow int    `toml:"clipboard_dedupe_window_ms" json:"clipboard_dedupe_window_ms"` // suppress duplicates
+	HTTPEnabled           bool   `toml:"http_enabled" json:"http_enabled"`
+	HTTPAddress           string `toml:"http_addr" json:"http_addr"`
+	HTTPAuthToken         string `toml:"http_auth_token" json:"http_auth_token,omitempty"`
+	HTTPAllowRemote       bool   `toml:"http_allow_remote" json:"http_allow_remote"`
+	HistoryEnabled        bool   `toml:"history_enabled" json:"history_enabled"`
+	HistoryMaxEntries     int    `toml:"history_max_entries" json:"history_max_entries"`
+	HistoryTruncateChars  int    `toml:"history_truncate_chars" json:"history_truncate_chars"`
+	SensitiveGuard        string `toml:"sensitive_guard" json:"sensitive_guard"`
+	MaxConcurrentActions  int    `toml:"max_concurrent_actions" json:"max_concurrent_actions"`
+	MaxTokens             int    `toml:"max_tokens" json:"max_tokens"`
 }
 
 // PrivacyConfig controls whether clipboard payloads may be read for automatic
 // monitoring. Applications may be identified by bundle id or display name.
 type PrivacyConfig struct {
-	StartPaused          bool     `toml:"start_paused"`
-	DefaultSnoozeMinutes int      `toml:"default_snooze_minutes"`
-	AppAllowlist         []string `toml:"app_allowlist"`
-	AppDenylist          []string `toml:"app_denylist"`
+	StartPaused          bool     `toml:"start_paused" json:"start_paused"`
+	DefaultSnoozeMinutes int      `toml:"default_snooze_minutes" json:"default_snooze_minutes"`
+	AppAllowlist         []string `toml:"app_allowlist" json:"app_allowlist"`
+	AppDenylist          []string `toml:"app_denylist" json:"app_denylist"`
 }
+
+var profileNamePattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 // Default returns a config with sensible defaults
 func Default() *Config {
@@ -82,6 +91,7 @@ func Default() *Config {
 			"caption":   {Enabled: false, Trigger: "mime:image"},
 			"ocr":       {Enabled: false, Trigger: "mime:image"},
 		},
+		Providers: make(map[string]ProviderConfig),
 		Settings: SettingsConfig{
 			PollInterval:          150,
 			SafeMode:              true,
@@ -178,6 +188,9 @@ func (c *Config) validate() error {
 	if c.Settings.MaxTokens < 0 {
 		return fmt.Errorf("invalid settings.max_tokens %d: must be greater than or equal to 0", c.Settings.MaxTokens)
 	}
+	if err := c.validateProviderProfiles(); err != nil {
+		return err
+	}
 	if c.Privacy.DefaultSnoozeMinutes <= 0 {
 		return fmt.Errorf(
 			"invalid privacy.default_snooze_minutes %d: must be greater than 0",
@@ -215,6 +228,12 @@ func (c *Config) validate() error {
 	}
 
 	for name, action := range c.Actions {
+		action.ProviderProfile = strings.TrimSpace(action.ProviderProfile)
+		fallbacks, err := normalizeProfileReferences(action.FallbackProfiles)
+		if err != nil {
+			return fmt.Errorf("invalid actions.%s.fallback_profiles: %w", name, err)
+		}
+		action.FallbackProfiles = fallbacks
 		if action.TimeoutMs < 0 {
 			return fmt.Errorf("invalid actions.%s.timeout_ms %d: must be greater than or equal to 0", name, action.TimeoutMs)
 		}
@@ -234,9 +253,134 @@ func (c *Config) validate() error {
 		if action.MaxTokens < 0 {
 			return fmt.Errorf("invalid actions.%s.max_tokens %d: must be greater than or equal to 0", name, action.MaxTokens)
 		}
+		if action.DailyTokenLimit < 0 {
+			return fmt.Errorf("invalid actions.%s.daily_token_limit %d: must be greater than or equal to 0", name, action.DailyTokenLimit)
+		}
+		if action.ProviderProfile != "" {
+			if err := c.requireProviderProfile(action.ProviderProfile, "actions."+name+".provider_profile"); err != nil {
+				return err
+			}
+		}
+		for _, fallback := range action.FallbackProfiles {
+			if err := c.requireProviderProfile(fallback, "actions."+name+".fallback_profiles"); err != nil {
+				return err
+			}
+		}
+		c.Actions[name] = action
 	}
 
 	return nil
+}
+
+func (c *Config) validateProviderProfiles() error {
+	if c.Provider.DailyTokenLimit < 0 {
+		return fmt.Errorf("invalid provider.daily_token_limit %d: must be greater than or equal to 0", c.Provider.DailyTokenLimit)
+	}
+	defaultFallbacks, err := normalizeProfileReferences(c.Provider.Fallbacks)
+	if err != nil {
+		return fmt.Errorf("invalid provider.fallbacks: %w", err)
+	}
+	c.Provider.Fallbacks = defaultFallbacks
+	for _, fallback := range c.Provider.Fallbacks {
+		if err := c.requireProviderProfile(fallback, "provider.fallbacks"); err != nil {
+			return err
+		}
+	}
+	for name, provider := range c.Providers {
+		if name == "default" || !profileNamePattern.MatchString(name) {
+			return fmt.Errorf("invalid providers.%s: profile names must match %s and cannot be default", name, profileNamePattern.String())
+		}
+		if provider.DailyTokenLimit < 0 {
+			return fmt.Errorf("invalid providers.%s.daily_token_limit %d: must be greater than or equal to 0", name, provider.DailyTokenLimit)
+		}
+		if strings.TrimSpace(provider.Type) == "" || strings.TrimSpace(provider.Model) == "" {
+			return fmt.Errorf("invalid providers.%s: type and model must be non-empty", name)
+		}
+		fallbacks, err := normalizeProfileReferences(provider.Fallbacks)
+		if err != nil {
+			return fmt.Errorf("invalid providers.%s.fallbacks: %w", name, err)
+		}
+		provider.Fallbacks = fallbacks
+		for _, fallback := range provider.Fallbacks {
+			if fallback == name {
+				return fmt.Errorf("invalid providers.%s.fallbacks: profile cannot fall back to itself", name)
+			}
+			if err := c.requireProviderProfile(fallback, "providers."+name+".fallbacks"); err != nil {
+				return err
+			}
+		}
+		c.Providers[name] = provider
+	}
+	return c.validateProviderFallbackCycles()
+}
+
+func (c *Config) requireProviderProfile(name, setting string) error {
+	name = strings.TrimSpace(name)
+	if name == "default" {
+		return nil
+	}
+	if _, ok := c.Providers[name]; !ok {
+		return fmt.Errorf("invalid %s: unknown provider profile %q", setting, name)
+	}
+	return nil
+}
+
+func (c *Config) validateProviderFallbackCycles() error {
+	visiting := make(map[string]bool)
+	visited := make(map[string]bool)
+	var visit func(string) error
+	visit = func(name string) error {
+		if visited[name] {
+			return nil
+		}
+		if visiting[name] {
+			return fmt.Errorf("provider fallback cycle includes %q", name)
+		}
+		visiting[name] = true
+		provider := c.Provider
+		if name != "default" {
+			provider = c.Providers[name]
+		}
+		for _, fallback := range provider.Fallbacks {
+			if err := visit(fallback); err != nil {
+				return err
+			}
+		}
+		visiting[name] = false
+		visited[name] = true
+		return nil
+	}
+	profiles := make([]string, 0, len(c.Providers)+1)
+	profiles = append(profiles, "default")
+	for name := range c.Providers {
+		profiles = append(profiles, name)
+	}
+	for _, name := range profiles {
+		if err := visit(name); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func normalizeProfileReferences(values []string) ([]string, error) {
+	if values == nil {
+		return nil, nil
+	}
+	result := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return nil, fmt.Errorf("profile names must be non-empty")
+		}
+		if _, duplicate := seen[value]; duplicate {
+			return nil, fmt.Errorf("duplicate profile %q", value)
+		}
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+	return result, nil
 }
 
 func normalizeApplicationList(setting string, values []string) ([]string, error) {

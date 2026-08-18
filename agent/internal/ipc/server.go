@@ -92,10 +92,11 @@ type ClipboardResponse struct {
 
 // ConfigResponse is returned by /config endpoint
 type ConfigResponse struct {
-	Provider config.ProviderConfig          `json:"provider"`
-	Actions  map[string]config.ActionConfig `json:"actions"`
-	Settings config.SettingsConfig          `json:"settings"`
-	Privacy  config.PrivacyConfig           `json:"privacy"`
+	Provider  config.ProviderConfig            `json:"provider"`
+	Providers map[string]config.ProviderConfig `json:"providers,omitempty"`
+	Actions   map[string]config.ActionConfig   `json:"actions"`
+	Settings  config.SettingsConfig            `json:"settings"`
+	Privacy   config.PrivacyConfig             `json:"privacy"`
 }
 
 type ControlsResponse struct {
@@ -314,6 +315,7 @@ func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
 
 func redactedConfigResponse(cfg *config.Config) ConfigResponse {
 	provider := cfg.Provider
+	providers := make(map[string]config.ProviderConfig, len(cfg.Providers))
 	settings := cfg.Settings
 
 	if provider.APIKey != "" {
@@ -322,12 +324,19 @@ func redactedConfigResponse(cfg *config.Config) ConfigResponse {
 	if settings.HTTPAuthToken != "" {
 		settings.HTTPAuthToken = "<redacted>"
 	}
+	for name, profile := range cfg.Providers {
+		if profile.APIKey != "" {
+			profile.APIKey = "<redacted>"
+		}
+		providers[name] = profile
+	}
 
 	return ConfigResponse{
-		Provider: provider,
-		Actions:  cfg.Actions,
-		Settings: settings,
-		Privacy:  cfg.Privacy,
+		Provider:  provider,
+		Providers: providers,
+		Actions:   cfg.Actions,
+		Settings:  settings,
+		Privacy:   cfg.Privacy,
 	}
 }
 
