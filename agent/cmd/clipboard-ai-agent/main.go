@@ -93,17 +93,11 @@ func main() {
 	}
 	state := &runtimeState{cfg: cfg, rulesEngine: rulesEngine}
 	controller := automation.NewController(time.Duration(cfg.Settings.ClipboardDedupeWindow) * time.Millisecond)
+	actionGate := automation.NewConcurrencyGate(cfg.Settings.MaxConcurrentActions)
 
 	// Track in-flight action goroutines so shutdown can wait for them to finish
 	// (their deferred temp-file cleanup must run, and subprocesses must drain).
 	var actionWG sync.WaitGroup
-
-	// Bound concurrent action subprocesses across all clipboard changes. nil
-	// (max_concurrent_actions = 0) means unlimited.
-	var actionSem chan struct{}
-	if cfg.Settings.MaxConcurrentActions > 0 {
-		actionSem = make(chan struct{}, cfg.Settings.MaxConcurrentActions)
-	}
 
 	// Create clipboard handler
 	handler := func(content clipboard.Content) {
@@ -173,7 +167,7 @@ func main() {
 				defer actionWG.Done()
 
 				// Acquire a concurrency slot (or bail if shutting down).
-				release, ok := acquireActionSlot(ctx, actionSem)
+				release, ok := actionGate.Acquire(ctx)
 				if !ok {
 					return
 				}
@@ -302,6 +296,8 @@ func main() {
 
 		logRestartRequiredSettings(logger, previousCfg, nextCfg)
 		levelVar.Set(parseLogLevel(nextCfg.Settings.LogLevel))
+		controller.SetDedupeWindow(time.Duration(nextCfg.Settings.ClipboardDedupeWindow) * time.Millisecond)
+		actionGate.SetLimit(nextCfg.Settings.MaxConcurrentActions)
 		state.swap(nextCfg, nextRulesEngine)
 		server.SetConfig(nextCfg)
 

@@ -25,6 +25,16 @@ func NewController(dedupeWindow time.Duration) *Controller {
 	}
 }
 
+// SetDedupeWindow applies a new clipboard dedupe window immediately. Existing
+// signatures are discarded so a reload cannot suppress content according to
+// the previous window.
+func (c *Controller) SetDedupeWindow(dedupeWindow time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.dedupeWindow = dedupeWindow
+	c.recentSignatures = make(map[string]time.Time)
+}
+
 // ShouldSkipClipboard returns true when the clipboard signature was seen within
 // the dedupe window. It tracks a bounded set of recent signatures (not just the
 // immediately-previous one) so an A->B->A re-copy of A inside the window is
