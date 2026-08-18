@@ -46,18 +46,21 @@ type Handler func(content Content)
 
 // Monitor watches the clipboard for changes
 type Monitor struct {
-	pollInterval  time.Duration
-	handler       Handler
-	lastSignature string
-	mu            sync.RWMutex
-	current       Content
+	pollInterval           time.Duration
+	handler                Handler
+	lastSignature          string
+	lastChangeCount        int
+	changeCountInitialized bool
+	mu                     sync.RWMutex
+	current                Content
 
 	// Read/clock seams. Defaulted to the real clipboard in NewMonitor so the
 	// poll/dedupe logic can be exercised with fakes and no GUI/cgo dependency.
-	readText  func() []byte
-	readImage func() []byte
-	readRTF   func() string
-	now       func() time.Time
+	readText        func() []byte
+	readImage       func() []byte
+	readRTF         func() string
+	readChangeCount func() int
+	now             func() time.Time
 }
 
 // NewMonitor creates a new clipboard monitor
@@ -67,12 +70,13 @@ func NewMonitor(pollIntervalMs int, handler Handler) *Monitor {
 	}
 
 	return &Monitor{
-		pollInterval: time.Duration(pollIntervalMs) * time.Millisecond,
-		handler:      handler,
-		readText:     func() []byte { return clipboard.Read(clipboard.FmtText) },
-		readImage:    func() []byte { return clipboard.Read(clipboard.FmtImage) },
-		readRTF:      readRTF,
-		now:          time.Now,
+		pollInterval:    time.Duration(pollIntervalMs) * time.Millisecond,
+		handler:         handler,
+		readText:        func() []byte { return clipboard.Read(clipboard.FmtText) },
+		readImage:       func() []byte { return clipboard.Read(clipboard.FmtImage) },
+		readRTF:         readRTF,
+		readChangeCount: pasteboardChangeCount,
+		now:             time.Now,
 	}
 }
 
@@ -91,9 +95,24 @@ func (m *Monitor) Start(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			m.check()
+			m.poll()
 		}
 	}
+}
+
+// poll uses NSPasteboard.changeCount as the inexpensive change signal. The
+// first poll establishes a baseline and reads the current payload once; later
+// polls do no clipboard payload work until AppKit reports a change.
+func (m *Monitor) poll() {
+	changeCount := m.readChangeCount()
+	if changeCount >= 0 {
+		if m.changeCountInitialized && changeCount == m.lastChangeCount {
+			return
+		}
+		m.lastChangeCount = changeCount
+		m.changeCountInitialized = true
+	}
+	m.check()
 }
 
 // check reads the clipboard and fires handler if changed
@@ -104,12 +123,12 @@ func (m *Monitor) check() {
 	}
 
 	data := m.readText()
-	if data == nil {
-		return
-	}
-
 	text := string(data)
 	rtf := m.readRTF()
+	if len(data) == 0 && rtf == "" {
+		m.clear()
+		return
+	}
 	contentType := detectContentType(text)
 	signature := text
 
@@ -131,6 +150,13 @@ func (m *Monitor) check() {
 	}
 
 	m.update(content)
+}
+
+func (m *Monitor) clear() {
+	m.lastSignature = ""
+	m.mu.Lock()
+	m.current = Content{}
+	m.mu.Unlock()
 }
 
 func (m *Monitor) checkImage() (Content, bool) {
