@@ -85,6 +85,9 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
+      - name: Test
+        run: swift test
+        working-directory: menubar
       - name: Build
         run: swift build -c release
         working-directory: menubar

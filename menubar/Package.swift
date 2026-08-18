@@ -10,5 +10,9 @@ let package = Package(
     ],
     targets: [
         .executableTarget(name: "ClipboardAIMenuBar"),
+        .testTarget(
+            name: "ClipboardAIMenuBarTests",
+            dependencies: ["ClipboardAIMenuBar"]
+        ),
     ]
 )
