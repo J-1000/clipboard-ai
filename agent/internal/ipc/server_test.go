@@ -185,6 +185,81 @@ func TestHandleConfig_GET(t *testing.T) {
 	if resp.Settings.PollInterval != 150 {
 		t.Fatalf("expected poll interval 150, got %d", resp.Settings.PollInterval)
 	}
+	if resp.Privacy.DefaultSnoozeMinutes != 15 {
+		t.Fatalf("expected default snooze 15, got %d", resp.Privacy.DefaultSnoozeMinutes)
+	}
+}
+
+func TestHandleControls_PauseClearsClipboardAndResume(t *testing.T) {
+	s := newTestServer()
+	setMonitorCurrent(t, s.monitor, clipboard.Content{Text: "secret", Type: clipboard.ContentTypeText})
+
+	pauseBody := bytes.NewBufferString(`{"action":"pause"}`)
+	pauseRequest := httptest.NewRequest(http.MethodPost, "/controls", pauseBody)
+	pauseRecorder := httptest.NewRecorder()
+	s.handleControls(pauseRecorder, pauseRequest)
+
+	var paused ControlsResponse
+	if err := json.NewDecoder(pauseRecorder.Body).Decode(&paused); err != nil {
+		t.Fatalf("decode pause response: %v", err)
+	}
+	if paused.Monitoring || !paused.Paused {
+		t.Fatalf("pause response = %#v", paused)
+	}
+	if current := s.monitor.Current(); current.Text != "" || len(current.Image) != 0 {
+		t.Fatalf("pause retained clipboard payload: %#v", current)
+	}
+
+	resumeBody := bytes.NewBufferString(`{"action":"resume"}`)
+	resumeRequest := httptest.NewRequest(http.MethodPost, "/controls", resumeBody)
+	resumeRecorder := httptest.NewRecorder()
+	s.handleControls(resumeRecorder, resumeRequest)
+	var resumed ControlsResponse
+	if err := json.NewDecoder(resumeRecorder.Body).Decode(&resumed); err != nil {
+		t.Fatalf("decode resume response: %v", err)
+	}
+	if !resumed.Monitoring || resumed.Paused || resumed.SnoozedUntil != "" {
+		t.Fatalf("resume response = %#v", resumed)
+	}
+}
+
+func TestHandleControls_SnoozesForConfiguredDefault(t *testing.T) {
+	s := newTestServer()
+	started := time.Now()
+	req := httptest.NewRequest(http.MethodPost, "/controls", bytes.NewBufferString(`{"action":"snooze"}`))
+	w := httptest.NewRecorder()
+	s.handleControls(w, req)
+
+	var response ControlsResponse
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("decode snooze response: %v", err)
+	}
+	until, err := time.Parse(time.RFC3339, response.SnoozedUntil)
+	if err != nil {
+		t.Fatalf("invalid snoozed_until %q: %v", response.SnoozedUntil, err)
+	}
+	if until.Before(started.Add(14*time.Minute)) || until.After(started.Add(16*time.Minute)) {
+		t.Fatalf("snoozed_until = %v, want about 15 minutes", until)
+	}
+	if response.Monitoring || response.Paused {
+		t.Fatalf("snooze response = %#v", response)
+	}
+}
+
+func TestHandleControls_RejectsInvalidControl(t *testing.T) {
+	s := newTestServer()
+	for _, body := range []string{
+		`{"action":"unknown"}`,
+		`{"action":"snooze","duration_minutes":10081}`,
+		`not json`,
+	} {
+		req := httptest.NewRequest(http.MethodPost, "/controls", bytes.NewBufferString(body))
+		w := httptest.NewRecorder()
+		s.handleControls(w, req)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("body %q returned %d, want 400", body, w.Code)
+		}
+	}
 }
 
 func TestHandleConfig_RedactsSecrets(t *testing.T) {

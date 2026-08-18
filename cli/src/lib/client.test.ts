@@ -55,7 +55,7 @@ mock.module("os", () => ({
 // would cache a real-homedir SOCKET_PATH. A cache-busting query forces a fresh
 // evaluation here, after the os mock is in place, so SOCKET_PATH points at
 // TEST_ROOT regardless of evaluation order.
-const { getStatus, getClipboard, getConfig } = (await import(
+const { getStatus, getClipboard, getConfig, getControls, setMonitoringControl } = (await import(
   `./client.js?test=${Date.now()}`
 )) as typeof import("./client.js");
 
@@ -138,6 +138,47 @@ describe("IPC Client", () => {
       expect(config.provider.model).toBe("mistral");
       expect(config.settings.safe_mode).toBe(true);
       expect(config.actions.summarize.enabled).toBe(true);
+    });
+  });
+
+  describe("monitoring controls", () => {
+    it("gets control status", async () => {
+      server = await startMockServer(({ method, url }) => {
+        expect(method).toBe("GET");
+        expect(url).toBe("/controls");
+        return {
+          body: {
+            monitoring: true,
+            paused: false,
+            default_snooze_minutes: 15,
+            app_allowlist: [],
+            app_denylist: [],
+          },
+        };
+      });
+
+      expect((await getControls()).monitoring).toBe(true);
+    });
+
+    it("posts snooze duration", async () => {
+      server = await startMockServer(({ method, url, body }) => {
+        expect(method).toBe("POST");
+        expect(url).toBe("/controls");
+        expect(JSON.parse(body)).toEqual({ action: "snooze", duration_minutes: 30 });
+        return {
+          body: {
+            monitoring: false,
+            paused: false,
+            snoozed_until: "2026-08-18T13:00:00Z",
+            default_snooze_minutes: 15,
+            app_allowlist: [],
+            app_denylist: [],
+          },
+        };
+      });
+
+      const result = await setMonitoringControl("snooze", 30);
+      expect(result.snoozed_until).toBe("2026-08-18T13:00:00Z");
     });
   });
 

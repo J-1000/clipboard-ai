@@ -88,6 +88,36 @@ func TestDefault(t *testing.T) {
 	if cfg.Settings.SensitiveGuard != "warn" {
 		t.Fatalf("expected sensitive_guard warn, got %q", cfg.Settings.SensitiveGuard)
 	}
+	if cfg.Privacy.StartPaused || cfg.Privacy.DefaultSnoozeMinutes != 15 {
+		t.Fatalf("unexpected privacy defaults: %#v", cfg.Privacy)
+	}
+}
+
+func TestValidatePrivacyApplicationLists(t *testing.T) {
+	cfg := Default()
+	cfg.Privacy.AppAllowlist = []string{" com.apple.Notes ", "COM.APPLE.NOTES", "Preview"}
+	cfg.Privacy.AppDenylist = []string{"com.example.Private"}
+	if err := cfg.validate(); err != nil {
+		t.Fatalf("valid privacy config rejected: %v", err)
+	}
+	if got := cfg.Privacy.AppAllowlist; len(got) != 2 || got[0] != "com.apple.Notes" || got[1] != "Preview" {
+		t.Fatalf("normalized allowlist = %#v", got)
+	}
+
+	cfg = Default()
+	cfg.Privacy.AppAllowlist = []string{"Notes"}
+	cfg.Privacy.AppDenylist = []string{"notes"}
+	if err := cfg.validate(); err == nil || !strings.Contains(err.Error(), "both privacy.app_allowlist") {
+		t.Fatalf("expected conflicting-list error, got %v", err)
+	}
+}
+
+func TestValidatePrivacySnoozeDuration(t *testing.T) {
+	cfg := Default()
+	cfg.Privacy.DefaultSnoozeMinutes = 0
+	if err := cfg.validate(); err == nil || !strings.Contains(err.Error(), "default_snooze_minutes") {
+		t.Fatalf("expected snooze duration error, got %v", err)
+	}
 }
 
 func TestLoad_MissingFile(t *testing.T) {

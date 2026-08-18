@@ -46,6 +46,26 @@ describe("statusCommand", () => {
     expect(output()).toContain("Uptime:  5m30s");
   });
 
+  it("displays paused monitoring state", async () => {
+    mockGetStatus.mockImplementationOnce(() =>
+      Promise.resolve({
+        status: "running",
+        uptime: "1s",
+        version: "0.1.0",
+        clipboard: { text: "", type: "", timestamp: "" },
+        monitoring: {
+          monitoring: false,
+          paused: true,
+          default_snooze_minutes: 15,
+          app_allowlist: [],
+          app_denylist: [],
+        },
+      })
+    );
+    await statusCommand({ getStatus: mockGetStatus });
+    expect(output()).toContain("Monitor: paused");
+  });
+
   it("displays clipboard preview", async () => {
     await statusCommand({ getStatus: mockGetStatus });
     expect(output()).toContain("Preview:   preview text");

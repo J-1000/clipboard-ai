@@ -147,6 +147,42 @@ func TestPoll_FallsBackToPayloadPollingWithoutChangeCount(t *testing.T) {
 	}
 }
 
+func TestPoll_ReadPolicyBlocksPayloadAndClearsCurrent(t *testing.T) {
+	changeCount := 1
+	allowed := true
+	var payloadReads int
+	m := NewMonitor(150, nil)
+	m.readChangeCount = func() int { return changeCount }
+	m.readImage = func() []byte {
+		payloadReads++
+		return nil
+	}
+	m.readText = func() []byte {
+		payloadReads++
+		return []byte("secret")
+	}
+	m.readRTF = func() string {
+		payloadReads++
+		return ""
+	}
+	m.SetReadPolicy(func() bool { return allowed })
+
+	m.poll()
+	if m.Current().Text != "secret" || payloadReads != 3 {
+		t.Fatalf("initial current=%#v reads=%d", m.Current(), payloadReads)
+	}
+
+	allowed = false
+	changeCount++
+	m.poll()
+	if payloadReads != 3 {
+		t.Fatalf("blocked poll performed payload reads: got %d, want 3", payloadReads)
+	}
+	if current := m.Current(); current.Text != "" || current.Signature != "" || len(current.Image) != 0 {
+		t.Fatalf("blocked poll retained clipboard payload: %#v", current)
+	}
+}
+
 func TestCheck_RTFTakesPrecedenceAndDedupes(t *testing.T) {
 	var got []Content
 	fake := &fakeClipboard{text: []byte("plain"), rtf: `{\rtf1 hello}`}
