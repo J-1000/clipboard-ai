@@ -19,16 +19,30 @@ the agent handoff `FIX_PLAN.md`).
 
 ### CI / build
 
-- CI restored to green: added `bun-types`, fixed type/lint errors, eliminated
-  cross-file test-mock leakage (dependency injection), and run the Go job on
-  macOS. Added golangci-lint, a Raycast lint/typecheck job, race-enabled Go
-  tests, a Go version matrix, `go.sum` caching, `SHA256SUMS` on releases, and
-  build-time version stamping (ldflags / `--define`).
+- Restored push/pull-request CI with macOS Go race tests and a pinned
+  `govulncheck`, frozen CLI tests/typecheck/build, Raycast lint/build and
+  high-threshold dependency audits, plus Swift menubar tests and release build.
+- Release installs are frozen, agent binaries are built natively for arm64 and
+  x86_64, and tagged builds now package architecture-specific menubar `.app`
+  archives with valid Info.plists and shared `SHA256SUMS`.
+- Updated Go to 1.26.6 and `golang.org/x/image` to 0.45.0. Updated the CLI to
+  OpenAI 6.49 and yargs 18.1 without taking the separate OpenAI 7/Node 22
+  migration.
+- Updated Raycast API/utilities, React types, and Prettier; locked patched
+  brace-expansion and js-yaml dependency paths. The remaining low-severity
+  esbuild advisory is upstream in the current Raycast API range.
 
 ### Architecture
 
 - Removed the orphaned `actions/` package; `summarize_url` is now a real CLI
   registry action (fetch + extract + summarize) with an SSRF guard.
+- Added named provider profiles with per-action selection, ordered fallbacks,
+  per-profile/action daily token limits, a local usage ledger, and a
+  Unix-socket-only credential handoff.
+- Added an MCP v2 stdio server (`cbai mcp`) that discovers registered and
+  prompt-template actions and executes tools through the existing local agent.
+- Added a native macOS menubar app with quick actions, monitoring controls,
+  recent-history detail, replay/copy actions, and an effective settings viewer.
 
 ### Security
 
@@ -40,6 +54,11 @@ the agent handoff `FIX_PLAN.md`).
 - Sensitive-data guard expanded (GitHub/Slack/Stripe/Google/GitLab/SSH patterns,
   value-required `api_key`, sliding-window Luhn, RTF scanning) with a shared
   Go/TS parity fixture.
+- Added pause/resume/snooze monitoring and frontmost-application allow/deny
+  policies. Policy checks run before `NSPasteboard` reads; pause/snooze also
+  clear retained clipboard content.
+- Automatic text and RTF payloads now use a private, rune-capped stdin envelope
+  rather than child process environment variables.
 
 ### Agent correctness
 
@@ -49,6 +68,13 @@ the agent handoff `FIX_PLAN.md`).
 - Clipboard dedupe window now suppresses A→B→A re-copies; graceful shutdown waits
   for in-flight actions, removes the socket, and reloads off the signal loop;
   concurrent action subprocesses are capped (`max_concurrent_actions`).
+- Clipboard polling checks `NSPasteboard.changeCount` before decoding content,
+  and an empty pasteboard clears the agent's current payload.
+- Action errors retain CLI stderr diagnostics, and configured retries now stop
+  after deterministic failures while retrying only transient network/service
+  conditions.
+- Clipboard dedupe, maximum action concurrency, and application policies update
+  live on config reload; restart-required settings are reported explicitly.
 - Rune-boundary notification truncation; stricter code detection (prose with
   arrows is no longer classified as code); hot-reloadable log level.
 
@@ -59,6 +85,7 @@ the agent handoff `FIX_PLAN.md`).
   is capped before the LLM call; JSON mode for classify/extract; atomic,
   lock-guarded history writes; `--json` output, color, `cbai init`, and
   top-level `caption`/`ocr` commands.
+- Added `cbai pause`, `cbai resume`, `cbai snooze [minutes]`, and `cbai mcp`.
 
 ### Raycast
 
@@ -70,3 +97,8 @@ the agent handoff `FIX_PLAN.md`).
 
 - Consistent JSON HTTP error bodies and a documented API contract; richer
   uninstall; reconciled README; release checksum + quarantine guidance.
+- Corrected the Go prerequisite, invalid-regex and CI status descriptions;
+  documented privacy controls, named provider routing, MCP, and the native
+  menubar client.
+- Marked release installation unavailable until the first public tag/release is
+  actually published.

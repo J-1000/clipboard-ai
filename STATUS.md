@@ -1,120 +1,106 @@
 # clipboard-ai Status
 
-Last updated: 2026-06-22
+Last updated: 2026-08-18
 
 ## Status Quo
 
-- Platform: macOS only
+- Platform: macOS; agent/CLI support macOS 12+, native menubar app requires
+  macOS 14+
 - Runtime components:
-  - Go daemon (`clipboard-ai-agent`)
-  - TypeScript CLI (`cbai`)
-  - Unix socket IPC (`~/.clipboard-ai/agent.sock`)
-  - Optional local HTTP API (`http_enabled`)
-- Default provider mode: local Ollama (`http://localhost:11434/v1`)
-- Supported providers:
-  - `ollama`
-  - `openai`
-  - `anthropic` via Anthropic's OpenAI SDK compatibility endpoint
-  - custom OpenAI-compatible endpoint via `provider.endpoint`
+  - Go 1.26.6 daemon (`clipboard-ai-agent`)
+  - TypeScript/Node.js CLI (`cbai`)
+  - Private Unix socket IPC (`~/.clipboard-ai/agent.sock`)
+  - Optional authenticated local HTTP API (`http_enabled`)
+  - Native SwiftUI menubar app
+  - MCP stdio server (`cbai mcp`)
+  - Raycast extension (`integrations/raycast/`)
+- Default provider: local Ollama (`http://localhost:11434/v1`)
+- Supported providers: Ollama, OpenAI, Anthropic through its OpenAI SDK
+  compatibility endpoint, and custom OpenAI-compatible endpoints
 
-## Behavior Notes
+## Implemented Behavior
 
-- Safe mode:
-  - Blocks daemon-triggered cloud calls
-  - Prompts for confirmation in manual CLI calls
-  - `--yes` bypasses prompt for manual CLI calls
-- Trigger rule `length` uses character count (UTF-8 rune-aware), not byte count
-- IPC clipboard `length` and status preview truncation are UTF-8 rune-aware
-- Clipboard types supported: text, RTF, image
-- Image actions available: `caption`, `ocr` (requires vision-capable models)
-- Invalid poll interval handling:
-  - Config validation rejects `settings.poll_interval <= 0`
-  - Clipboard monitor also guards against non-positive intervals with a safe default
-- Reliability controls:
-  - `settings.clipboard_dedupe_window_ms` suppresses duplicate clipboard events inside a window
-  - Per-action controls: `timeout_ms`, `retry_count`, `retry_backoff_ms`, `cooldown_ms`
-  - Per-action model routing: `actions.<name>.model` and `actions.<name>.endpoint`
-- Local HTTP API:
-  - Enabled via `settings.http_enabled`
-  - Address via `settings.http_addr`
-  - Auth token via `settings.http_auth_token`
-  - `/action` accepts optional `args` for action arguments
-  - `/history` returns recent action history for integrations
-- Config hot reload:
-  - `~/.clipboard-ai/config.toml` is watched and valid provider/action/rule changes are applied without restart
-  - Invalid reloads are rejected while the previous config remains active
-  - `SIGHUP` triggers a manual reload
-  - `settings.http_enabled`, `settings.http_addr`, and `settings.poll_interval` changes are logged as restart-required
-- Action history:
-  - Runs are persisted to `~/.clipboard-ai/history.jsonl`
-  - Retention controls: `history_enabled`, `history_max_entries`, `history_truncate_chars`
-  - CLI supports `cbai history`, `cbai history --clear`, `cbai history --before <ISO date>`, and `cbai rerun <id>`
-- Security hardening:
-  - macOS notification text is passed to AppleScript via argv
-  - `/config` redacts provider API keys and HTTP auth tokens
-  - `/action` request bodies are capped at 10 MB
-  - Oversized clipboard images are omitted from `/clipboard` with truncation metadata
-  - IPC socket directory/socket permissions are enforced at startup
-  - Plugin actions are documented as trusted local code
-- Robustness hardening:
-  - CLI IPC requests time out after 10 seconds by default (`CBAI_IPC_TIMEOUT_MS` override)
-  - History reading skips corrupt JSONL lines with a single warning
-  - AI provider responses with no completion choices produce a descriptive error
-  - The first RTF clipboard read failure is logged once per agent process
-- Code quality:
-  - Built-in actions live solely in `cli/src/lib/builtin-actions.ts` (the orphaned
-    `actions/` package was removed; `summarize_url` was folded into the CLI registry)
-  - Regex triggers are compiled when the rules engine is created and invalid regexes fail startup
-- Feature work:
-  - Sensitive-data guard scans likely secrets/PII before actions and suppresses history content when it fires
-  - Manual CLI actions can stream generation output on TTY when output is not being copied
-  - `summarize_url` builtin can fetch and summarize a single HTTP(S) URL
-  - `cbai actions` lists registered actions and configured trigger state
-  - `cbai doctor` runs local diagnostics, including vision-model guidance for caption/OCR
-  - `anthropic` provider type routes through Anthropic's OpenAI SDK compatibility endpoint
-  - Per-action model/endpoint overrides route selected actions to different OpenAI-compatible models
-  - Config hot reload applies valid provider/action/rule changes without restarting the agent
-  - Raycast extension lives in `integrations/raycast/` with setup, summary,
-    explain, translate, history, classify, extract, and URL-summary commands
+### Clipboard and execution
 
-## Test Health
+- `NSPasteboard.changeCount` gates clipboard decoding, so unchanged text, RTF,
+  and images are not reread and rehashed every poll. Empty clipboard changes
+  clear the retained value.
+- Trigger length, IPC length, truncation, and the 100,000-character subprocess
+  input cap are Unicode-rune-aware.
+- Automatic text and RTF inputs use a capped private stdin envelope rather than
+  child environment variables. Image execution uses a temporary file.
+- CLI diagnostics are preserved through the agent and `/action`, including
+  safe-mode, provider, authentication, and configuration failures.
+- Automatic retries are limited to transient timeouts, connection failures,
+  rate limits, and temporary HTTP failures. Deterministic failures are not
+  retried.
+- Dedupe window, action concurrency, application policies, provider/action
+  routing, log level, safe mode, sensitive guard, and history settings apply on
+  hot reload. HTTP enable/address and polling interval remain restart-required.
+- Invalid reloads keep the last valid configuration. Invalid trigger regexes
+  are logged and their action is skipped rather than preventing startup.
 
-- `agent`: `go vet` and `go test -race ./...` passing; `golangci-lint` was not
-  available for the latest local verification
-- `cli`: full `bun test` suite and `bun run typecheck` passing (cross-file
-  mock leakage eliminated via dependency injection)
-- `integrations/raycast`: `npm run lint` and `tsc --noEmit` passing
-- Push/PR CI is intentionally absent. Tagged releases build the agent and CLI,
-  and the agent boot smoke test guards the startup-panic class; the checks above
-  are run locally before release.
+### Privacy and routing
 
-## Roadmap (deferred, optional)
+- Safe mode blocks daemon-triggered cloud calls, prompts for manual CLI calls,
+  and treats local providers as allowed.
+- Monitoring can be paused, resumed, or snoozed through `cbai`, the menubar app,
+  or `/controls`. Pause and snooze clear the retained clipboard value.
+- Frontmost-application allow/deny lists are evaluated before the clipboard is
+  read. Entries accept display names or bundle identifiers; deny rules win.
+- Named provider profiles support independent type, endpoint, model, API key,
+  ordered fallbacks, and daily token limits. Actions can select and override
+  fallback profiles and set their own daily limit.
+- Usage-limit accounting is stored locally in `~/.clipboard-ai/usage.jsonl`.
+  The private `/provider-chain` endpoint is available only over the mode-0600
+  Unix socket; public `/config` responses redact every credential.
 
-The remediation pass (see `CHANGELOG.md`) shipped the tractable roadmap items
-(config prompt-template actions, token-usage stats via `cbai stats`, and an
-`X-API-Version` header). The following larger items remain as future work and
-were deliberately not attempted in this pass to avoid destabilizing the codebase:
+### Clients and integrations
 
-- **MCP server** (`cbai mcp`) — expose actions as MCP tools (the HTTP API is most
-  of the plumbing).
-- **Menubar viewer** — a macOS menubar app + history viewer (PRD v1.1).
-- **Long-lived CLI worker** — replace the per-trigger Node spawn with a persistent
-  worker (or move LLM calls into the daemon) to hit the PRD latency goals.
-- **Config schema codegen** — generate the TS config types from the Go structs
-  (the provider default-endpoint map is already centralized).
-- **Cross-platform seams** — a `Notifier` interface and build-tag-selected RTF
-  backend to de-risk a Linux/Windows port.
+- The native menubar app shows live monitoring state, quick actions, the newest
+  50 history records, replay/copy controls, and a read-only effective settings
+  view. It talks directly to the Unix socket and honors Reduce Motion and
+  VoiceOver semantics.
+- `cbai mcp` discovers built-in, plugin, and configured prompt actions and
+  exposes them as MCP v2 tools over stdio. Tool calls use the agent, so existing
+  safe-mode, guard, routing, limits, and history behavior remains authoritative.
+- The Raycast extension includes setup, summary, explain, translate, history,
+  classify, extract, and URL-summary commands.
+- The authenticated HTTP API exposes status, clipboard, redacted config,
+  actions, history, and monitoring controls. Every response carries
+  `X-API-Version: 1`.
 
-## Recent Fixes
+## CI and Test Health
 
-- Phase 4 feature work: sensitive-data guard, streaming CLI output, `summarize_url`, `cbai actions`, `cbai doctor`, Anthropic provider support, per-action model routing, config hot reload, and Raycast extension
-- Phase 3 code quality fixes: shared builtin action execution helper, documented action type boundary, and precompiled trigger regex validation
-- Phase 2 robustness fixes: CLI IPC timeout, corrupt history-line tolerance, defensive empty-choice AI response handling, and one-time RTF read failure logging
-- Phase 1 security fixes: notification AppleScript injection prevention, `/config` secret redaction, history retention/privacy controls, IPC size limits/socket permissions, and plugin trust-model docs
-- Provider docs/runtime consistency: Anthropic provider support now matches user docs/config comments
-- Poll interval hardening: validation and runtime fallback for invalid values
-- Unicode length correctness: rules and IPC length/truncation updated to rune-based behavior
-- Local HTTP API docs: added endpoint/auth reference and cURL examples in `docs/http-api.md`
-- Integration examples: added Raycast/Alfred/editor snippets in `docs/integrations/local-http-clients.md`
-- HTTP API helper env/script: added `.env.example` and `scripts/examples/http-action.sh`
-- IPC auth contract tests: added coverage for Bearer, `X-API-Key`, `X-Clipboard-AI-Token`, and unauthorized cases
+Pushes and pull requests run all of the following:
+
+- Agent: `go test -race ./...` and pinned `govulncheck`; the current scan reports
+  zero reachable vulnerabilities.
+- CLI: frozen Bun install, full tests, type-check, and production build.
+- Raycast: frozen npm install, lint, build, production audit, and full audit at
+  high-severity threshold. A low-severity esbuild development-server advisory
+  remains in the current upstream Raycast dependency range.
+- Menubar: Swift tests, including a real Unix-socket round trip and HTTP parser
+  cases, plus a release build.
+
+Tagged release automation uses frozen installs, builds native arm64 and x86_64
+agent and menubar artifacts, packages valid `.app` bundles, smoke-tests the
+native agent, and publishes SHA-256 checksums.
+
+## Distribution Status
+
+No Git tag or public GitHub Release exists as of this status update. Source
+installation is therefore the supported installation path. The release
+workflow is ready for a first `v*` tag, but its artifacts are not yet signed or
+notarized.
+
+## Remaining Optional Work
+
+- Replace the per-trigger Node.js process with a persistent worker or move LLM
+  calls into the daemon for lower automatic-action latency.
+- Generate shared configuration types from one schema instead of maintaining
+  Go and TypeScript representations manually.
+- Introduce cross-platform notification and rich-clipboard seams before any
+  Linux or Windows port.
+- Codesign and notarize release artifacts before treating release installation
+  as the default path.

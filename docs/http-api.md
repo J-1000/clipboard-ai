@@ -52,6 +52,13 @@ Returns agent status and clipboard preview.
     "text": "latest clipboard preview...",
     "type": "text",
     "timestamp": "2026-02-22T12:00:00Z"
+  },
+  "monitoring": {
+    "monitoring": true,
+    "paused": false,
+    "default_snooze_minutes": 15,
+    "app_allowlist": [],
+    "app_denylist": []
   }
 }
 ```
@@ -87,7 +94,47 @@ RTF payload includes:
 
 ### `GET /config`
 
-Returns active provider/action/settings config used by the running agent.
+Returns active provider/action/settings/privacy config used by the running
+agent, including named provider profiles and per-action routing. Provider API
+keys and the HTTP auth token are always redacted on this endpoint.
+
+### `GET /controls`
+
+Returns the live automatic-monitoring state:
+
+```json
+{
+  "monitoring": false,
+  "paused": false,
+  "snoozed_until": "2026-08-18T14:30:00Z",
+  "default_snooze_minutes": 15,
+  "app_allowlist": [],
+  "app_denylist": ["com.example.BankingApp"]
+}
+```
+
+`snoozed_until` is omitted when no active snooze exists.
+
+### `POST /controls`
+
+Pause, resume, or snooze automatic clipboard monitoring:
+
+```json
+{ "action": "pause" }
+```
+
+```json
+{ "action": "resume" }
+```
+
+```json
+{ "action": "snooze", "duration_minutes": 30 }
+```
+
+Omitting `duration_minutes` for `snooze` uses
+`privacy.default_snooze_minutes`. Explicit durations must be between 1 minute
+and 7 days. The response is the updated monitoring state. Pause and snooze
+clear the agent's retained clipboard payload.
 
 ### `POST /action`
 
@@ -134,6 +181,10 @@ errors (bad method, invalid JSON, unknown/invalid action name, body too large,
 rate-limited) return a non-2xx status with a JSON body `{"error": "..."}`.
 Unknown or malformed action names return `400`; a saturated action queue returns
 `429`.
+
+Action errors include the CLI's diagnostic output where available, so clients
+can distinguish provider, safe-mode, authentication, and configuration
+failures.
 
 Use `args` for actions that accept CLI arguments. Example:
 
@@ -219,6 +270,11 @@ curl -s "$BASE/action" \
 
 curl -s "$BASE/history?limit=10" \
   -H "Authorization: Bearer $TOKEN"
+
+curl -s "$BASE/controls" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"action":"snooze","duration_minutes":30}'
 ```
 
 ## Integration Examples
