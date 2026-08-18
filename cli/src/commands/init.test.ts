@@ -24,6 +24,11 @@ describe("initCommand", () => {
     const content = readFileSync(cfgPath, "utf8");
     expect(content).toContain("[provider]");
     expect(content).toContain("sensitive_guard");
+    expect(content).toContain("[privacy]");
+    expect(content).toContain("start_paused = false");
+    expect(content).toContain("default_snooze_minutes = 15");
+    expect(content).toContain("app_allowlist = []");
+    expect(content).toContain("app_denylist = []");
   });
 
   it("does not overwrite an existing config without --force", () => {
