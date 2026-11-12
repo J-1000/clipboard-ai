@@ -70,6 +70,13 @@ export async function enforceSafeMode(
     return;
   }
 
+  // Without a terminal the prompt below would never be answered.
+  if (!process.stdin.isTTY) {
+    throw new Error(
+      `safe mode: cannot ask for confirmation to call ${provider} because stdin is not a terminal. Re-run with --yes to allow it.`
+    );
+  }
+
   // Interactive confirmation
   const allowed = await confirm(
     `Safe mode: send clipboard to cloud provider "${provider}"?`
