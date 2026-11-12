@@ -66,6 +66,8 @@ describe("isCloudProvider", () => {
 
 describe("enforceSafeMode", () => {
   const origEnv = process.env.CBAI_DAEMON_MODE;
+  const origSource = process.env.CBAI_SOURCE;
+  const origStdinTTY = Object.getOwnPropertyDescriptor(process.stdin, "isTTY");
 
   afterEach(() => {
     if (origEnv === undefined) {
@@ -73,6 +75,34 @@ describe("enforceSafeMode", () => {
     } else {
       process.env.CBAI_DAEMON_MODE = origEnv;
     }
+    if (origSource === undefined) {
+      delete process.env.CBAI_SOURCE;
+    } else {
+      process.env.CBAI_SOURCE = origSource;
+    }
+    if (origStdinTTY) {
+      Object.defineProperty(process.stdin, "isTTY", origStdinTTY);
+    } else {
+      delete (process.stdin as { isTTY?: boolean }).isTTY;
+    }
+  });
+
+  it("explains an automatic trigger block as daemon auto-triggered", async () => {
+    process.env.CBAI_DAEMON_MODE = "true";
+    delete process.env.CBAI_SOURCE;
+    const config = makeConfig({ type: "openai", safe_mode: true });
+    await expect(enforceSafeMode(config)).rejects.toThrow(
+      "safe mode: blocked cloud call to openai (daemon auto-triggered)"
+    );
+  });
+
+  it("names the requesting client when a manual run through the agent is blocked", async () => {
+    process.env.CBAI_DAEMON_MODE = "true";
+    process.env.CBAI_SOURCE = "menubar";
+    const config = makeConfig({ type: "openai", safe_mode: true });
+    await expect(enforceSafeMode(config)).rejects.toThrow(
+      "safe mode: blocked cloud call to openai (requested via menubar; set safe_mode = false or route this action to a local provider)"
+    );
   });
 
   it("allows ollama regardless of safe mode", async () => {

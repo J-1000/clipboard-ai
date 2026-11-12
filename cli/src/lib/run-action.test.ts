@@ -76,6 +76,9 @@ describe("runActionCommand history", () => {
     delete process.env.CBAI_SENSITIVE_GUARD_HIT;
     delete process.env.CBAI_MODEL_OVERRIDE;
     delete process.env.CBAI_ENDPOINT_OVERRIDE;
+    delete process.env.CBAI_DAEMON_MODE;
+    delete process.env.CBAI_SOURCE;
+    delete process.env.CBAI_TRIGGER;
     Object.defineProperty(process.stderr, "isTTY", {
       value: false,
       configurable: true,
@@ -311,6 +314,37 @@ describe("runActionCommand history", () => {
     expect(console.log).toHaveBeenCalledWith("the result");
     expect(console.error).toHaveBeenCalledWith("\n(Copied to clipboard)");
     expect(console.log).not.toHaveBeenCalledWith("\n(Copied to clipboard)");
+  });
+
+  it("labels runs requested through the agent with the requesting client", async () => {
+    process.env.CBAI_DAEMON_MODE = "true";
+    process.env.CBAI_SOURCE = "menubar";
+
+    await runActionCommand("summary", { registry, deps: deps() });
+
+    const call = mockAppendHistoryRecord.mock.calls[0][0];
+    expect(call.source).toBe("menubar");
+    expect(call.trigger).toBe("menubar");
+  });
+
+  it("labels automatic clipboard triggers as daemon runs", async () => {
+    process.env.CBAI_DAEMON_MODE = "true";
+    process.env.CBAI_TRIGGER = "length > 200";
+
+    await runActionCommand("summary", { registry, deps: deps() });
+
+    const call = mockAppendHistoryRecord.mock.calls[0][0];
+    expect(call.source).toBe("daemon");
+    expect(call.trigger).toBe("length > 200");
+  });
+
+  it("ignores an unrecognised CBAI_SOURCE value", async () => {
+    process.env.CBAI_DAEMON_MODE = "true";
+    process.env.CBAI_SOURCE = "somebody-else";
+
+    await runActionCommand("summary", { registry, deps: deps() });
+
+    expect(mockAppendHistoryRecord.mock.calls[0][0].source).toBe("daemon");
   });
 
   it("keeps JSON-producing actions buffered on TTY", async () => {
