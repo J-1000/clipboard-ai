@@ -157,9 +157,10 @@ final class AgentAPITests: XCTestCase {
         XCTAssertEqual(try jsonObject(requests[0].body)["duration_minutes"] as? Int, 30)
         XCTAssertEqual(try jsonObject(requests[1].body)["action"] as? String, "translate")
         XCTAssertEqual(try jsonObject(requests[1].body)["args"] as? [String], ["German"])
+        XCTAssertEqual(try jsonObject(requests[1].body)["source"] as? String, "menubar")
+        XCTAssertNil(try jsonObject(requests[1].body)["fresh"])
         // /controls keeps the short default; /action gets the long timeout.
         XCTAssertNil(requests[0].timeoutSeconds)
-        XCTAssertNil(try jsonObject(requests[1].body)["fresh"])
         XCTAssertEqual(requests[1].timeoutSeconds, AgentAPI.actionTimeoutSeconds)
     }
 
@@ -175,6 +176,7 @@ final class AgentAPITests: XCTestCase {
         let requests = await transport.requests()
         let body = try jsonObject(requests[0].body)
         XCTAssertEqual(body["fresh"] as? Bool, true)
+        XCTAssertEqual(body["source"] as? String, "menubar")
         XCTAssertNil(body["text"])
     }
 
