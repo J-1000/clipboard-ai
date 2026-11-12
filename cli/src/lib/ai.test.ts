@@ -255,6 +255,39 @@ describe("AIClient", () => {
     });
   });
 
+  describe("provider-specific parameters", () => {
+    it("sends max_completion_tokens and no temperature to OpenAI", async () => {
+      const openai = new AIClient({
+        type: "openai",
+        endpoint: "https://api.openai.com/v1",
+        model: "gpt-5-mini",
+        apiKey: "sk-test",
+        maxTokens: 2048,
+      });
+
+      await openai.generate("test");
+
+      const call = mockCreate.mock.calls[0][0] as Record<string, unknown>;
+      expect(call.max_completion_tokens).toBe(2048);
+      expect("max_tokens" in call).toBe(false);
+      expect("temperature" in call).toBe(false);
+    });
+
+    it("keeps max_tokens and temperature for other OpenAI-compatible providers", async () => {
+      for (const type of ["ollama", "anthropic", "custom"]) {
+        mockCreate.mockClear();
+        const other = new AIClient({ type, endpoint: "http://localhost:1/v1", model: "m" });
+
+        await other.generate("test");
+
+        const call = mockCreate.mock.calls[0][0] as Record<string, unknown>;
+        expect(call.max_tokens).toBe(1024);
+        expect(call.temperature).toBe(0.7);
+        expect("max_completion_tokens" in call).toBe(false);
+      }
+    });
+  });
+
   describe("max_tokens", () => {
     it("defaults to 1024 when unset", async () => {
       await client.generate("test");
