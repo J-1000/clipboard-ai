@@ -764,6 +764,55 @@ func TestHandleAction_RejectsUnknownAction(t *testing.T) {
 	}
 }
 
+func TestHandleAction_PrefersStderrDiagnosticOverStdout(t *testing.T) {
+	s := newTestServer()
+	executor.SetExecuteWithOptionsFunc(func(context.Context, string, string, executor.Options) executor.Result {
+		return executor.Result{
+			Action: "summarize",
+			Output: "partial output\n",
+			Stderr: "Error: all provider profiles failed: default: Connection error.\n",
+			Error:  errors.New("exit status 1"),
+		}
+	})
+	defer executor.ResetExecuteFunc()
+
+	body, _ := json.Marshal(ActionRequest{Action: "summarize", Text: "hello"})
+	req := httptest.NewRequest(http.MethodPost, "/action", bytes.NewBuffer(body))
+	w := httptest.NewRecorder()
+
+	s.handleAction(w, req)
+
+	var resp ActionResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.Success || resp.Error != "Error: all provider profiles failed: default: Connection error." {
+		t.Fatalf("response = %#v, want the stderr diagnostic", resp)
+	}
+}
+
+func TestHandleAction_TrimsTrailingNewlineFromResult(t *testing.T) {
+	s := newTestServer()
+	executor.SetExecuteWithOptionsFunc(func(context.Context, string, string, executor.Options) executor.Result {
+		return executor.Result{Action: "summarize", Output: "line one\nline two\n"}
+	})
+	defer executor.ResetExecuteFunc()
+
+	body, _ := json.Marshal(ActionRequest{Action: "summarize", Text: "hello"})
+	req := httptest.NewRequest(http.MethodPost, "/action", bytes.NewBuffer(body))
+	w := httptest.NewRecorder()
+
+	s.handleAction(w, req)
+
+	var resp ActionResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.Result != "line one\nline two" {
+		t.Fatalf("result = %q, want inner newlines kept and the trailing one removed", resp.Result)
+	}
+}
+
 func TestHandleAction_RejectsMalformedActionName(t *testing.T) {
 	s := newTestServer()
 	executor.SetExecuteWithOptionsFunc(func(ctx context.Context, action string, text string, opts executor.Options) executor.Result {

@@ -249,3 +249,23 @@ func TestCapInput_PreservesUnicodeRuneBoundary(t *testing.T) {
 		t.Fatal("capped input missing truncation marker")
 	}
 }
+
+func TestResult_Diagnostic(t *testing.T) {
+	tests := []struct {
+		name   string
+		result Result
+		want   string
+	}{
+		{"prefers stderr", Result{Output: "progress\n", Stderr: " Error: boom \n", Error: errors.New("exit status 1")}, "Error: boom"},
+		{"falls back to stdout", Result{Output: " only stdout \n", Error: errors.New("exit status 1")}, "only stdout"},
+		{"falls back to the process error", Result{Output: " \n", Error: errors.New("signal: killed")}, "signal: killed"},
+		{"empty when nothing is known", Result{}, ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.result.Diagnostic(); got != tc.want {
+				t.Fatalf("Diagnostic() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
