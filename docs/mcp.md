@@ -39,7 +39,8 @@ names are skipped with a warning on stderr.
 Each tool accepts:
 
 - `text` (optional): explicit text, capped at 100,000 characters; when omitted,
-  the current clipboard is used
+  the clipboard content that automatic monitoring last read is used (there is
+  none while monitoring is paused or snoozed)
 - `arguments` (optional): up to 64 positional strings, each capped at 4,096
   characters, for actions such as `translate`
 

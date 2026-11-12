@@ -316,6 +316,11 @@ startup default; use `cbai pause` or `cbai resume` to change the live state.
 - Applications may be identified by display name or bundle identifier. A
   blocked clipboard payload is never read into the agent, and pausing or
   snoozing clears the agent's retained clipboard value.
+- These controls apply to automatic monitoring. A manual action (`cbai
+  <action>`, a menubar quick action, a Raycast command) reads the clipboard at
+  the moment you run it, also while monitoring is paused or snoozed.
+- Content that is already on the clipboard when the agent starts is not
+  treated as a new copy and does not trigger actions.
 
 ### Local HTTP API
 

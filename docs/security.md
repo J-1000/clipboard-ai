@@ -42,6 +42,13 @@ The agent checks the policy before reading `NSPasteboard`, so a blocked payload
 is not copied into agent memory. Explicit content submitted by a local API or
 MCP client remains the caller's responsibility.
 
+These controls govern automatic monitoring. A manual action is an explicit
+request, so it reads the clipboard at the moment it runs: `cbai <action>`,
+`cbai clipboard`, menubar quick actions, and the Raycast commands work while
+monitoring is paused or snoozed. Such a read is not stored by the monitor and
+never triggers other actions. MCP tool calls without `text` do not do this;
+they use what monitoring last read.
+
 ## Local transports and credentials
 
 The primary IPC socket lives at `~/.clipboard-ai/agent.sock`; its directory and

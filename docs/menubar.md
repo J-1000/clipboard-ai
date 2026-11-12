@@ -41,6 +41,10 @@ be replayed. Image history stores a placeholder rather than the original image,
 so image runs also cannot be replayed from history; use a quick action on the
 current clipboard instead.
 
+Quick actions read the clipboard at the moment you click, so they also work
+while monitoring is paused or snoozed. Runs started from the app are recorded
+in history with the source `menubar`.
+
 Quick actions and replay requests still pass through the agent's safe-mode,
 sensitive-data, provider-limit, and concurrency checks. Application failures
 are shown in the app with the diagnostic returned by the CLI.

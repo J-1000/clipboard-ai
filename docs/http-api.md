@@ -65,7 +65,14 @@ Returns agent status and clipboard preview.
 
 ### `GET /clipboard`
 
-Returns current clipboard payload.
+Returns the clipboard payload that automatic monitoring last read. That is
+empty while monitoring is paused or snoozed and after a copy from a blocked
+application.
+
+Add `?fresh=true` to read the clipboard at request time instead. A fresh read
+is meant for an explicit user action: it bypasses pause, snooze, and the
+application lists, does not change what monitoring holds, and never triggers
+actions.
 
 Text payload:
 
@@ -147,13 +154,19 @@ Request body:
   "action": "summarize",
   "args": [],
   "text": "optional input override",
-  "type": "text"
+  "type": "text",
+  "fresh": false,
+  "source": "raycast"
 }
 ```
 
 Behavior:
 
-- If `text`/`rtf`/`image_base64` are not provided, the agent uses current clipboard content.
+- If `text`/`rtf`/`image_base64` are not provided, the agent uses the clipboard
+  content that automatic monitoring last read, or reads the clipboard at
+  request time when `fresh` is `true` (see `GET /clipboard`).
+- `source` labels the run in history: `menubar`, `raycast`, or `mcp`. Any other
+  value, or none, is recorded as `api`.
 - If no content is available, response is:
 
 ```json
@@ -238,6 +251,9 @@ Query parameters:
 
 Additional fields:
 
+- `source` (per record) — `manual` (typed in a terminal), `daemon` (automatic
+  clipboard trigger), `rerun`, or the client that requested the run through the
+  agent: `menubar`, `raycast`, `mcp`, `api`.
 - `replay_of` (per record) — present when the run was a replay (`cbai rerun`),
   set to the original run id.
 - `skipped_corrupt` (top level) — number of unparseable history lines skipped
