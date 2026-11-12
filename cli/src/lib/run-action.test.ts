@@ -288,6 +288,31 @@ describe("runActionCommand history", () => {
     expect(console.error).not.toHaveBeenCalled();
   });
 
+  it("shows progress on stderr and a header on stdout when attached to a terminal", async () => {
+    (console.log as unknown as { mockClear: () => void }).mockClear();
+    (console.error as unknown as { mockClear: () => void }).mockClear();
+    Object.defineProperty(process.stdout, "isTTY", { value: true, configurable: true });
+    Object.defineProperty(process.stderr, "isTTY", { value: true, configurable: true });
+    const copyRegistry = createActionRegistry([
+      {
+        id: "summary",
+        description: "Summary",
+        progressMessage: "Summarizing clipboard content...",
+        outputTitle: "Summary",
+        run: async () => "the result",
+      },
+    ]);
+
+    // --copy disables streaming, so the buffered terminal layout is used.
+    await runActionCommand("summary", { registry: copyRegistry, deps: deps(), copy: true });
+
+    expect(console.error).toHaveBeenCalledWith("Summarizing clipboard content...\n");
+    expect(console.log).toHaveBeenCalledWith("Summary:");
+    expect(console.log).toHaveBeenCalledWith("the result");
+    expect(console.error).toHaveBeenCalledWith("\n(Copied to clipboard)");
+    expect(console.log).not.toHaveBeenCalledWith("\n(Copied to clipboard)");
+  });
+
   it("keeps JSON-producing actions buffered on TTY", async () => {
     Object.defineProperty(process.stdout, "isTTY", {
       value: true,
