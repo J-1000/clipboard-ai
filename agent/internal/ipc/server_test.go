@@ -941,6 +941,36 @@ func TestFreshReadsBypassTheMonitorCache(t *testing.T) {
 	}
 }
 
+func TestReadHistoryRecords_HandlesLongLinesAndTokenCounts(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "history.jsonl")
+	long := strings.Repeat("x", 200_000) // far beyond bufio.Scanner's 64 KB default
+	record := map[string]any{
+		"id": "a1", "timestamp": "2026-11-12T10:00:00Z", "action": "summary", "args": []string{},
+		"source": "manual", "trigger": "cli", "provider": "ollama", "model": "m", "latency_ms": 5,
+		"status": "success", "copy": false, "input": long, "output": "out",
+		"prompt_tokens": 12, "completion_tokens": 34,
+	}
+	line, err := json.Marshal(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, append(line, '\n'), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	records, skipped, err := readHistoryRecords(path, 10)
+	if err != nil {
+		t.Fatalf("readHistoryRecords failed on a long line: %v", err)
+	}
+	if skipped != 0 || len(records) != 1 {
+		t.Fatalf("records=%d skipped=%d, want 1 and 0", len(records), skipped)
+	}
+	if len(records[0].Input) != 200_000 || records[0].PromptTokens != 12 || records[0].CompletionTokens != 34 {
+		t.Fatalf("record lost data: input=%d prompt=%d completion=%d",
+			len(records[0].Input), records[0].PromptTokens, records[0].CompletionTokens)
+	}
+}
+
 func TestHandleAction_RejectsMalformedActionName(t *testing.T) {
 	s := newTestServer()
 	executor.SetExecuteWithOptionsFunc(func(ctx context.Context, action string, text string, opts executor.Options) executor.Result {
