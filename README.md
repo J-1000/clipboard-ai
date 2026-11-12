@@ -324,8 +324,9 @@ trigger = "mime:code"
 The agent watches `~/.clipboard-ai/config.toml` and reloads valid changes without
 restart. Provider settings, action definitions, trigger rules, safe mode,
 notifications, logging level, sensitive guard, history settings, per-action
-routing, clipboard dedupe, action concurrency, the default snooze duration, and
-application allow/deny lists are applied after reload.
+routing, clipboard dedupe, action concurrency, the default snooze duration,
+application allow/deny lists, and concealed-entry skipping are applied after
+reload.
 
 Invalid TOML, invalid settings, or invalid trigger regexes are rejected; the agent keeps the last valid config and sends a notification when notifications are enabled. Send `SIGHUP` to `clipboard-ai-agent` to force a reload manually.
 
