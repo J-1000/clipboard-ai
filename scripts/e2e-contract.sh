@@ -58,7 +58,7 @@ model = "stub"
 [settings]
 safe_mode = true
 notifications = false
-history_enabled = false
+history_enabled = true
 sensitive_guard = "off"
 
 [privacy]
@@ -154,6 +154,15 @@ if [[ "$CODE" == "400" ]]; then
     pass "malformed action name returns 400"
 else
     fail "malformed action name returns 400" "status $CODE"
+fi
+
+# 7. Runs requested through the agent are labelled with the requesting client.
+call_action '{"action":"summary","text":"hello world","source":"raycast"}' >/dev/null
+HIST="$(curl -sS --unix-socket "$SOCK" 'http://localhost/history?limit=1')"
+if [[ "$(jq -r '.records[0].source' <<<"$HIST")" == "raycast" ]]; then
+    pass "history records the requesting client"
+else
+    fail "history records the requesting client" "$HIST"
 fi
 
 echo
