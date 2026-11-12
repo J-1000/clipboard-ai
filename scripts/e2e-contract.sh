@@ -156,7 +156,16 @@ else
     fail "malformed action name returns 400" "status $CODE"
 fi
 
-# 7. Runs requested through the agent are labelled with the requesting client.
+# 7. An action the CLI does not know is an ordinary failure with a clear message.
+RESP="$(call_action '{"action":"no_such_action","text":"x"}')"
+ERR="$(jq -r '.error // ""' <<<"$RESP")"
+if [[ "$(jq -r '.success' <<<"$RESP")" == "false" && "$ERR" == *"Unknown action"* ]]; then
+    pass "unknown action is reported by the CLI"
+else
+    fail "unknown action is reported by the CLI" "$RESP"
+fi
+
+# 8. Runs requested through the agent are labelled with the requesting client.
 call_action '{"action":"summary","text":"hello world","source":"raycast"}' >/dev/null
 HIST="$(curl -sS --unix-socket "$SOCK" 'http://localhost/history?limit=1')"
 if [[ "$(jq -r '.records[0].source' <<<"$HIST")" == "raycast" ]]; then

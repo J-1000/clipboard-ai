@@ -777,6 +777,27 @@ func TestHandleAction_PassesUnknownNamesToTheCLI(t *testing.T) {
 	}
 }
 
+func TestHandleAction_RejectsNamesThatLookLikeFlags(t *testing.T) {
+	s := newTestServer()
+	executor.SetExecuteWithOptionsFunc(func(ctx context.Context, action string, text string, opts executor.Options) executor.Result {
+		t.Fatal("a flag-shaped action name must not spawn a subprocess")
+		return executor.Result{}
+	})
+	defer executor.ResetExecuteFunc()
+
+	for _, name := range []string{"--force", "-y", "", "  "} {
+		body, _ := json.Marshal(ActionRequest{Action: name, Text: "hi"})
+		req := httptest.NewRequest(http.MethodPost, "/action", bytes.NewBuffer(body))
+		w := httptest.NewRecorder()
+
+		s.handleAction(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("action %q: expected 400, got %d", name, w.Code)
+		}
+	}
+}
+
 func TestHandleAction_PrefersStderrDiagnosticOverStdout(t *testing.T) {
 	s := newTestServer()
 	executor.SetExecuteWithOptionsFunc(func(context.Context, string, string, executor.Options) executor.Result {
