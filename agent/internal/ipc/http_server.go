@@ -45,7 +45,8 @@ func (s *HTTPServer) authMiddleware(next http.Handler) http.Handler {
 		// is honored immediately.
 		token := s.api.configSnapshot().Settings.HTTPAuthToken
 		if !isAuthorized(r, token) {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			w.Header().Set("X-API-Version", apiVersion)
+			writeJSONError(w, http.StatusUnauthorized, "Unauthorized")
 			return
 		}
 		next.ServeHTTP(w, r)
