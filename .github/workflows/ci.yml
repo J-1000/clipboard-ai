@@ -52,6 +52,25 @@ jobs:
         run: bun run build
         working-directory: cli
 
+  contract:
+    name: Agent/CLI contract
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: agent/go.mod
+          cache-dependency-path: agent/go.sum
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.9
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Contract check
+        run: ./scripts/e2e-contract.sh
+
   raycast:
     name: Raycast extension
     runs-on: ubuntu-latest
