@@ -681,12 +681,16 @@ cd ..
 ### Running locally
 
 ```bash
-# Start the agent
+# Start the agent (build it first, see Building above)
 ./agent/clipboard-ai-agent
 
 # In another terminal, use the CLI
 bun run cli/src/index.ts status
 ```
+
+The agent runs actions by starting `cbai` from its `PATH`, so triggered actions
+and requests from the menubar app, Raycast, or MCP need an installed `cbai`
+(see Manual Installation) even when you use the CLI from source.
 
 ## CI/CD
 
