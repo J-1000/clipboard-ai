@@ -667,16 +667,13 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, ActionResponse{
 		Success: true,
 		Action:  req.Action,
-		Result:  result.Output,
+		Result:  strings.TrimRight(result.Output, "\r\n"),
 	})
 }
 
 func actionExecutionError(result executor.Result) string {
-	if output := strings.TrimSpace(result.Output); output != "" {
-		return output
-	}
-	if result.Error != nil {
-		return result.Error.Error()
+	if diagnostic := result.Diagnostic(); diagnostic != "" {
+		return diagnostic
 	}
 	return "Action failed"
 }

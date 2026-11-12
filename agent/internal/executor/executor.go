@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 )
 
@@ -45,9 +46,25 @@ var executeWithOptionsFn ExecuteWithOptionsFunc = runExecuteWithOptions
 // Result holds the outcome of an action execution
 type Result struct {
 	Action  string
-	Output  string
+	Output  string // the CLI's stdout: the action result
+	Stderr  string // the CLI's stderr: warnings and error messages
 	Error   error
 	Elapsed time.Duration
+}
+
+// Diagnostic returns the most useful explanation of a failed run: the CLI's
+// stderr when it wrote any, otherwise its stdout, otherwise the process error.
+func (r Result) Diagnostic() string {
+	if s := strings.TrimSpace(r.Stderr); s != "" {
+		return s
+	}
+	if s := strings.TrimSpace(r.Output); s != "" {
+		return s
+	}
+	if r.Error != nil {
+		return r.Error.Error()
+	}
+	return ""
 }
 
 // Execute spawns `cbai <action>` and captures its output
@@ -137,14 +154,10 @@ func runExecuteWithOptions(ctx context.Context, action string, text string, opts
 
 	elapsed := time.Since(start)
 
-	output := stdout.String()
-	if output == "" && stderr.String() != "" {
-		output = stderr.String()
-	}
-
 	return Result{
 		Action:  action,
-		Output:  output,
+		Output:  stdout.String(),
+		Stderr:  stderr.String(),
 		Error:   err,
 		Elapsed: elapsed,
 	}

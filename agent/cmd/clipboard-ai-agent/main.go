@@ -251,12 +251,17 @@ func main() {
 				// settings as of completion, not as of when it was triggered.
 				notifyCfg, _ := state.snapshot()
 				if result.Error != nil {
-					logger.Error("action failed", "action", actionName, "error", result.Error)
+					diagnostic := result.Diagnostic()
+					logger.Error("action failed",
+						"action", actionName,
+						"error", result.Error,
+						"diagnostic", truncateRunes(diagnostic, 300),
+					)
 					if notifyCfg.Settings.Notifications {
-						if strings.Contains(result.Output, "safe mode") {
+						if strings.Contains(diagnostic, "safe mode") {
 							notify.SendWithSubtitle("clipboard-ai", "Safe mode", actionName+" blocked — cloud provider not allowed")
 						} else {
-							notify.SendWithSubtitle("clipboard-ai", actionName+" failed", result.Error.Error())
+							notify.SendWithSubtitle("clipboard-ai", actionName+" failed", truncateRunes(diagnostic, 200))
 						}
 					}
 					return
@@ -266,7 +271,7 @@ func main() {
 					"elapsed_ms", result.Elapsed.Milliseconds(),
 				)
 				if notifyCfg.Settings.Notifications {
-					notify.SendWithSubtitle("clipboard-ai", actionName, truncateRunes(result.Output, 200))
+					notify.SendWithSubtitle("clipboard-ai", actionName, truncateRunes(strings.TrimSpace(result.Output), 200))
 				}
 			}(match.ActionName, match.Config, content, guardHit)
 		}
@@ -456,7 +461,7 @@ func isTransientExecutionFailure(result executor.Result) bool {
 		return true
 	}
 
-	diagnostic := strings.ToLower(result.Output + "\n" + result.Error.Error())
+	diagnostic := strings.ToLower(result.Output + "\n" + result.Stderr + "\n" + result.Error.Error())
 	transientMarkers := []string{
 		"status 408", "status code 408", "http 408",
 		"status 425", "status code 425", "http 425",
@@ -467,7 +472,7 @@ func isTransientExecutionFailure(result executor.Result) bool {
 		"status 504", "status code 504", "http 504", "504 gateway timeout",
 		"rate limit", "rate_limit", "too many requests", "overloaded",
 		"temporarily unavailable", "temporary failure", "service unavailable",
-		"bad gateway", "gateway timeout", "connection reset", "connection refused",
+		"bad gateway", "gateway timeout", "connection reset", "connection refused", "connection error",
 		"econnreset", "econnrefused", "etimedout", "eai_again",
 		"network error", "fetch failed", "request timed out", "timeout awaiting response",
 	}
