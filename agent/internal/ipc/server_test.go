@@ -840,6 +840,53 @@ func TestHandleAction_AppliesConfiguredTimeout(t *testing.T) {
 	}
 }
 
+func TestFreshReadsBypassTheMonitorCache(t *testing.T) {
+	s := newTestServer()
+	s.monitor.SetReaders(
+		func() []byte { return []byte("live clipboard") },
+		func() []byte { return nil },
+		func() string { return "" },
+	)
+
+	// The monitor itself holds nothing (as when paused), so a plain read is empty.
+	plain := httptest.NewRecorder()
+	s.handleClipboard(plain, httptest.NewRequest(http.MethodGet, "/clipboard", nil))
+	var cached ClipboardResponse
+	if err := json.NewDecoder(plain.Body).Decode(&cached); err != nil {
+		t.Fatalf("decode cached response: %v", err)
+	}
+	if cached.Text != "" {
+		t.Fatalf("cached read returned %q, want empty", cached.Text)
+	}
+
+	fresh := httptest.NewRecorder()
+	s.handleClipboard(fresh, httptest.NewRequest(http.MethodGet, "/clipboard?fresh=true", nil))
+	var live ClipboardResponse
+	if err := json.NewDecoder(fresh.Body).Decode(&live); err != nil {
+		t.Fatalf("decode fresh response: %v", err)
+	}
+	if live.Text != "live clipboard" || live.Type != "text" || live.Length != 14 {
+		t.Fatalf("fresh read = %#v, want the live clipboard text", live)
+	}
+	if current := s.monitor.Current(); current.Text != "" {
+		t.Fatalf("a fresh read must not populate the monitor, got %q", current.Text)
+	}
+
+	var gotText string
+	executor.SetExecuteWithOptionsFunc(func(ctx context.Context, action string, text string, opts executor.Options) executor.Result {
+		gotText = text
+		return executor.Result{Action: action, Output: "ok"}
+	})
+	defer executor.ResetExecuteFunc()
+
+	body, _ := json.Marshal(ActionRequest{Action: "summarize", Fresh: true})
+	w := httptest.NewRecorder()
+	s.handleAction(w, httptest.NewRequest(http.MethodPost, "/action", bytes.NewBuffer(body)))
+	if gotText != "live clipboard" {
+		t.Fatalf("fresh action ran on %q, want the live clipboard text", gotText)
+	}
+}
+
 func TestHandleAction_RejectsMalformedActionName(t *testing.T) {
 	s := newTestServer()
 	executor.SetExecuteWithOptionsFunc(func(ctx context.Context, action string, text string, opts executor.Options) executor.Result {

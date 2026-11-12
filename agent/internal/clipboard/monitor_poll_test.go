@@ -270,6 +270,35 @@ func TestStart_PollsUntilContextCancelled(t *testing.T) {
 	}
 }
 
+func TestReadNow_BypassesPolicyAndLeavesStateUntouched(t *testing.T) {
+	var fires int
+	fake := &fakeClipboard{text: []byte("on demand")}
+	m := newTestMonitor(func(Content) { fires++ }, fake)
+	m.readChangeCount = func() int { return 1 }
+	m.SetReadPolicy(func() bool { return false }) // paused
+
+	m.poll()
+	if got := m.Current().Text; got != "" {
+		t.Fatalf("paused monitor should hold nothing, got %q", got)
+	}
+
+	content := m.ReadNow()
+	if content.Text != "on demand" || content.Type != ContentTypeText {
+		t.Fatalf("ReadNow = %#v, want the live clipboard text", content)
+	}
+	if got := m.Current().Text; got != "" {
+		t.Fatalf("ReadNow must not populate the monitor, got %q", got)
+	}
+	if fires != 0 {
+		t.Fatalf("ReadNow fired the handler %d time(s)", fires)
+	}
+
+	fake.text = nil
+	if empty := m.ReadNow(); empty.Text != "" || empty.Type != "" {
+		t.Fatalf("ReadNow on an empty clipboard = %#v, want zero Content", empty)
+	}
+}
+
 func TestCheck_RecopiedImageKeepsCurrent(t *testing.T) {
 	var fires int
 	fake := &fakeClipboard{image: []byte{0x89, 0x50, 0x4e, 0x47}}
