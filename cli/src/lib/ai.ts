@@ -93,12 +93,7 @@ export class AIClient {
 
     warnIfTruncated(response.choices?.[0]?.finish_reason, this.maxTokens);
 
-    const usage = response.usage
-      ? {
-          promptTokens: response.usage.prompt_tokens,
-          completionTokens: response.usage.completion_tokens,
-        }
-      : undefined;
+    const usage = usageFrom(response.usage);
     this.accumulateUsage(usage);
 
     return {
@@ -119,16 +114,20 @@ export class AIClient {
       messages,
       ...this.samplingParams(0.7),
       stream: true,
+      // Ask for a final usage chunk so streamed runs are counted in stats.
+      stream_options: { include_usage: true },
     });
 
     let content = "";
     let model = this.model;
     let finishReason: string | null | undefined;
+    let usage: AIResponse["usage"];
 
     for await (const chunk of stream) {
       if (chunk.model) {
         model = chunk.model;
       }
+      usage = usageFrom(chunk.usage) ?? usage;
       finishReason = chunk.choices?.[0]?.finish_reason ?? finishReason;
       const token = chunk.choices?.[0]?.delta?.content;
       if (!token) {
@@ -140,11 +139,13 @@ export class AIClient {
 
     warnIfTruncated(finishReason, this.maxTokens);
 
+    this.accumulateUsage(usage);
+
     if (content === "") {
       throw new Error("provider returned no completion choices");
     }
 
-    return { content, model };
+    return { content, model, usage };
   }
 
   async generateWithImage(
@@ -176,12 +177,7 @@ export class AIClient {
 
     warnIfTruncated(response.choices?.[0]?.finish_reason, this.maxTokens);
 
-    const usage = response.usage
-      ? {
-          promptTokens: response.usage.prompt_tokens,
-          completionTokens: response.usage.completion_tokens,
-        }
-      : undefined;
+    const usage = usageFrom(response.usage);
     this.accumulateUsage(usage);
 
     return {
@@ -256,9 +252,12 @@ export class AIClient {
         response_format: { type: "json_object" },
       });
       warnIfTruncated(response.choices?.[0]?.finish_reason, this.maxTokens);
+      const usage = usageFrom(response.usage);
+      this.accumulateUsage(usage);
       return {
         content: completionContent(response),
         model: response.model,
+        usage,
       };
     } catch {
       // Provider may reject response_format; fall back to a plain completion.
@@ -309,6 +308,18 @@ export function warnIfTruncated(finishReason: string | null | undefined, maxToke
       `Warning: output was truncated at max_tokens=${maxTokens}. Raise max_tokens (settings or per-action) for a complete result.`
     );
   }
+}
+
+function usageFrom(
+  usage: { prompt_tokens?: number; completion_tokens?: number } | null | undefined
+): AIResponse["usage"] {
+  if (!usage) {
+    return undefined;
+  }
+  return {
+    promptTokens: usage.prompt_tokens ?? 0,
+    completionTokens: usage.completion_tokens ?? 0,
+  };
 }
 
 // validateJSON ensures a model response is parseable JSON, returning a clear
