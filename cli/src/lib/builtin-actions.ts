@@ -25,7 +25,8 @@ export const builtinActions: ActionDefinition[] = [
     inputTypes: ["text"],
     progressMessage: "Translating clipboard content...",
     outputTitle: "Translation",
-    run: ({ ai, text, args }) => ai.translate(text, args[0] ?? "English"),
+    // Join all arguments so `cbai run translate Brazilian Portuguese` works.
+    run: ({ ai, text, args }) => ai.translate(text, args.join(" ").trim() || "English"),
   },
   {
     id: "improve",
