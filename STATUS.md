@@ -7,7 +7,7 @@ Last updated: 2026-08-18
 - Platform: macOS; agent/CLI support macOS 12+, native menubar app requires
   macOS 14+
 - Runtime components:
-  - Go 1.26.6 daemon (`clipboard-ai-agent`)
+  - Go 1.26.11 daemon (`clipboard-ai-agent`)
   - TypeScript/Node.js CLI (`cbai`)
   - Private Unix socket IPC (`~/.clipboard-ai/agent.sock`)
   - Optional authenticated local HTTP API (`http_enabled`)

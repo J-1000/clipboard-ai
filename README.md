@@ -35,7 +35,7 @@ clipboard-ai is a macOS-first lightweight agent that monitors your clipboard and
 ### Prerequisites
 
 - macOS 12+ for the agent and CLI; macOS 14+ for the native menubar app
-- [Go 1.26.6](https://go.dev/dl/) (for building the agent)
+- [Go 1.26.11](https://go.dev/dl/) (for building the agent)
 - Swift 6 / Xcode 16 (only when building the native menubar app)
 - [Bun](https://bun.sh/) — required to **build** the CLI (the build uses
   `bun build`). [Node.js](https://nodejs.org/) is required at **runtime** (the
@@ -586,7 +586,7 @@ swift build -c release
 # Go agent: race test and reachable-vulnerability scan
 cd agent
 go test -race ./...
-go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
+go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
 
 # CLI: frozen install, full test suite, typecheck, and build
 cd ../cli
