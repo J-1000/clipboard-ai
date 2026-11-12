@@ -740,27 +740,40 @@ func setMonitorCurrent(t *testing.T, monitor *clipboard.Monitor, content clipboa
 	reflect.NewAt(current.Type(), unsafe.Pointer(current.UnsafeAddr())).Elem().Set(reflect.ValueOf(content))
 }
 
-func TestHandleAction_RejectsUnknownAction(t *testing.T) {
+func TestHandleAction_PassesUnknownNamesToTheCLI(t *testing.T) {
 	s := newTestServer()
 
-	spawned := false
+	var gotAction string
 	executor.SetExecuteWithOptionsFunc(func(ctx context.Context, action string, text string, opts executor.Options) executor.Result {
-		spawned = true
-		return executor.Result{Action: action, Output: "ok"}
+		gotAction = action
+		return executor.Result{
+			Action: action,
+			Stderr: "Error: Unknown action \"my_plugin\"\n",
+			Error:  errors.New("exit status 1"),
+		}
 	})
 	defer executor.ResetExecuteFunc()
 
-	body, _ := json.Marshal(ActionRequest{Action: "definitely-not-an-action", Text: "hi"})
+	// Not a built-in and not in the config: the CLI registry decides, so plugin
+	// actions work without a config entry.
+	body, _ := json.Marshal(ActionRequest{Action: "my_plugin", Text: "hi"})
 	req := httptest.NewRequest(http.MethodPost, "/action", bytes.NewBuffer(body))
 	w := httptest.NewRecorder()
 
 	s.handleAction(w, req)
 
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400 for unknown action, got %d", w.Code)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 with an application error, got %d", w.Code)
 	}
-	if spawned {
-		t.Fatal("unknown action must not spawn a subprocess")
+	if gotAction != "my_plugin" {
+		t.Fatalf("executor received action %q, want my_plugin", gotAction)
+	}
+	var resp ActionResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.Success || resp.Error != `Error: Unknown action "my_plugin"` {
+		t.Fatalf("response = %#v, want the CLI's unknown-action diagnostic", resp)
 	}
 }
 

@@ -523,38 +523,11 @@ type ActionResponse struct {
 	Error   string `json:"error,omitempty"`
 }
 
-// builtinActionNames is the set of action ids and aliases the CLI registry
-// ships (see cli/src/lib/builtin-actions.ts). Kept here so the agent can reject
-// requests for unknown actions before spawning a subprocess. Custom/plugin
-// actions are still accepted when the user has configured them (see isKnownAction).
-var builtinActionNames = map[string]struct{}{
-	"summary": {}, "summarize": {}, "sum": {},
-	"explain":       {},
-	"translate":     {},
-	"improve":       {},
-	"extract":       {},
-	"tldr":          {},
-	"classify":      {},
-	"summarize_url": {}, "summarize-url": {},
-	"caption": {}, "describe": {}, "describe-image": {},
-	"ocr": {}, "extract-text": {},
-}
-
-var actionNamePattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
-
-// isKnownAction reports whether name is a builtin action or one the user has
-// configured (covers plugin/custom actions the agent can't enumerate itself).
-func isKnownAction(cfg *config.Config, name string) bool {
-	if _, ok := builtinActionNames[name]; ok {
-		return true
-	}
-	if cfg != nil {
-		if _, ok := cfg.Actions[name]; ok {
-			return true
-		}
-	}
-	return false
-}
+// actionNamePattern is the only name check the agent performs. The CLI owns the
+// action registry (built-ins, plugins, and prompt actions), so an unknown name
+// is reported by the CLI as an ordinary action failure. A name must start with
+// a letter or digit so it can never be parsed as a command-line flag.
+var actionNamePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]*$`)
 
 // normalizeSource maps a client-supplied source label onto the fixed set the
 // CLI records in history.
@@ -599,16 +572,12 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate the action name against the known registry before spawning a
-	// subprocess. (`enabled` gates automatic clipboard triggers, not manual
-	// /action calls — mirroring `cbai run`, which runs disabled actions too.)
+	// Validate the shape of the action name before spawning a subprocess.
+	// (`enabled` gates automatic clipboard triggers, not manual /action calls —
+	// mirroring `cbai run`, which runs disabled actions too.)
 	req.Action = strings.TrimSpace(req.Action)
-	if req.Action == "" || !actionNamePattern.MatchString(req.Action) {
+	if !actionNamePattern.MatchString(req.Action) {
 		writeJSONError(w, http.StatusBadRequest, "Invalid action name")
-		return
-	}
-	if !isKnownAction(s.configSnapshot(), req.Action) {
-		writeJSONError(w, http.StatusBadRequest, "Unknown action")
 		return
 	}
 
