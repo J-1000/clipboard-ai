@@ -112,6 +112,16 @@ func TestAuthMiddleware(t *testing.T) {
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("expected 401, got %d", w.Code)
 		}
+		if got := w.Header().Get("Content-Type"); got != "application/json" {
+			t.Fatalf("401 Content-Type = %q, want application/json", got)
+		}
+		if got := w.Header().Get("X-API-Version"); got != apiVersion {
+			t.Fatalf("401 X-API-Version = %q, want %q", got, apiVersion)
+		}
+		var body map[string]string
+		if err := json.NewDecoder(w.Body).Decode(&body); err != nil || body["error"] != "Unauthorized" {
+			t.Fatalf("401 body = %v (err %v), want {\"error\":\"Unauthorized\"}", body, err)
+		}
 	})
 
 	t.Run("passes authorized requests", func(t *testing.T) {
