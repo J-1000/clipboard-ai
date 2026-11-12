@@ -74,6 +74,7 @@ The native menubar app is built separately; see [Native menubar app](docs/menuba
 # Build the agent
 cd agent
 go build -o clipboard-ai-agent ./cmd/clipboard-ai-agent/
+sudo mkdir -p /usr/local/bin
 sudo cp clipboard-ai-agent /usr/local/bin/
 
 # Build the CLI
@@ -81,7 +82,7 @@ cd ../cli
 bun install --frozen-lockfile
 bun run build
 sudo cp dist/index.js /usr/local/bin/cbai
-chmod +x /usr/local/bin/cbai
+sudo chmod +x /usr/local/bin/cbai
 ```
 
 ### Release installation (not yet available)
@@ -606,7 +607,7 @@ cd agent
 go build ./cmd/clipboard-ai-agent/
 
 # CLI (TypeScript)
-cd cli
+cd ../cli
 bun install --frozen-lockfile
 bun run build
 
