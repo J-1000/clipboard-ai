@@ -269,3 +269,27 @@ func TestResult_Diagnostic(t *testing.T) {
 		})
 	}
 }
+
+func TestRunExecuteWithOptions_KeepsStdoutAndStderrSeparate(t *testing.T) {
+	dir := t.TempDir()
+	script := "#!/bin/sh\nprintf 'the result'\nprintf 'Error: provider down' >&2\nprintf '|%s' \"$CBAI_SOURCE\" >&2\nexit 1\n"
+	if err := os.WriteFile(filepath.Join(dir, "cbai"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	result := runExecuteWithOptions(context.Background(), "summary", "input", Options{Source: "menubar"})
+
+	if result.Error == nil {
+		t.Fatal("expected the non-zero exit to be reported")
+	}
+	if result.Output != "the result" {
+		t.Fatalf("Output = %q, want only stdout", result.Output)
+	}
+	if result.Stderr != "Error: provider down|menubar" {
+		t.Fatalf("Stderr = %q, want stderr including the CBAI_SOURCE value", result.Stderr)
+	}
+	if got := result.Diagnostic(); !strings.HasPrefix(got, "Error: provider down") {
+		t.Fatalf("Diagnostic() = %q, want the stderr text", got)
+	}
+}

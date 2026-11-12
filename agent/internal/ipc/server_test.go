@@ -840,6 +840,26 @@ func TestHandleAction_AppliesConfiguredTimeout(t *testing.T) {
 	}
 }
 
+func TestHandleAction_NormalizesRequestSource(t *testing.T) {
+	s := newTestServer()
+
+	var gotOpts executor.Options
+	executor.SetExecuteWithOptionsFunc(func(ctx context.Context, action string, text string, opts executor.Options) executor.Result {
+		gotOpts = opts
+		return executor.Result{Action: action, Output: "ok"}
+	})
+	defer executor.ResetExecuteFunc()
+
+	for source, want := range map[string]string{"menubar": "menubar", "Raycast": "raycast", "mcp": "mcp", "": "api", "something-else": "api"} {
+		body, _ := json.Marshal(ActionRequest{Action: "summarize", Text: "hello", Source: source})
+		s.handleAction(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/action", bytes.NewBuffer(body)))
+
+		if gotOpts.Source != want {
+			t.Fatalf("source %q recorded as %q, want %q", source, gotOpts.Source, want)
+		}
+	}
+}
+
 func TestFreshReadsBypassTheMonitorCache(t *testing.T) {
 	s := newTestServer()
 	s.monitor.SetReaders(
