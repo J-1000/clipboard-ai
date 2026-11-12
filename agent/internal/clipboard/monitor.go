@@ -50,6 +50,7 @@ type Monitor struct {
 	handler                Handler
 	lastChangeCount        int
 	changeCountInitialized bool
+	baselined              bool
 
 	// mu guards lastSignature and current: Clear() is called from the IPC and
 	// config-reload goroutines while the poll goroutine reads and writes both.
@@ -116,11 +117,16 @@ func (m *Monitor) poll() {
 		m.lastChangeCount = changeCount
 		m.changeCountInitialized = true
 	}
+	// The first poll only records what is already on the clipboard. Content
+	// that was copied before the agent started must not trigger actions.
+	fire := m.baselined
+	m.baselined = true
+
 	if m.shouldRead != nil && !m.shouldRead() {
 		m.clear()
 		return
 	}
-	m.check()
+	m.checkAndUpdate(fire)
 }
 
 // SetReaders replaces the pasteboard accessors. It exists so tests in other
