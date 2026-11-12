@@ -114,6 +114,8 @@ export interface ActionRequest {
   // Ask the agent to read the clipboard now instead of using what automatic
   // monitoring last saw. Only meaningful when no payload is supplied.
   fresh?: boolean;
+  // Which client is asking: "menubar", "raycast", or "mcp".
+  source?: string;
 }
 
 export interface ActionResponse {

@@ -76,7 +76,7 @@ describe("MCP server", () => {
       expect(calls).toEqual([
         {
           action: "translate",
-          input: { text: "Hello", args: ["German"] },
+          input: { text: "Hello", args: ["German"], source: "mcp" },
         },
       ]);
     } finally {
@@ -87,7 +87,7 @@ describe("MCP server", () => {
   it("uses the clipboard when text is omitted and returns agent failures as tool errors", async () => {
     const runner = mock(async (actionId: string, input = {}): Promise<ActionResponse> => {
       expect(actionId).toBe("summary");
-      expect(input).toEqual({});
+      expect(input).toEqual({ source: "mcp" });
       return {
         success: false,
         action: actionId,
