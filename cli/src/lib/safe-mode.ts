@@ -24,12 +24,9 @@ export function isCloudProvider(providerType: string, endpoint?: string): boolea
 
 function isLocalEndpoint(endpoint: string): boolean {
   try {
-    const url = new URL(endpoint);
-    return (
-      url.hostname === "localhost" ||
-      url.hostname === "127.0.0.1" ||
-      url.hostname === "::1"
-    );
+    // URL.hostname keeps the brackets of an IPv6 literal ("[::1]").
+    const hostname = new URL(endpoint).hostname.replace(/^\[|\]$/g, "");
+    return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
   } catch {
     return false;
   }
