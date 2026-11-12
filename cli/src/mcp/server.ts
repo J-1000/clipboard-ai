@@ -99,6 +99,7 @@ export function createMcpServer(
           const response = await runAction(action.id, {
             ...(text === undefined ? {} : { text }),
             ...(args === undefined ? {} : { args }),
+            source: "mcp",
           });
           return actionResult(response);
         } catch (error) {

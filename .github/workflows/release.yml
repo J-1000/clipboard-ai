@@ -4,6 +4,10 @@ on:
   push:
     tags: ['v*']
 
+# Build jobs only read the repository; the release job raises this itself.
+permissions:
+  contents: read
+
 jobs:
   build-agent:
     # golang.design/x/clipboard requires cgo on macOS (-framework Foundation

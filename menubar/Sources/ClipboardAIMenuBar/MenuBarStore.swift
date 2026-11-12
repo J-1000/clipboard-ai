@@ -155,7 +155,7 @@ final class MenuBarStore: ObservableObject {
 
     func runQuickAction(_ action: QuickActionDefinition) async {
         await execute(
-            request: ActionRequest(action: action.id),
+            request: ActionRequest(action: action.id, fresh: true),
             displayName: action.title
         )
     }

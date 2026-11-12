@@ -7,7 +7,7 @@ export interface ClipboardCommandDeps {
 export async function clipboardCommand(deps: Partial<ClipboardCommandDeps> = {}): Promise<void> {
   const getClipboard = deps.getClipboard ?? defaultGetClipboard;
   try {
-    const clipboard = await getClipboard();
+    const clipboard = await getClipboard({ fresh: true });
 
     console.log(`Type: ${clipboard.type}`);
     // Character length is meaningless for images (length is 0 / not text).

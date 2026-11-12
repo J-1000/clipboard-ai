@@ -8,6 +8,54 @@ PLAN/PRD are historical design notes.
 A comprehensive remediation pass (folding in the former `IMPROVEMENT_PLAN.md` and
 the agent handoff `FIX_PLAN.md`).
 
+### Review follow-up (November 2026)
+
+Fixes from the November 2026 project review.
+
+- `/action` results are the bare action output. The CLI no longer prints its
+  progress line and title header to stdout unless stdout is a terminal, so
+  results in Raycast, the menubar app, MCP, the HTTP API, and notifications no
+  longer start with decoration, and `classify`/`extract` return parseable JSON.
+- Failed actions report the CLI's real error. The agent keeps stderr separately
+  and uses it for `/action` errors, the failure notification, the safe-mode
+  notification, and the decision to retry; connection errors are retried.
+- Manual actions read the clipboard on demand (`fresh`), so `cbai <action>`,
+  menubar quick actions, and Raycast commands work while monitoring is paused
+  or snoozed. A config reload no longer empties the monitor.
+- `/action` honours `actions.<name>.timeout_ms`; `cbai mcp` and the menubar app
+  wait 120 seconds for an action instead of 10 and 15.
+- Runs requested through the agent are recorded with their client (`menubar`,
+  `raycast`, `mcp`, `api`) instead of `daemon`, and safe-mode messages name it.
+- Content already on the clipboard when the agent starts no longer triggers
+  actions. Re-copying the same image no longer clears the monitor. A data race
+  on the monitor's state is fixed.
+- `summarize_url` blocks IPv4-mapped IPv6, NAT64, 6to4, and the full link-local
+  range (the SSRF guard could be bypassed with `[::ffff:127.0.0.1]`).
+- Clipboard entries marked concealed or transient by password managers are
+  skipped (`privacy.skip_concealed`, on by default).
+- Sensitive-data guard: added passwords, bearer tokens, OpenAI/Anthropic/npm
+  keys, AWS secret keys, URLs with credentials, and PGP key blocks; date lists,
+  phone lists, and number rows are no longer reported as credit cards; SSH
+  public keys are no longer reported. The guard scans once per clipboard change
+  and names what it found.
+- The dedupe cache stores digests instead of clipboard text.
+- Plugin actions work through the HTTP API and MCP without a config entry; the
+  agent no longer keeps its own list of action names.
+- OpenAI requests use `max_completion_tokens` and the default temperature.
+  Token usage is recorded for `classify`, `extract`, and streamed runs. JSON
+  wrapped in a code fence is accepted.
+- `mime:code`, `mime:url`, and `mime:text` match styled (RTF) content.
+- Unknown config keys are logged. `/history` reads records over 64 KB and
+  includes token counts. 401 responses are JSON.
+- Smaller CLI fixes: multi-word `translate` targets, `EDITOR` with arguments,
+  IPv6 loopback in safe mode, a clear error when safe mode cannot prompt,
+  probe timeouts in `cbai doctor`, a character-based input cap.
+- Installer: stops when Go or Bun is missing, installs from the lockfile,
+  creates the install directory, keeps the config private.
+- Build and CI: Go 1.26.11 (fixes nine reachable standard-library
+  vulnerabilities), govulncheck 1.9.0, `go vet` and a formatting check, an
+  end-to-end agent/CLI contract check, Dependabot, Node 22 as the CLI minimum.
+
 ### Showstoppers
 
 - Release binaries no longer crash-loop: the Darwin agent is built on a macOS

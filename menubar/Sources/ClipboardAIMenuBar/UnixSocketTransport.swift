@@ -5,11 +5,15 @@ struct AgentHTTPRequest: Equatable, Sendable {
     let method: String
     let path: String
     let body: Data?
+    /// Overrides the transport's default timeout for this request. Used for
+    /// `/action`, which waits for a whole model call.
+    let timeoutSeconds: Int?
 
-    init(method: String, path: String, body: Data? = nil) {
+    init(method: String, path: String, body: Data? = nil, timeoutSeconds: Int? = nil) {
         self.method = method
         self.path = path
         self.body = body
+        self.timeoutSeconds = timeoutSeconds
     }
 }
 
@@ -43,7 +47,7 @@ struct UnixSocketTransport: AgentTransport, Sendable {
 
     func send(_ request: AgentHTTPRequest) async throws -> AgentHTTPResponse {
         let socketPath = socketPath
-        let timeoutSeconds = timeoutSeconds
+        let timeoutSeconds = request.timeoutSeconds ?? timeoutSeconds
         let maxResponseBytes = maxResponseBytes
         return try await Task.detached(priority: .userInitiated) {
             try UnixHTTPConnection(

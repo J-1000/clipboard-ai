@@ -393,3 +393,36 @@ func TestEvaluate_MultipleActions(t *testing.T) {
 		t.Fatalf("expected second match 'action_b', got %q", matches[1].ActionName)
 	}
 }
+
+func TestMimeMatchesTextTypeOfRTFContent(t *testing.T) {
+	engine, err := NewEngine(map[string]config.ActionConfig{
+		"explain": {Enabled: true, Trigger: "mime:code"},
+		"styled":  {Enabled: true, Trigger: "mime:rtf"},
+		"links":   {Enabled: true, Trigger: "mime:url"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Code copied from an editor that also puts styled text on the pasteboard.
+	content := clipboard.Content{
+		Text:     "func main() {}",
+		RTF:      `{\rtf1 func main() {}}`,
+		Type:     clipboard.ContentTypeRTF,
+		TextType: clipboard.ContentTypeCode,
+	}
+
+	matched := map[string]bool{}
+	for _, match := range engine.Evaluate(content) {
+		matched[match.ActionName] = true
+	}
+	if !matched["explain"] {
+		t.Error("mime:code should match RTF content whose text is code")
+	}
+	if !matched["styled"] {
+		t.Error("mime:rtf should still match RTF content")
+	}
+	if matched["links"] {
+		t.Error("mime:url must not match RTF content whose text is code")
+	}
+}

@@ -740,27 +740,234 @@ func setMonitorCurrent(t *testing.T, monitor *clipboard.Monitor, content clipboa
 	reflect.NewAt(current.Type(), unsafe.Pointer(current.UnsafeAddr())).Elem().Set(reflect.ValueOf(content))
 }
 
-func TestHandleAction_RejectsUnknownAction(t *testing.T) {
+func TestHandleAction_PassesUnknownNamesToTheCLI(t *testing.T) {
 	s := newTestServer()
 
-	spawned := false
+	var gotAction string
 	executor.SetExecuteWithOptionsFunc(func(ctx context.Context, action string, text string, opts executor.Options) executor.Result {
-		spawned = true
-		return executor.Result{Action: action, Output: "ok"}
+		gotAction = action
+		return executor.Result{
+			Action: action,
+			Stderr: "Error: Unknown action \"my_plugin\"\n",
+			Error:  errors.New("exit status 1"),
+		}
 	})
 	defer executor.ResetExecuteFunc()
 
-	body, _ := json.Marshal(ActionRequest{Action: "definitely-not-an-action", Text: "hi"})
+	// Not a built-in and not in the config: the CLI registry decides, so plugin
+	// actions work without a config entry.
+	body, _ := json.Marshal(ActionRequest{Action: "my_plugin", Text: "hi"})
 	req := httptest.NewRequest(http.MethodPost, "/action", bytes.NewBuffer(body))
 	w := httptest.NewRecorder()
 
 	s.handleAction(w, req)
 
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400 for unknown action, got %d", w.Code)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 with an application error, got %d", w.Code)
 	}
-	if spawned {
-		t.Fatal("unknown action must not spawn a subprocess")
+	if gotAction != "my_plugin" {
+		t.Fatalf("executor received action %q, want my_plugin", gotAction)
+	}
+	var resp ActionResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.Success || resp.Error != `Error: Unknown action "my_plugin"` {
+		t.Fatalf("response = %#v, want the CLI's unknown-action diagnostic", resp)
+	}
+}
+
+func TestHandleAction_RejectsNamesThatLookLikeFlags(t *testing.T) {
+	s := newTestServer()
+	executor.SetExecuteWithOptionsFunc(func(ctx context.Context, action string, text string, opts executor.Options) executor.Result {
+		t.Fatal("a flag-shaped action name must not spawn a subprocess")
+		return executor.Result{}
+	})
+	defer executor.ResetExecuteFunc()
+
+	for _, name := range []string{"--force", "-y", "", "  "} {
+		body, _ := json.Marshal(ActionRequest{Action: name, Text: "hi"})
+		req := httptest.NewRequest(http.MethodPost, "/action", bytes.NewBuffer(body))
+		w := httptest.NewRecorder()
+
+		s.handleAction(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("action %q: expected 400, got %d", name, w.Code)
+		}
+	}
+}
+
+func TestHandleAction_PrefersStderrDiagnosticOverStdout(t *testing.T) {
+	s := newTestServer()
+	executor.SetExecuteWithOptionsFunc(func(context.Context, string, string, executor.Options) executor.Result {
+		return executor.Result{
+			Action: "summarize",
+			Output: "partial output\n",
+			Stderr: "Error: all provider profiles failed: default: Connection error.\n",
+			Error:  errors.New("exit status 1"),
+		}
+	})
+	defer executor.ResetExecuteFunc()
+
+	body, _ := json.Marshal(ActionRequest{Action: "summarize", Text: "hello"})
+	req := httptest.NewRequest(http.MethodPost, "/action", bytes.NewBuffer(body))
+	w := httptest.NewRecorder()
+
+	s.handleAction(w, req)
+
+	var resp ActionResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.Success || resp.Error != "Error: all provider profiles failed: default: Connection error." {
+		t.Fatalf("response = %#v, want the stderr diagnostic", resp)
+	}
+}
+
+func TestHandleAction_TrimsTrailingNewlineFromResult(t *testing.T) {
+	s := newTestServer()
+	executor.SetExecuteWithOptionsFunc(func(context.Context, string, string, executor.Options) executor.Result {
+		return executor.Result{Action: "summarize", Output: "line one\nline two\n"}
+	})
+	defer executor.ResetExecuteFunc()
+
+	body, _ := json.Marshal(ActionRequest{Action: "summarize", Text: "hello"})
+	req := httptest.NewRequest(http.MethodPost, "/action", bytes.NewBuffer(body))
+	w := httptest.NewRecorder()
+
+	s.handleAction(w, req)
+
+	var resp ActionResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.Result != "line one\nline two" {
+		t.Fatalf("result = %q, want inner newlines kept and the trailing one removed", resp.Result)
+	}
+}
+
+func TestHandleAction_AppliesConfiguredTimeout(t *testing.T) {
+	s := newTestServer()
+	cfg := config.Default()
+	cfg.Actions["summarize"] = config.ActionConfig{Enabled: true, Trigger: "length > 200", TimeoutMs: 90000}
+	s.SetConfig(cfg)
+
+	var gotOpts executor.Options
+	executor.SetExecuteWithOptionsFunc(func(ctx context.Context, action string, text string, opts executor.Options) executor.Result {
+		gotOpts = opts
+		return executor.Result{Action: action, Output: "ok"}
+	})
+	defer executor.ResetExecuteFunc()
+
+	body, _ := json.Marshal(ActionRequest{Action: "summarize", Text: "hello"})
+	s.handleAction(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/action", bytes.NewBuffer(body)))
+	if gotOpts.Timeout != 90*time.Second {
+		t.Fatalf("timeout = %v, want the configured 90s", gotOpts.Timeout)
+	}
+
+	// An action without a configured timeout leaves the executor default in place.
+	body, _ = json.Marshal(ActionRequest{Action: "explain", Text: "hello"})
+	s.handleAction(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/action", bytes.NewBuffer(body)))
+	if gotOpts.Timeout != 0 {
+		t.Fatalf("timeout = %v, want 0 so the executor default applies", gotOpts.Timeout)
+	}
+}
+
+func TestHandleAction_NormalizesRequestSource(t *testing.T) {
+	s := newTestServer()
+
+	var gotOpts executor.Options
+	executor.SetExecuteWithOptionsFunc(func(ctx context.Context, action string, text string, opts executor.Options) executor.Result {
+		gotOpts = opts
+		return executor.Result{Action: action, Output: "ok"}
+	})
+	defer executor.ResetExecuteFunc()
+
+	for source, want := range map[string]string{"menubar": "menubar", "Raycast": "raycast", "mcp": "mcp", "": "api", "something-else": "api"} {
+		body, _ := json.Marshal(ActionRequest{Action: "summarize", Text: "hello", Source: source})
+		s.handleAction(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/action", bytes.NewBuffer(body)))
+
+		if gotOpts.Source != want {
+			t.Fatalf("source %q recorded as %q, want %q", source, gotOpts.Source, want)
+		}
+	}
+}
+
+func TestFreshReadsBypassTheMonitorCache(t *testing.T) {
+	s := newTestServer()
+	s.monitor.SetReaders(
+		func() []byte { return []byte("live clipboard") },
+		func() []byte { return nil },
+		func() string { return "" },
+	)
+
+	// The monitor itself holds nothing (as when paused), so a plain read is empty.
+	plain := httptest.NewRecorder()
+	s.handleClipboard(plain, httptest.NewRequest(http.MethodGet, "/clipboard", nil))
+	var cached ClipboardResponse
+	if err := json.NewDecoder(plain.Body).Decode(&cached); err != nil {
+		t.Fatalf("decode cached response: %v", err)
+	}
+	if cached.Text != "" {
+		t.Fatalf("cached read returned %q, want empty", cached.Text)
+	}
+
+	fresh := httptest.NewRecorder()
+	s.handleClipboard(fresh, httptest.NewRequest(http.MethodGet, "/clipboard?fresh=true", nil))
+	var live ClipboardResponse
+	if err := json.NewDecoder(fresh.Body).Decode(&live); err != nil {
+		t.Fatalf("decode fresh response: %v", err)
+	}
+	if live.Text != "live clipboard" || live.Type != "text" || live.Length != 14 {
+		t.Fatalf("fresh read = %#v, want the live clipboard text", live)
+	}
+	if current := s.monitor.Current(); current.Text != "" {
+		t.Fatalf("a fresh read must not populate the monitor, got %q", current.Text)
+	}
+
+	var gotText string
+	executor.SetExecuteWithOptionsFunc(func(ctx context.Context, action string, text string, opts executor.Options) executor.Result {
+		gotText = text
+		return executor.Result{Action: action, Output: "ok"}
+	})
+	defer executor.ResetExecuteFunc()
+
+	body, _ := json.Marshal(ActionRequest{Action: "summarize", Fresh: true})
+	w := httptest.NewRecorder()
+	s.handleAction(w, httptest.NewRequest(http.MethodPost, "/action", bytes.NewBuffer(body)))
+	if gotText != "live clipboard" {
+		t.Fatalf("fresh action ran on %q, want the live clipboard text", gotText)
+	}
+}
+
+func TestReadHistoryRecords_HandlesLongLinesAndTokenCounts(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "history.jsonl")
+	long := strings.Repeat("x", 200_000) // far beyond bufio.Scanner's 64 KB default
+	record := map[string]any{
+		"id": "a1", "timestamp": "2026-11-12T10:00:00Z", "action": "summary", "args": []string{},
+		"source": "manual", "trigger": "cli", "provider": "ollama", "model": "m", "latency_ms": 5,
+		"status": "success", "copy": false, "input": long, "output": "out",
+		"prompt_tokens": 12, "completion_tokens": 34,
+	}
+	line, err := json.Marshal(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, append(line, '\n'), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	records, skipped, err := readHistoryRecords(path, 10)
+	if err != nil {
+		t.Fatalf("readHistoryRecords failed on a long line: %v", err)
+	}
+	if skipped != 0 || len(records) != 1 {
+		t.Fatalf("records=%d skipped=%d, want 1 and 0", len(records), skipped)
+	}
+	if len(records[0].Input) != 200_000 || records[0].PromptTokens != 12 || records[0].CompletionTokens != 34 {
+		t.Fatalf("record lost data: input=%d prompt=%d completion=%d",
+			len(records[0].Input), records[0].PromptTokens, records[0].CompletionTokens)
 	}
 }
 

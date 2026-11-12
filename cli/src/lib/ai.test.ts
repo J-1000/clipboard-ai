@@ -255,6 +255,115 @@ describe("AIClient", () => {
     });
   });
 
+  describe("token usage", () => {
+    it("counts tokens used by JSON actions", async () => {
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: '{"category":"code","confidence":0.9,"reasoning":"r"}' } }],
+        model: "test-model",
+        usage: { prompt_tokens: 11, completion_tokens: 7 },
+      });
+
+      await client.classify("func main() {}");
+
+      expect(client.getUsage()).toEqual({ promptTokens: 11, completionTokens: 7 });
+    });
+
+    it("counts tokens reported at the end of a stream", async () => {
+      async function* withUsage() {
+        yield { choices: [{ delta: { content: "hi" } }], model: "stream-model" };
+        yield { choices: [], model: "stream-model", usage: { prompt_tokens: 4, completion_tokens: 2 } };
+      }
+      mockCreate.mockResolvedValueOnce(withUsage());
+
+      const result = await client.generateStream("test", undefined, () => {});
+
+      expect(result.usage).toEqual({ promptTokens: 4, completionTokens: 2 });
+      expect(client.getUsage()).toEqual({ promptTokens: 4, completionTokens: 2 });
+      const call = mockCreate.mock.calls[0][0] as Record<string, unknown>;
+      expect(call.stream_options).toEqual({ include_usage: true });
+    });
+  });
+
+  describe("generateJSON fallback", () => {
+    it("retries as a plain completion when the provider rejects response_format", async () => {
+      mockCreate.mockRejectedValueOnce(Object.assign(new Error("unsupported"), { status: 400 }));
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: '{"a":1}' } }],
+        model: "test-model",
+      });
+
+      expect(await client.extractData("x")).toBe('{"a":1}');
+      expect(mockCreate).toHaveBeenCalledTimes(2);
+      const retry = mockCreate.mock.calls[1][0] as Record<string, unknown>;
+      expect(retry.response_format).toBeUndefined();
+    });
+
+    it("does not retry authentication or network failures", async () => {
+      mockCreate.mockRejectedValueOnce(Object.assign(new Error("bad key"), { status: 401 }));
+      await expect(client.extractData("x")).rejects.toThrow("bad key");
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+
+      mockCreate.mockClear();
+      mockCreate.mockRejectedValueOnce(new Error("Connection error."));
+      await expect(client.extractData("x")).rejects.toThrow("Connection error.");
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+    });
+
+  });
+
+  describe("fenced JSON", () => {
+    it("accepts JSON wrapped in a Markdown code fence", async () => {
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: '```json\n{"name":"John"}\n```' } }],
+        model: "test-model",
+      });
+
+      expect(await client.extractData("x")).toBe('{"name":"John"}');
+    });
+
+    it("accepts a bare fence and surrounding whitespace", async () => {
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: '\n```\n{"category":"code","confidence":1,"reasoning":"r"}\n```\n' } }],
+        model: "test-model",
+      });
+
+      expect(JSON.parse(await client.classify("x")).category).toBe("code");
+    });
+  });
+
+  describe("provider-specific parameters", () => {
+    it("sends max_completion_tokens and no temperature to OpenAI", async () => {
+      const openai = new AIClient({
+        type: "openai",
+        endpoint: "https://api.openai.com/v1",
+        model: "gpt-5-mini",
+        apiKey: "sk-test",
+        maxTokens: 2048,
+      });
+
+      await openai.generate("test");
+
+      const call = mockCreate.mock.calls[0][0] as Record<string, unknown>;
+      expect(call.max_completion_tokens).toBe(2048);
+      expect("max_tokens" in call).toBe(false);
+      expect("temperature" in call).toBe(false);
+    });
+
+    it("keeps max_tokens and temperature for other OpenAI-compatible providers", async () => {
+      for (const type of ["ollama", "anthropic", "custom"]) {
+        mockCreate.mockClear();
+        const other = new AIClient({ type, endpoint: "http://localhost:1/v1", model: "m" });
+
+        await other.generate("test");
+
+        const call = mockCreate.mock.calls[0][0] as Record<string, unknown>;
+        expect(call.max_tokens).toBe(1024);
+        expect(call.temperature).toBe(0.7);
+        expect("max_completion_tokens" in call).toBe(false);
+      }
+    });
+  });
+
   describe("max_tokens", () => {
     it("defaults to 1024 when unset", async () => {
       await client.generate("test");

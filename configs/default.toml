@@ -82,6 +82,10 @@ default_snooze_minutes = 15
 app_allowlist = []
 app_denylist = []
 
+# Skip entries that the source application marks as concealed, transient, or
+# auto-generated (the nspasteboard.org convention used by password managers).
+skip_concealed = true
+
 [actions.summarize]
 enabled = true
 # Trigger when clipboard content is longer than 200 characters

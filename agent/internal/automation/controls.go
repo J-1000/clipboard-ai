@@ -1,6 +1,7 @@
 package automation
 
 import (
+	"crypto/sha256"
 	"sync"
 	"time"
 )
@@ -11,7 +12,7 @@ const maxRecentSignatures = 128
 // Controller applies clipboard dedupe and per-action cooldown policies.
 type Controller struct {
 	dedupeWindow     time.Duration
-	recentSignatures map[string]time.Time
+	recentSignatures map[[sha256.Size]byte]time.Time
 	actionLastRunAt  map[string]time.Time
 	mu               sync.Mutex
 }
@@ -20,7 +21,7 @@ type Controller struct {
 func NewController(dedupeWindow time.Duration) *Controller {
 	return &Controller{
 		dedupeWindow:     dedupeWindow,
-		recentSignatures: make(map[string]time.Time),
+		recentSignatures: make(map[[sha256.Size]byte]time.Time),
 		actionLastRunAt:  make(map[string]time.Time),
 	}
 }
@@ -32,7 +33,7 @@ func (c *Controller) SetDedupeWindow(dedupeWindow time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.dedupeWindow = dedupeWindow
-	c.recentSignatures = make(map[string]time.Time)
+	c.recentSignatures = make(map[[sha256.Size]byte]time.Time)
 }
 
 // ShouldSkipClipboard returns true when the clipboard signature was seen within
@@ -54,20 +55,23 @@ func (c *Controller) ShouldSkipClipboard(signature string, now time.Time) bool {
 		}
 	}
 
-	seen, ok := c.recentSignatures[signature]
+	// Store a digest, not the signature: for text the signature is the clipboard
+	// text itself, and this map outlives pause/snooze.
+	key := sha256.Sum256([]byte(signature))
+	seen, ok := c.recentSignatures[key]
 	duplicate := ok && now.Sub(seen) <= c.dedupeWindow
 
 	if !ok && len(c.recentSignatures) >= maxRecentSignatures {
 		c.evictOldestLocked()
 	}
-	c.recentSignatures[signature] = now
+	c.recentSignatures[key] = now
 
 	return duplicate
 }
 
 // evictOldestLocked removes the least-recently-seen signature. Caller holds mu.
 func (c *Controller) evictOldestLocked() {
-	var oldestSig string
+	var oldestSig [sha256.Size]byte
 	var oldestAt time.Time
 	first := true
 	for sig, at := range c.recentSignatures {

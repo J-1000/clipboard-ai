@@ -48,6 +48,8 @@ default_snooze_minutes = 15
 # A non-empty allowlist blocks every unlisted app; the denylist always wins.
 app_allowlist = []
 app_denylist = []
+# Ignore entries that password managers mark as concealed or transient.
+skip_concealed = true
 
 [actions.summarize]
 enabled = true
@@ -90,7 +92,9 @@ export function initCommand(options: InitCommandOptions = {}): void {
 
 function openInEditor(path: string): void {
   const editor = process.env.VISUAL ?? process.env.EDITOR ?? "vi";
-  const result = spawnSync(editor, [path], { stdio: "inherit" });
+  // $EDITOR is often a command with flags, e.g. "code -w".
+  const [command, ...editorArgs] = editor.trim().split(/\s+/);
+  const result = spawnSync(command, [...editorArgs, path], { stdio: "inherit" });
   if (result.error) {
     console.error(`Failed to open editor (${editor}): ${result.error.message}`);
     process.exit(1);

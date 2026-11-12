@@ -53,10 +53,13 @@ export async function loadPluginActions(dir = DEFAULT_PLUGIN_DIR): Promise<Actio
     }
   }
 
-  const names = actions.map((action) => action.id).sort();
-  console.error(
-    `Loaded ${actions.length} plugin action(s) from ${dir}${names.length > 0 ? `: ${names.join(", ")}` : ""}`
-  );
+  // Announce loaded plugins so unexpected ones are easy to spot — but only when
+  // there is something to announce, and not when the agent runs this process:
+  // there stderr is reserved for the error diagnostic it reports to clients.
+  if (actions.length > 0 && process.env.CBAI_DAEMON_MODE !== "true") {
+    const names = actions.map((action) => action.id).sort();
+    console.error(`Loaded ${actions.length} plugin action(s) from ${dir}: ${names.join(", ")}`);
+  }
 
   return actions;
 }

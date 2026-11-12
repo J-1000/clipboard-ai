@@ -120,6 +120,19 @@ describe("IPC Client", () => {
       expect(clipboard.type).toBe("text");
       expect(clipboard.length).toBe(11);
     });
+
+    it("requests an on-demand read when fresh is set", async () => {
+      const urls: string[] = [];
+      server = await startMockServer(({ url }) => {
+        urls.push(url);
+        return { body: { text: "", type: "text", timestamp: "2024-01-01T00:00:00Z", length: 0 } };
+      });
+
+      await getClipboard();
+      await getClipboard({ fresh: true });
+
+      expect(urls).toEqual(["/clipboard", "/clipboard?fresh=true"]);
+    });
   });
 
   describe("getConfig", () => {
@@ -246,6 +259,40 @@ describe("IPC Client", () => {
         action: "translate",
         result: "Hallo",
       });
+    });
+  });
+
+  describe("action timeout", () => {
+    afterEach(() => {
+      delete process.env.CBAI_ACTION_TIMEOUT_MS;
+      // The silent server never answers, so drop its half-open connection or
+      // the shared afterEach would wait on server.close() until it times out.
+      server?.closeAllConnections?.();
+    });
+
+    function startSilentServer(): Promise<void> {
+      return new Promise<void>((resolve) => {
+        mkdirSync(dirname(TEST_SOCKET), { recursive: true });
+        if (existsSync(TEST_SOCKET)) {
+          unlinkSync(TEST_SOCKET);
+        }
+        server = createServer(() => {
+          // Never answers.
+        });
+        server.listen(TEST_SOCKET, () => resolve());
+      });
+    }
+
+    it("waits longer than the ordinary IPC timeout for /action", async () => {
+      process.env.CBAI_IPC_TIMEOUT_MS = "50";
+      process.env.CBAI_ACTION_TIMEOUT_MS = "400";
+      await startSilentServer();
+
+      const started = Date.now();
+      await expect(runAgentAction("summary", { text: "hi" })).rejects.toThrow(
+        'action "summary" did not finish within 0.4s'
+      );
+      expect(Date.now() - started).toBeGreaterThanOrEqual(350);
     });
   });
 

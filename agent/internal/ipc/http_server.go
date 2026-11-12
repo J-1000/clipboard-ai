@@ -6,6 +6,7 @@ import (
 	"crypto/subtle"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // HTTPServer exposes the IPC API over localhost with token auth.
@@ -27,8 +28,9 @@ func NewHTTPServer(addr string, api *Server) *HTTPServer {
 // Start begins listening on the configured address.
 func (s *HTTPServer) Start(ctx context.Context) error {
 	server := &http.Server{
-		Addr:    s.addr,
-		Handler: s.authMiddleware(s.api.Handler()),
+		Addr:              s.addr,
+		Handler:           s.authMiddleware(s.api.Handler()),
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	go func() {
@@ -45,7 +47,8 @@ func (s *HTTPServer) authMiddleware(next http.Handler) http.Handler {
 		// is honored immediately.
 		token := s.api.configSnapshot().Settings.HTTPAuthToken
 		if !isAuthorized(r, token) {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			w.Header().Set("X-API-Version", apiVersion)
+			writeJSONError(w, http.StatusUnauthorized, "Unauthorized")
 			return
 		}
 		next.ServeHTTP(w, r)

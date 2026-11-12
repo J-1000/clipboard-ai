@@ -8,7 +8,9 @@ clipboard-ai is a macOS-first lightweight agent that monitors your clipboard and
 
 - Project status snapshot: see `STATUS.md`
 - Provider support: Ollama, OpenAI, Anthropic, and custom OpenAI-compatible endpoints
-- Safe mode: blocks daemon-triggered cloud calls and prompts on manual CLI calls (unless `--yes` is used)
+- Safe mode: blocks cloud calls made by the agent (automatic triggers and runs
+  requested by the menubar app, Raycast, MCP, or the HTTP API) and prompts on
+  manual CLI calls (unless `--yes` is used)
 - Trigger/clipboard length behavior: character-based (UTF-8 rune-aware), not byte-based
 - Clipboard types: text, RTF, images (image actions require vision-capable models)
 - Local HTTP API: optional authenticated localhost server for integrations
@@ -28,18 +30,19 @@ clipboard-ai is a macOS-first lightweight agent that monitors your clipboard and
   fallbacks and daily token budgets
 - **Native menubar workflow**: Run common actions and inspect recent results
   without leaving the current application
-- **Extensible**: Add custom actions as TypeScript modules
+- **Extensible**: Add custom actions as a prompt in `config.toml`, or as
+  JavaScript plugin modules (`.js`, `.mjs`, `.cjs`)
 
 ## Quick Start
 
 ### Prerequisites
 
 - macOS 12+ for the agent and CLI; macOS 14+ for the native menubar app
-- [Go 1.26.6](https://go.dev/dl/) (for building the agent)
+- [Go 1.26.11](https://go.dev/dl/) (for building the agent)
 - Swift 6 / Xcode 16 (only when building the native menubar app)
 - [Bun](https://bun.sh/) — required to **build** the CLI (the build uses
-  `bun build`). [Node.js](https://nodejs.org/) is required at **runtime** (the
-  installed `cbai` is a `#!/usr/bin/env node` script).
+  `bun build`). [Node.js](https://nodejs.org/) 22 or newer is required at
+  **runtime** (the installed `cbai` is a `#!/usr/bin/env node` script).
 - [Ollama](https://ollama.ai/) (recommended for local LLM)
 
 ### Installation
@@ -55,10 +58,15 @@ cd clipboard-ai
 
 The installer will:
 
-1. Build and install the Go daemon
-2. Build and install the CLI
-3. Set up the LaunchAgent for auto-start
-4. Create default configuration
+1. Stop before changing anything if Go or Bun is missing
+2. Create `~/.clipboard-ai` and a default configuration, both readable only by
+   your user
+3. Build and install the Go daemon (creating the install directory if needed)
+4. Build the CLI from the lockfile and install it
+5. Set up the LaunchAgent for auto-start, with a `PATH` that can find `node`
+
+Binaries go to `/usr/local/bin` by default, using `sudo`. Set `INSTALL_DIR` to
+install somewhere else.
 
 The native menubar app is built separately; see [Native menubar app](docs/menubar.md).
 
@@ -68,6 +76,7 @@ The native menubar app is built separately; see [Native menubar app](docs/menuba
 # Build the agent
 cd agent
 go build -o clipboard-ai-agent ./cmd/clipboard-ai-agent/
+sudo mkdir -p /usr/local/bin
 sudo cp clipboard-ai-agent /usr/local/bin/
 
 # Build the CLI
@@ -75,7 +84,7 @@ cd ../cli
 bun install --frozen-lockfile
 bun run build
 sudo cp dist/index.js /usr/local/bin/cbai
-chmod +x /usr/local/bin/cbai
+sudo chmod +x /usr/local/bin/cbai
 ```
 
 ### Release installation (not yet available)
@@ -201,6 +210,17 @@ cbai explain -c
 cbai translate Spanish --copy
 ```
 
+### Output in scripts
+
+In a terminal, action commands show a progress line and a titled result. When
+stdout is piped or redirected, `cbai` prints only the result, and progress and
+status messages go to stderr, so the output can be used directly:
+
+```bash
+cbai summary > summary.txt
+cbai extract | jq .
+```
+
 ### --yes Flag
 
 All AI commands support `--yes` (or `-y`) to skip safe mode confirmation prompts:
@@ -214,9 +234,15 @@ cbai explain -y
 
 When `safe_mode = true` in config, clipboard content won't be sent to cloud providers (OpenAI, Anthropic, or remote custom endpoints) without consent:
 
-- **Manual CLI usage**: Shows an interactive confirmation prompt before cloud calls
+- **Manual CLI usage**: Shows an interactive confirmation prompt before cloud calls.
+  When stdin is not a terminal (for example in a script), the command fails with
+  a message instead of waiting for an answer; pass `--yes` to allow the call.
 - **Daemon-triggered (automatic)**: Blocks cloud calls entirely and sends a macOS notification
-- **Local providers** (Ollama, localhost endpoints): Always allowed regardless of safe mode
+- **Runs requested through the agent** (menubar app, Raycast, MCP, HTTP API):
+  Blocked like automatic runs, because there is no terminal to prompt on. The
+  error names the requesting client and suggests turning off safe mode or
+  routing the action to a local provider.
+- **Local providers** (Ollama, `localhost`, `127.0.0.1`, `[::1]` endpoints): Always allowed regardless of safe mode
 - **`--yes` flag**: Skips the confirmation prompt
 
 ### Configuration
@@ -260,6 +286,8 @@ default_snooze_minutes = 15
 # Bundle identifiers or display names; the denylist always wins.
 app_allowlist = []
 app_denylist = ["1Password", "com.example.BankingApp"]
+# Skip entries that password managers mark as concealed or transient.
+skip_concealed = true
 
 [actions.summarize]
 enabled = true
@@ -296,10 +324,13 @@ trigger = "mime:code"
 The agent watches `~/.clipboard-ai/config.toml` and reloads valid changes without
 restart. Provider settings, action definitions, trigger rules, safe mode,
 notifications, logging level, sensitive guard, history settings, per-action
-routing, clipboard dedupe, action concurrency, the default snooze duration, and
-application allow/deny lists are applied after reload.
+routing, clipboard dedupe, action concurrency, the default snooze duration,
+application allow/deny lists, and concealed-entry skipping are applied after
+reload.
 
 Invalid TOML, invalid settings, or invalid trigger regexes are rejected; the agent keeps the last valid config and sends a notification when notifications are enabled. Send `SIGHUP` to `clipboard-ai-agent` to force a reload manually.
+
+Keys that no setting uses (usually typos such as `safemode`) do not make the config invalid; the agent logs `unknown config key ignored` for each one at startup and on reload. Check `cbai logs` after editing.
 
 Changes to `settings.http_enabled`, `settings.http_addr`, and
 `settings.poll_interval` are logged as restart-required because the HTTP server
@@ -316,6 +347,15 @@ startup default; use `cbai pause` or `cbai resume` to change the live state.
 - Applications may be identified by display name or bundle identifier. A
   blocked clipboard payload is never read into the agent, and pausing or
   snoozing clears the agent's retained clipboard value.
+- Entries that the source application marks as concealed, transient, or
+  auto-generated (the [nspasteboard.org](https://nspasteboard.org) convention
+  used by password managers) are skipped without reading their content. Set
+  `privacy.skip_concealed = false` to turn that off.
+- These controls apply to automatic monitoring. A manual action (`cbai
+  <action>`, a menubar quick action, a Raycast command) reads the clipboard at
+  the moment you run it, also while monitoring is paused or snoozed.
+- Content that is already on the clipboard when the agent starts is not
+  treated as a new copy and does not trigger actions.
 
 ### Local HTTP API
 
@@ -332,7 +372,7 @@ When `settings.http_enabled = true`, the agent also exposes a localhost HTTP API
 ### Diagnostics
 
 - `cbai actions` lists built-in and plugin actions with aliases, descriptions, enabled state, and configured triggers.
-- `cbai doctor` checks daemon reachability, daemon/CLI version match, provider reachability, Ollama model availability, image-action model guidance, history file size, and plugin directory state.
+- `cbai doctor` checks daemon reachability, daemon/CLI version match, provider reachability, Ollama model availability, image-action model guidance, history file size, plugin directory state, and whether the LaunchAgent's `PATH` can find `node`. Provider probes give up after five seconds. It exits non-zero when any check fails.
 - If image actions are enabled and model vision support cannot be recognized, doctor reports `unknown — caption/ocr may fail`.
 
 ### Trigger Expressions
@@ -345,10 +385,16 @@ When `settings.http_enabled = true`, the agent also exposes a localhost HTTP API
 - `mime:code` - Detected as code
 - `mime:image` - Detected as image
 - `mime:rtf` - Detected as RTF
+- `mime:url` - A single URL
+- `mime:text` - Plain prose (not code, not a URL)
 - `A OR B` - Either condition
 - `A AND B` - Both conditions
 - `NOT A` - Negate a condition/expression
 - `(A OR B) AND C` - Grouped expressions with parentheses
+
+Styled text is reported as `rtf`, and its plain text is classified as well, so
+`mime:code`, `mime:url`, and `mime:text` also match content copied from
+applications that put rich text on the clipboard.
 
 **Quoting `regex:`/`contains:` operands.** Their operands are opaque, but an
 unquoted operand still stops at a `)` or an `AND`/`OR` keyword. If your pattern
@@ -366,6 +412,10 @@ prevents the daemon from starting.
 
 `summarize_url` fetches a single HTTP(S) URL from clipboard text, extracts readable text from `text/html` or `text/plain` responses, and summarizes it. The fetch has a 10 second timeout and 2 MB response limit.
 
+It refuses `localhost` and any URL whose host is, or resolves to, a loopback,
+private, link-local, or other non-public address (including IPv4-mapped IPv6
+forms such as `[::ffff:127.0.0.1]`), and it does not follow redirects.
+
 Fetching a URL makes a network request to that site even when safe mode is enabled. Safe mode controls LLM provider calls; it does not block URL fetching. Keep `actions.summarize_url` disabled unless that network behavior is acceptable.
 
 ### Reliability Controls
@@ -373,7 +423,8 @@ Fetching a URL makes a network request to that site even when safe mode is enabl
 - `settings.clipboard_dedupe_window_ms`: suppresses duplicate clipboard text reprocessing within a time window
 - `actions.<name>.model`: per-action model override
 - `actions.<name>.endpoint`: per-action OpenAI-compatible endpoint override
-- `actions.<name>.timeout_ms`: per-action execution timeout override
+- `actions.<name>.timeout_ms`: per-action execution timeout override, for
+  automatic triggers and for runs requested through the agent
 - `actions.<name>.retry_count`: retry attempts after first failure
 - `actions.<name>.retry_backoff_ms`: wait time between retries
 - `actions.<name>.cooldown_ms`: minimum interval between action invocations
@@ -429,7 +480,9 @@ evaluates the effective profile endpoint, so remote profiles are cloud calls.
 - `block`: skip the action unless manual CLI usage includes `--force`
 - `off`: disable the guard
 
-Detected inputs are not written to history; history records keep metadata and replace content with a placeholder. Initial detectors cover AWS access keys, API-key assignments, JWTs, private-key headers, and Luhn-valid credit-card numbers.
+Detected inputs are not written to history; history records keep metadata and replace content with a placeholder. Warnings name what was found, for example `(password, url_credentials)`.
+
+Detectors cover AWS access and secret keys, OpenAI and Anthropic keys, GitHub, GitLab, Slack, Stripe, Google, and npm tokens, generic `api_key` and `password` assignments, bearer tokens, JWTs, URLs with embedded credentials, private-key headers, and credit-card numbers (card layout, issuer prefix, and Luhn checksum).
 
 ### Action History
 
@@ -437,6 +490,9 @@ Detected inputs are not written to history; history records keep metadata and re
 - `cbai history` shows recent runs (newest first)
 - `cbai rerun <id>` replays a previous run with the recorded input and arguments
 - Records persist token usage (`prompt_tokens`/`completion_tokens`) and latency when the provider reports them
+- Each record has a `source`: `manual` (typed in a terminal), `daemon`
+  (automatic clipboard trigger), `rerun`, or the client that requested the run
+  through the agent: `menubar`, `raycast`, `mcp`, or `api`
 
 ### Usage Statistics
 
@@ -504,12 +560,15 @@ cbai run reverse
 cbai run rev
 ```
 
+Plugin actions are also available by their id through the HTTP API and MCP;
+no `[actions.*]` config entry is needed.
+
 ### Supported Providers
 
 | Provider | Config | Notes |
 |----------|--------|-------|
 | Ollama | `type = "ollama"` | Local, no API key needed |
-| OpenAI | `type = "openai"` | Requires `api_key` |
+| OpenAI | `type = "openai"` | Requires `api_key`; requests send `max_completion_tokens` and the default temperature |
 | Anthropic | `type = "anthropic"` | Requires `api_key`; uses Anthropic's OpenAI SDK compatibility endpoint |
 | Custom | Set `endpoint` | Any OpenAI-compatible API |
 
@@ -544,21 +603,25 @@ clipboard-ai/
 ├── agent/                    # Go daemon
 │   ├── cmd/clipboard-ai-agent/
 │   └── internal/
+│       ├── automation/       # Dedupe, cooldowns, concurrency
 │       ├── clipboard/        # Clipboard monitoring
 │       ├── config/           # TOML config loading
 │       ├── executor/         # Action execution (spawns CLI)
-│       ├── ipc/              # Unix socket server
+│       ├── guard/            # Sensitive-data detection
+│       ├── ipc/              # Unix socket and HTTP servers
 │       ├── notify/           # macOS notifications
+│       ├── privacy/          # Pause, snooze, application policy
 │       └── rules/            # Trigger engine
 ├── cli/                      # TypeScript CLI (the only action runtime)
 │   └── src/
 │       ├── commands/         # CLI commands
-│       └── lib/              # IPC client, AI client, safe mode, built-in actions
+│       ├── lib/              # IPC client, AI client, safe mode, built-in actions
+│       └── mcp/              # MCP stdio server
 ├── menubar/                  # Native SwiftUI status-item client
 ├── integrations/raycast/     # Raycast extension (HTTP API client)
 ├── configs/                  # Default configuration
 ├── docs/                     # HTTP, MCP, menubar, integration, and security docs
-└── scripts/                  # Install/uninstall scripts
+└── scripts/                  # Install/uninstall scripts, end-to-end contract check
 ```
 
 ## Development
@@ -571,7 +634,7 @@ cd agent
 go build ./cmd/clipboard-ai-agent/
 
 # CLI (TypeScript)
-cd cli
+cd ../cli
 bun install --frozen-lockfile
 bun run build
 
@@ -583,10 +646,12 @@ swift build -c release
 ### Running Tests
 
 ```bash
-# Go agent: race test and reachable-vulnerability scan
+# Go agent: formatting, vet, race test, and reachable-vulnerability scan
 cd agent
+test -z "$(gofmt -l .)"
+go vet ./...
 go test -race ./...
-go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
+go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
 
 # CLI: frozen install, full test suite, typecheck, and build
 cd ../cli
@@ -607,23 +672,35 @@ npm audit --audit-level=high
 cd ../../menubar
 swift test
 swift build -c release
+
+# Agent and CLI together (builds both, uses an isolated HOME and a stub provider)
+cd ..
+./scripts/e2e-contract.sh
 ```
 
 ### Running locally
 
 ```bash
-# Start the agent
+# Start the agent (build it first, see Building above)
 ./agent/clipboard-ai-agent
 
 # In another terminal, use the CLI
 bun run cli/src/index.ts status
 ```
 
+The agent runs actions by starting `cbai` from its `PATH`, so triggered actions
+and requests from the menubar app, Raycast, or MCP need an installed `cbai`
+(see Manual Installation) even when you use the CLI from source.
+
 ## CI/CD
 
 `.github/workflows/ci.yml` runs on every push and pull request. It executes the
-Go race/vulnerability checks, CLI tests/typecheck/build, Raycast lint/build and
-audit gates, and native menubar tests/release build.
+Go formatting, vet, race, and vulnerability checks; CLI tests, typecheck, and
+build; the agent/CLI contract check (`scripts/e2e-contract.sh`); Raycast lint,
+build, and audit gates; and native menubar tests and release build.
+
+Dependabot (`.github/dependabot.yml`) opens weekly update pull requests for the
+Go module, the CLI, the Raycast extension, and the GitHub Actions in use.
 
 A GitHub Actions **release** workflow (`.github/workflows/release.yml`) runs when
 a `v*` tag is pushed, producing macOS agent binaries (amd64 + arm64, built with
@@ -634,8 +711,12 @@ release is currently published.
 ## Uninstalling
 
 ```bash
-./scripts/uninstall.sh
+./scripts/uninstall.sh         # asks before removing logs, history, and config
+./scripts/uninstall.sh --all   # removes everything without asking
 ```
+
+The binaries and the LaunchAgent are always removed. The native menubar app is
+not installed by the script, so delete it yourself if you built or copied it.
 
 ## License
 

@@ -100,6 +100,9 @@ func TestIsTransientExecutionFailure(t *testing.T) {
 		{name: "authentication", result: executor.Result{Error: errors.New("exit status 1"), Output: "invalid API key (401 unauthorized)"}, want: false},
 		{name: "invalid config", result: executor.Result{Error: errors.New("exit status 1"), Output: "invalid provider configuration"}, want: false},
 		{name: "unknown failure", result: executor.Result{Error: errors.New("exit status 1")}, want: false},
+		{name: "connection error on stderr", result: executor.Result{Error: errors.New("exit status 1"), Stderr: "Error: all provider profiles failed: default: Connection error."}, want: true},
+		{name: "rate limit on stderr", result: executor.Result{Error: errors.New("exit status 1"), Stderr: "Error: 429 Too Many Requests"}, want: true},
+		{name: "safe mode on stderr", result: executor.Result{Error: errors.New("exit status 1"), Stderr: "Error: safe mode: blocked cloud call to openai"}, want: false},
 	}
 
 	for _, tc := range tests {

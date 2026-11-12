@@ -27,6 +27,10 @@ enum MonitoringAction: Equatable, Sendable {
 }
 
 struct AgentAPI: AgentServing, Sendable {
+    /// `/action` waits for a model call, so it must outlast the agent's own
+    /// action timeout (30 seconds by default, or `actions.<name>.timeout_ms`).
+    static let actionTimeoutSeconds = 120
+
     private let transport: any AgentTransport
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
@@ -65,7 +69,12 @@ struct AgentAPI: AgentServing, Sendable {
     }
 
     func runAction(_ request: ActionRequest) async throws -> ActionResponse {
-        try await post("/action", body: request, as: ActionResponse.self)
+        try await post(
+            "/action",
+            body: request,
+            as: ActionResponse.self,
+            timeoutSeconds: Self.actionTimeoutSeconds
+        )
     }
 
     private func get<Response: Decodable & Sendable>(
@@ -79,11 +88,12 @@ struct AgentAPI: AgentServing, Sendable {
     private func post<Body: Encodable & Sendable, Response: Decodable & Sendable>(
         _ path: String,
         body: Body,
-        as type: Response.Type
+        as type: Response.Type,
+        timeoutSeconds: Int? = nil
     ) async throws -> Response {
         let payload = try encoder.encode(body)
         let response = try await transport.send(
-            AgentHTTPRequest(method: "POST", path: path, body: payload)
+            AgentHTTPRequest(method: "POST", path: path, body: payload, timeoutSeconds: timeoutSeconds)
         )
         return try decode(response, as: type)
     }

@@ -26,6 +26,7 @@ import (
 
 const maxActionRequestBodyBytes = 10 << 20
 const maxClipboardImageBytes = 25 << 20
+const maxHistoryLineBytes = 16 << 20
 
 // maxConcurrentActionRequests bounds in-flight /action executions so a burst of
 // HTTP requests can't spawn unbounded LLM-calling subprocesses. Excess requests
@@ -115,22 +116,24 @@ type ControlsRequest struct {
 
 // HistoryRecord mirrors CLI history records stored in history.jsonl.
 type HistoryRecord struct {
-	ID              string   `json:"id"`
-	Timestamp       string   `json:"timestamp"`
-	Action          string   `json:"action"`
-	Args            []string `json:"args"`
-	Source          string   `json:"source"`
-	Trigger         string   `json:"trigger"`
-	Provider        string   `json:"provider"`
-	ProviderProfile string   `json:"provider_profile,omitempty"`
-	Model           string   `json:"model"`
-	LatencyMs       int      `json:"latency_ms"`
-	Status          string   `json:"status"`
-	Copy            bool     `json:"copy"`
-	Input           string   `json:"input"`
-	Output          string   `json:"output,omitempty"`
-	Error           string   `json:"error,omitempty"`
-	ReplayOf        string   `json:"replay_of,omitempty"`
+	ID               string   `json:"id"`
+	Timestamp        string   `json:"timestamp"`
+	Action           string   `json:"action"`
+	Args             []string `json:"args"`
+	Source           string   `json:"source"`
+	Trigger          string   `json:"trigger"`
+	Provider         string   `json:"provider"`
+	ProviderProfile  string   `json:"provider_profile,omitempty"`
+	Model            string   `json:"model"`
+	LatencyMs        int      `json:"latency_ms"`
+	Status           string   `json:"status"`
+	Copy             bool     `json:"copy"`
+	Input            string   `json:"input"`
+	Output           string   `json:"output,omitempty"`
+	Error            string   `json:"error,omitempty"`
+	ReplayOf         string   `json:"replay_of,omitempty"`
+	PromptTokens     int      `json:"prompt_tokens,omitempty"`
+	CompletionTokens int      `json:"completion_tokens,omitempty"`
 }
 
 // HistoryResponse is returned by /history.
@@ -349,6 +352,12 @@ func (s *Server) handleClipboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	current := s.monitor.Current()
+	if isTrue(r.URL.Query().Get("fresh")) {
+		// An explicit, user-initiated read: look at the pasteboard now instead of
+		// relying on what automatic monitoring last saw (which is empty while
+		// paused, snoozed, or after a blocked application).
+		current = s.monitor.ReadNow()
+	}
 	resp := ClipboardResponse{
 		Text:      current.Text,
 		Type:      string(current.Type),
@@ -502,6 +511,11 @@ type ActionRequest struct {
 	ImageMime   string   `json:"image_mime,omitempty"`
 	Type        string   `json:"type,omitempty"`
 	Args        []string `json:"args,omitempty"`
+	// Fresh asks for an on-demand clipboard read when no payload is supplied.
+	Fresh bool `json:"fresh,omitempty"`
+	// Source names the calling client: menubar, raycast, or mcp. Anything else
+	// is recorded as "api".
+	Source string `json:"source,omitempty"`
 }
 
 // ActionResponse from triggering an action
@@ -512,37 +526,34 @@ type ActionResponse struct {
 	Error   string `json:"error,omitempty"`
 }
 
-// builtinActionNames is the set of action ids and aliases the CLI registry
-// ships (see cli/src/lib/builtin-actions.ts). Kept here so the agent can reject
-// requests for unknown actions before spawning a subprocess. Custom/plugin
-// actions are still accepted when the user has configured them (see isKnownAction).
-var builtinActionNames = map[string]struct{}{
-	"summary": {}, "summarize": {}, "sum": {},
-	"explain":       {},
-	"translate":     {},
-	"improve":       {},
-	"extract":       {},
-	"tldr":          {},
-	"classify":      {},
-	"summarize_url": {}, "summarize-url": {},
-	"caption": {}, "describe": {}, "describe-image": {},
-	"ocr": {}, "extract-text": {},
+// actionNamePattern is the only name check the agent performs. The CLI owns the
+// action registry (built-ins, plugins, and prompt actions), so an unknown name
+// is reported by the CLI as an ordinary action failure. A name must start with
+// a letter or digit so it can never be parsed as a command-line flag.
+var actionNamePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]*$`)
+
+// normalizeSource maps a client-supplied source label onto the fixed set the
+// CLI records in history.
+func normalizeSource(source string) string {
+	switch strings.ToLower(strings.TrimSpace(source)) {
+	case "menubar":
+		return "menubar"
+	case "raycast":
+		return "raycast"
+	case "mcp":
+		return "mcp"
+	default:
+		return "api"
+	}
 }
 
-var actionNamePattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
-
-// isKnownAction reports whether name is a builtin action or one the user has
-// configured (covers plugin/custom actions the agent can't enumerate itself).
-func isKnownAction(cfg *config.Config, name string) bool {
-	if _, ok := builtinActionNames[name]; ok {
+func isTrue(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "true":
 		return true
+	default:
+		return false
 	}
-	if cfg != nil {
-		if _, ok := cfg.Actions[name]; ok {
-			return true
-		}
-	}
-	return false
 }
 
 // handleAction triggers an AI action
@@ -564,16 +575,12 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate the action name against the known registry before spawning a
-	// subprocess. (`enabled` gates automatic clipboard triggers, not manual
-	// /action calls — mirroring `cbai run`, which runs disabled actions too.)
+	// Validate the shape of the action name before spawning a subprocess.
+	// (`enabled` gates automatic clipboard triggers, not manual /action calls —
+	// mirroring `cbai run`, which runs disabled actions too.)
 	req.Action = strings.TrimSpace(req.Action)
-	if req.Action == "" || !actionNamePattern.MatchString(req.Action) {
+	if !actionNamePattern.MatchString(req.Action) {
 		writeJSONError(w, http.StatusBadRequest, "Invalid action name")
-		return
-	}
-	if !isKnownAction(s.configSnapshot(), req.Action) {
-		writeJSONError(w, http.StatusBadRequest, "Unknown action")
 		return
 	}
 
@@ -597,6 +604,9 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 
 	if inputText == "" && inputRTF == "" && req.ImageBase64 == "" {
 		current := s.monitor.Current()
+		if req.Fresh {
+			current = s.monitor.ReadNow()
+		}
 		inputText = current.Text
 		inputRTF = current.RTF
 		imageBytes = current.Image
@@ -637,11 +647,15 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 		InputType: inputType,
 		InputRTF:  inputRTF,
 		Args:      req.Args,
+		Source:    normalizeSource(req.Source),
 	}
 	cfg := s.configSnapshot()
 	if actionCfg, ok := cfg.Actions[req.Action]; ok {
 		opts.ModelOverride = actionCfg.Model
 		opts.EndpointOverride = actionCfg.Endpoint
+		if actionCfg.TimeoutMs > 0 {
+			opts.Timeout = time.Duration(actionCfg.TimeoutMs) * time.Millisecond
+		}
 	}
 	if len(imageBytes) > 0 {
 		path, err := executor.WriteTempImage(imageBytes)
@@ -667,16 +681,13 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, ActionResponse{
 		Success: true,
 		Action:  req.Action,
-		Result:  result.Output,
+		Result:  strings.TrimRight(result.Output, "\r\n"),
 	})
 }
 
 func actionExecutionError(result executor.Result) string {
-	if output := strings.TrimSpace(result.Output); output != "" {
-		return output
-	}
-	if result.Error != nil {
-		return result.Error.Error()
+	if diagnostic := result.Diagnostic(); diagnostic != "" {
+		return diagnostic
 	}
 	return "Action failed"
 }
@@ -694,6 +705,9 @@ func readHistoryRecords(path string, limit int) ([]HistoryRecord, int, error) {
 	var records []HistoryRecord
 	skipped := 0
 	scanner := bufio.NewScanner(file)
+	// The default 64 KB line limit is too small once history_truncate_chars is
+	// raised or disabled; one long record must not break the whole endpoint.
+	scanner.Buffer(make([]byte, 0, 64*1024), maxHistoryLineBytes)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {

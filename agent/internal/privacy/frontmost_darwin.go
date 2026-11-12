@@ -4,7 +4,6 @@ package privacy
 
 import (
 	"runtime"
-	"unsafe"
 
 	"github.com/ebitengine/purego"
 	"github.com/ebitengine/purego/objc"
@@ -59,18 +58,6 @@ func goString(value objc.ID) string {
 	if value == 0 {
 		return ""
 	}
-	pointer := uintptr(value.Send(utf8StringSel))
-	if pointer == 0 {
-		return ""
-	}
-	bytes := make([]byte, 0, 64)
-	for {
-		char := *(*byte)(unsafe.Pointer(pointer))
-		if char == 0 {
-			break
-		}
-		bytes = append(bytes, char)
-		pointer++
-	}
-	return string(bytes)
+	// objc.Send[string] copies the returned C string into a Go string.
+	return objc.Send[string](value, utf8StringSel)
 }

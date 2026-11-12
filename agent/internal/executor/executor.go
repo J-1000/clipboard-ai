@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 )
 
@@ -32,6 +33,9 @@ type Options struct {
 	ModelOverride     string
 	EndpointOverride  string
 	Args              []string
+	// Source names the client that asked for a manual run through the agent
+	// (menubar, raycast, mcp, api). Empty for automatic clipboard triggers.
+	Source string
 }
 
 // ExecuteFunc allows tests to override the executor behavior.
@@ -45,9 +49,25 @@ var executeWithOptionsFn ExecuteWithOptionsFunc = runExecuteWithOptions
 // Result holds the outcome of an action execution
 type Result struct {
 	Action  string
-	Output  string
+	Output  string // the CLI's stdout: the action result
+	Stderr  string // the CLI's stderr: warnings and error messages
 	Error   error
 	Elapsed time.Duration
+}
+
+// Diagnostic returns the most useful explanation of a failed run: the CLI's
+// stderr when it wrote any, otherwise its stdout, otherwise the process error.
+func (r Result) Diagnostic() string {
+	if s := strings.TrimSpace(r.Stderr); s != "" {
+		return s
+	}
+	if s := strings.TrimSpace(r.Output); s != "" {
+		return s
+	}
+	if r.Error != nil {
+		return r.Error.Error()
+	}
+	return ""
 }
 
 // Execute spawns `cbai <action>` and captures its output
@@ -94,8 +114,14 @@ func runExecuteWithOptions(ctx context.Context, action string, text string, opts
 	cmdArgs := append([]string{"run", action, "--"}, opts.Args...)
 	cmd := exec.CommandContext(ctx, "cbai", cmdArgs...)
 	cmd.Env = append(os.Environ(), "CBAI_DAEMON_MODE=true")
+	// If the CLI leaves a child holding its output pipes open, don't wait on
+	// them forever once the process itself has been killed.
+	cmd.WaitDelay = 2 * time.Second
 	if opts.Trigger != "" {
 		cmd.Env = append(cmd.Env, "CBAI_TRIGGER="+opts.Trigger)
+	}
+	if opts.Source != "" {
+		cmd.Env = append(cmd.Env, "CBAI_SOURCE="+opts.Source)
 	}
 	if opts.InputType != "" {
 		cmd.Env = append(cmd.Env, "CBAI_INPUT_TYPE="+opts.InputType)
@@ -137,14 +163,10 @@ func runExecuteWithOptions(ctx context.Context, action string, text string, opts
 
 	elapsed := time.Since(start)
 
-	output := stdout.String()
-	if output == "" && stderr.String() != "" {
-		output = stderr.String()
-	}
-
 	return Result{
 		Action:  action,
-		Output:  output,
+		Output:  stdout.String(),
+		Stderr:  stderr.String(),
 		Error:   err,
 		Elapsed: elapsed,
 	}

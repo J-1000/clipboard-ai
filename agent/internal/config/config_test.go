@@ -570,3 +570,40 @@ func TestGetDataDir(t *testing.T) {
 		t.Fatalf("expected dir '.clipboard-ai', got %q", filepath.Base(dir))
 	}
 }
+
+func TestLoadFromPath_ReportsUnknownKeys(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	contents := `
+[settings]
+safemode = false
+safe_mode = true
+
+[actions.summarize]
+enabled = true
+trigger = "length > 200"
+cooldown = 5
+`
+	if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadFromPath(path)
+	if err != nil {
+		t.Fatalf("unknown keys must not make the config invalid: %v", err)
+	}
+	want := map[string]bool{"settings.safemode": true, "actions.summarize.cooldown": true}
+	if len(cfg.UnknownKeys) != len(want) {
+		t.Fatalf("UnknownKeys = %v, want %v", cfg.UnknownKeys, want)
+	}
+	for _, key := range cfg.UnknownKeys {
+		if !want[key] {
+			t.Fatalf("unexpected unknown key %q in %v", key, cfg.UnknownKeys)
+		}
+	}
+}
+
+func TestDefault_SkipsConcealedClipboardEntries(t *testing.T) {
+	if !Default().Privacy.SkipConcealed {
+		t.Fatal("privacy.skip_concealed must default to true")
+	}
+}

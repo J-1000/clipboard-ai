@@ -41,6 +41,32 @@ describe("isBlockedAddress", () => {
     expect(isBlockedAddress("::ffff:127.0.0.1")).toBe(true);
   });
 
+  it("blocks every textual form of an internal address", () => {
+    for (const ip of [
+      "::ffff:7f00:1", // IPv4-mapped loopback in hex form (what URL parsing produces)
+      "::ffff:a9fe:a9fe", // IPv4-mapped metadata address
+      "::ffff:192.168.1.1",
+      "::", // unspecified
+      "febf::1", // top of fe80::/10
+      "fec0::1", // site-local
+      "64:ff9b::7f00:1", // NAT64 wrapping loopback
+      "2002:7f00:1::", // 6to4 wrapping loopback
+      "ff02::1", // multicast
+      "fe80::1%en0", // zone id
+      "198.18.0.1",
+      "255.255.255.255",
+    ]) {
+      expect(isBlockedAddress(ip)).toBe(true);
+    }
+  });
+
+  it("still allows public addresses in mapped form", () => {
+    expect(isBlockedAddress("::ffff:8.8.8.8")).toBe(false);
+    expect(isBlockedAddress("::ffff:808:808")).toBe(false);
+    expect(isBlockedAddress("2001:4860:4860::8888")).toBe(false);
+    expect(isBlockedAddress("172.32.0.1")).toBe(false);
+  });
+
   it("allows public addresses", () => {
     expect(isBlockedAddress("8.8.8.8")).toBe(false);
     expect(isBlockedAddress("1.1.1.1")).toBe(false);
@@ -56,6 +82,13 @@ describe("assertPublicURL", () => {
       /non-public address/
     );
     await expect(assertPublicURL(new URL("http://127.0.0.1:9159/"))).rejects.toThrow(/non-public/);
+  });
+
+  it("rejects IPv4-mapped IPv6 literals that point inward", async () => {
+    await expect(assertPublicURL(new URL("http://[::ffff:127.0.0.1]:8080/"))).rejects.toThrow(/non-public/);
+    await expect(
+      assertPublicURL(new URL("http://[::ffff:169.254.169.254]/latest/meta-data/"))
+    ).rejects.toThrow(/non-public/);
   });
 
   it("rejects hostnames that resolve to internal addresses", async () => {

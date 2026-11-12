@@ -24,12 +24,14 @@ export interface AIResponse {
 export class AIClient {
   private client: OpenAI;
   private model: string;
+  private providerType: string;
   private maxTokens: number;
   private onToken?: (token: string) => void;
   private usage = { promptTokens: 0, completionTokens: 0 };
 
   constructor(config: AIConfig) {
     this.model = config.model;
+    this.providerType = config.type;
     this.maxTokens = config.maxTokens && config.maxTokens > 0 ? config.maxTokens : DEFAULT_MAX_TOKENS;
     this.onToken = config.onToken;
 
@@ -55,6 +57,21 @@ export class AIClient {
     return { ...this.usage };
   }
 
+  // OpenAI's current chat models reject `max_tokens` (they require
+  // `max_completion_tokens`) and any non-default `temperature`. Other
+  // OpenAI-compatible servers — Ollama, Anthropic's compatibility endpoint,
+  // local proxies — still expect the classic parameter names.
+  private samplingParams(temperature: number): {
+    temperature?: number;
+    max_tokens?: number;
+    max_completion_tokens?: number;
+  } {
+    if (this.providerType === "openai") {
+      return { max_completion_tokens: this.maxTokens };
+    }
+    return { temperature, max_tokens: this.maxTokens };
+  }
+
   private getBaseURL(config: AIConfig): string {
     if (config.endpoint) {
       return config.endpoint;
@@ -71,18 +88,12 @@ export class AIClient {
     const response = await this.client.chat.completions.create({
       model: this.model,
       messages,
-      temperature: 0.7,
-      max_tokens: this.maxTokens,
+      ...this.samplingParams(0.7),
     });
 
     warnIfTruncated(response.choices?.[0]?.finish_reason, this.maxTokens);
 
-    const usage = response.usage
-      ? {
-          promptTokens: response.usage.prompt_tokens,
-          completionTokens: response.usage.completion_tokens,
-        }
-      : undefined;
+    const usage = usageFrom(response.usage);
     this.accumulateUsage(usage);
 
     return {
@@ -101,19 +112,22 @@ export class AIClient {
     const stream = await this.client.chat.completions.create({
       model: this.model,
       messages,
-      temperature: 0.7,
-      max_tokens: this.maxTokens,
+      ...this.samplingParams(0.7),
       stream: true,
+      // Ask for a final usage chunk so streamed runs are counted in stats.
+      stream_options: { include_usage: true },
     });
 
     let content = "";
     let model = this.model;
     let finishReason: string | null | undefined;
+    let usage: AIResponse["usage"];
 
     for await (const chunk of stream) {
       if (chunk.model) {
         model = chunk.model;
       }
+      usage = usageFrom(chunk.usage) ?? usage;
       finishReason = chunk.choices?.[0]?.finish_reason ?? finishReason;
       const token = chunk.choices?.[0]?.delta?.content;
       if (!token) {
@@ -125,11 +139,13 @@ export class AIClient {
 
     warnIfTruncated(finishReason, this.maxTokens);
 
+    this.accumulateUsage(usage);
+
     if (content === "") {
       throw new Error("provider returned no completion choices");
     }
 
-    return { content, model };
+    return { content, model, usage };
   }
 
   async generateWithImage(
@@ -156,18 +172,12 @@ export class AIClient {
     const response = await this.client.chat.completions.create({
       model: this.model,
       messages,
-      temperature: 0.2,
-      max_tokens: this.maxTokens,
+      ...this.samplingParams(0.2),
     });
 
     warnIfTruncated(response.choices?.[0]?.finish_reason, this.maxTokens);
 
-    const usage = response.usage
-      ? {
-          promptTokens: response.usage.prompt_tokens,
-          completionTokens: response.usage.completion_tokens,
-        }
-      : undefined;
+    const usage = usageFrom(response.usage);
     this.accumulateUsage(usage);
 
     return {
@@ -230,27 +240,37 @@ export class AIClient {
     return content;
   }
 
-  // generateJSON requests a JSON object via response_format, gracefully falling
-  // back to a plain completion when the provider doesn't support it.
+  // generateJSON requests a JSON object via response_format, falling back to a
+  // plain completion only when the provider rejects that parameter.
   async generateJSON(prompt: string, systemPrompt?: string): Promise<AIResponse> {
     const messages = completionMessages(prompt, systemPrompt);
+    let response;
     try {
-      const response = await this.client.chat.completions.create({
+      response = await this.client.chat.completions.create({
         model: this.model,
         messages,
-        temperature: 0.2,
-        max_tokens: this.maxTokens,
+        ...this.samplingParams(0.2),
         response_format: { type: "json_object" },
       });
-      warnIfTruncated(response.choices?.[0]?.finish_reason, this.maxTokens);
-      return {
-        content: completionContent(response),
-        model: response.model,
-      };
-    } catch {
-      // Provider may reject response_format; fall back to a plain completion.
-      return this.generate(prompt, systemPrompt);
+    } catch (err) {
+      // "Bad request"-class statuses mean the provider does not support
+      // response_format. Anything else (auth, rate limit, network, server
+      // error) would fail again, so let it surface instead of retrying.
+      const status = (err as { status?: unknown }).status;
+      if (status === 400 || status === 404 || status === 422 || status === 501) {
+        return this.generate(prompt, systemPrompt);
+      }
+      throw err;
     }
+
+    warnIfTruncated(response.choices?.[0]?.finish_reason, this.maxTokens);
+    const usage = usageFrom(response.usage);
+    this.accumulateUsage(usage);
+    return {
+      content: completionContent(response),
+      model: response.model,
+      usage,
+    };
   }
 
   async captionImage(imageBase64: string, imageMime?: string): Promise<string> {
@@ -298,12 +318,32 @@ export function warnIfTruncated(finishReason: string | null | undefined, maxToke
   }
 }
 
-// validateJSON ensures a model response is parseable JSON, returning a clear
-// error (rather than raw text) when it isn't.
+function usageFrom(
+  usage: { prompt_tokens?: number; completion_tokens?: number } | null | undefined
+): AIResponse["usage"] {
+  if (!usage) {
+    return undefined;
+  }
+  return {
+    promptTokens: usage.prompt_tokens ?? 0,
+    completionTokens: usage.completion_tokens ?? 0,
+  };
+}
+
+// Small models often wrap JSON in a Markdown code fence; unwrap it.
+function stripCodeFence(content: string): string {
+  const trimmed = content.trim();
+  const fenced = trimmed.match(/^```[a-zA-Z]*\s*\n([\s\S]*?)\n?```$/);
+  return fenced ? fenced[1].trim() : trimmed;
+}
+
+// validateJSON ensures a model response is parseable JSON, returning the JSON
+// text (without any code fence) or a clear error when it isn't JSON.
 function validateJSON(content: string, label: string): string {
+  const candidate = stripCodeFence(content);
   try {
-    JSON.parse(content);
-    return content;
+    JSON.parse(candidate);
+    return candidate;
   } catch {
     throw new Error(`${label} did not return valid JSON`);
   }

@@ -157,6 +157,27 @@ final class AgentAPITests: XCTestCase {
         XCTAssertEqual(try jsonObject(requests[0].body)["duration_minutes"] as? Int, 30)
         XCTAssertEqual(try jsonObject(requests[1].body)["action"] as? String, "translate")
         XCTAssertEqual(try jsonObject(requests[1].body)["args"] as? [String], ["German"])
+        XCTAssertEqual(try jsonObject(requests[1].body)["source"] as? String, "menubar")
+        XCTAssertNil(try jsonObject(requests[1].body)["fresh"])
+        // /controls keeps the short default; /action gets the long timeout.
+        XCTAssertNil(requests[0].timeoutSeconds)
+        XCTAssertEqual(requests[1].timeoutSeconds, AgentAPI.actionTimeoutSeconds)
+    }
+
+    func testQuickActionRequestsAskForAFreshClipboardRead() async throws {
+        let transport = RecordingTransport(responses: [
+            jsonResponse("{\"success\": true, \"action\": \"summary\", \"result\": \"ok\"}"),
+        ])
+
+        _ = try await AgentAPI(transport: transport).runAction(
+            ActionRequest(action: "summary", fresh: true)
+        )
+
+        let requests = await transport.requests()
+        let body = try jsonObject(requests[0].body)
+        XCTAssertEqual(body["fresh"] as? Bool, true)
+        XCTAssertEqual(body["source"] as? String, "menubar")
+        XCTAssertNil(body["text"])
     }
 
     func testReportsStructuredHTTPErrors() async throws {

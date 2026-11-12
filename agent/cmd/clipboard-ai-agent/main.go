@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -74,6 +75,8 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: levelVar}))
 	slog.SetDefault(logger)
 
+	logUnknownConfigKeys(logger, cfg)
+
 	logger.Info("agent starting",
 		"version", version,
 		"provider.type", cfg.Provider.Type,
@@ -127,36 +130,43 @@ func main() {
 
 		// Evaluate rules
 		matches := rulesEngine.Evaluate(content)
-		for _, match := range matches {
-			guardHit := false
-			// Scan the RTF payload too: a styled paste can carry a secret that
-			// isn't in the plain-text representation.
-			guardInput := content.Text
-			if content.RTF != "" {
-				guardInput += "\n" + content.RTF
-			}
-			if guardInput != "" && cfg.Settings.SensitiveGuard != "off" {
-				findings := guard.Scan(guardInput)
-				if len(findings) > 0 {
-					guardHit = true
-					logger.Warn("sensitive clipboard content detected",
-						"action", match.ActionName,
-						"mode", cfg.Settings.SensitiveGuard,
-						"findings", len(findings),
-					)
-					if cfg.Settings.Notifications {
-						message := "clipboard looks like it contains a secret"
-						if cfg.Settings.SensitiveGuard == "block" {
-							message += " — action skipped"
-						}
-						notify.SendWithSubtitle("clipboard-ai", "Sensitive content", message)
+		if len(matches) == 0 {
+			return
+		}
+
+		// Scan once per clipboard change, not once per matching action. The RTF
+		// payload is scanned too: a styled paste can carry a secret that isn't in
+		// the plain-text representation.
+		guardHit := false
+		guardInput := content.Text
+		if content.RTF != "" {
+			guardInput += "\n" + content.RTF
+		}
+		if guardInput != "" && cfg.Settings.SensitiveGuard != "off" {
+			if findings := guard.Scan(guardInput); len(findings) > 0 {
+				guardHit = true
+				types := guard.Types(findings)
+				blocked := cfg.Settings.SensitiveGuard == "block"
+				logger.Warn("sensitive clipboard content detected",
+					"mode", cfg.Settings.SensitiveGuard,
+					"findings", len(findings),
+					"types", types,
+					"matched_actions", len(matches),
+				)
+				if cfg.Settings.Notifications {
+					message := "clipboard looks like it contains a secret (" + strings.Join(types, ", ") + ")"
+					if blocked {
+						message += " — action skipped"
 					}
-					if cfg.Settings.SensitiveGuard == "block" {
-						continue
-					}
+					notify.SendWithSubtitle("clipboard-ai", "Sensitive content", message)
+				}
+				if blocked {
+					return
 				}
 			}
+		}
 
+		for _, match := range matches {
 			cooldown := time.Duration(match.Config.CooldownMs) * time.Millisecond
 			if !controller.AllowAction(match.ActionName, cooldown, now) {
 				logger.Debug("skipped action due to cooldown",
@@ -251,12 +261,17 @@ func main() {
 				// settings as of completion, not as of when it was triggered.
 				notifyCfg, _ := state.snapshot()
 				if result.Error != nil {
-					logger.Error("action failed", "action", actionName, "error", result.Error)
+					diagnostic := result.Diagnostic()
+					logger.Error("action failed",
+						"action", actionName,
+						"error", result.Error,
+						"diagnostic", truncateRunes(diagnostic, 300),
+					)
 					if notifyCfg.Settings.Notifications {
-						if strings.Contains(result.Output, "safe mode") {
+						if strings.Contains(diagnostic, "safe mode") {
 							notify.SendWithSubtitle("clipboard-ai", "Safe mode", actionName+" blocked — cloud provider not allowed")
 						} else {
-							notify.SendWithSubtitle("clipboard-ai", actionName+" failed", result.Error.Error())
+							notify.SendWithSubtitle("clipboard-ai", actionName+" failed", truncateRunes(diagnostic, 200))
 						}
 					}
 					return
@@ -266,7 +281,7 @@ func main() {
 					"elapsed_ms", result.Elapsed.Milliseconds(),
 				)
 				if notifyCfg.Settings.Notifications {
-					notify.SendWithSubtitle("clipboard-ai", actionName, truncateRunes(result.Output, 200))
+					notify.SendWithSubtitle("clipboard-ai", actionName, truncateRunes(strings.TrimSpace(result.Output), 200))
 				}
 			}(match.ActionName, match.Config, content, guardHit)
 		}
@@ -274,6 +289,7 @@ func main() {
 
 	// Create clipboard monitor
 	monitor := clipboard.NewMonitor(cfg.Settings.PollInterval, handler)
+	monitor.SetSkipConcealed(cfg.Privacy.SkipConcealed)
 	monitor.SetReadPolicy(func() bool {
 		app := privacy.FrontmostApplication()
 		decision := privacyController.Decision(app, time.Now())
@@ -318,7 +334,16 @@ func main() {
 		controller.SetDedupeWindow(time.Duration(nextCfg.Settings.ClipboardDedupeWindow) * time.Millisecond)
 		actionGate.SetLimit(nextCfg.Settings.MaxConcurrentActions)
 		privacyController.UpdatePolicy(nextCfg.Privacy.AppAllowlist, nextCfg.Privacy.AppDenylist)
-		monitor.Clear()
+		monitor.SetSkipConcealed(nextCfg.Privacy.SkipConcealed)
+		// Content read under the old application policy may no longer be
+		// allowed, so drop it — but only when the policy actually changed.
+		// Clearing on every reload left manual actions with an empty clipboard
+		// until the next copy.
+		if !slices.Equal(previousCfg.Privacy.AppAllowlist, nextCfg.Privacy.AppAllowlist) ||
+			!slices.Equal(previousCfg.Privacy.AppDenylist, nextCfg.Privacy.AppDenylist) {
+			monitor.Clear()
+		}
+		logUnknownConfigKeys(logger, nextCfg)
 		state.swap(nextCfg, nextRulesEngine)
 		server.SetConfig(nextCfg)
 
@@ -456,7 +481,7 @@ func isTransientExecutionFailure(result executor.Result) bool {
 		return true
 	}
 
-	diagnostic := strings.ToLower(result.Output + "\n" + result.Error.Error())
+	diagnostic := strings.ToLower(result.Output + "\n" + result.Stderr + "\n" + result.Error.Error())
 	transientMarkers := []string{
 		"status 408", "status code 408", "http 408",
 		"status 425", "status code 425", "http 425",
@@ -467,7 +492,7 @@ func isTransientExecutionFailure(result executor.Result) bool {
 		"status 504", "status code 504", "http 504", "504 gateway timeout",
 		"rate limit", "rate_limit", "too many requests", "overloaded",
 		"temporarily unavailable", "temporary failure", "service unavailable",
-		"bad gateway", "gateway timeout", "connection reset", "connection refused",
+		"bad gateway", "gateway timeout", "connection reset", "connection refused", "connection error",
 		"econnreset", "econnrefused", "etimedout", "eai_again",
 		"network error", "fetch failed", "request timed out", "timeout awaiting response",
 	}
@@ -541,6 +566,14 @@ func watchConfigFile(ctx context.Context, configPath string, reloadCh chan<- str
 				logger.Warn("config reload skipped because reload queue is full")
 			}
 		}
+	}
+}
+
+// logUnknownConfigKeys warns about config keys nothing consumes, which are
+// almost always typos (for example `safemode` instead of `safe_mode`).
+func logUnknownConfigKeys(logger *slog.Logger, cfg *config.Config) {
+	for _, key := range cfg.UnknownKeys {
+		logger.Warn("unknown config key ignored", "key", key)
 	}
 }
 

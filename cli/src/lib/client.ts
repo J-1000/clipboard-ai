@@ -5,6 +5,9 @@ import { join } from "path";
 
 const SOCKET_PATH = join(homedir(), ".clipboard-ai", "agent.sock");
 const DEFAULT_IPC_TIMEOUT_MS = 10_000;
+// POST /action waits for a whole model call. It must outlast the agent's own
+// action timeout (30s by default, or actions.<name>.timeout_ms).
+const DEFAULT_ACTION_TIMEOUT_MS = 120_000;
 
 export interface StatusResponse {
   status: string;
@@ -79,6 +82,7 @@ export interface ConfigResponse {
     default_snooze_minutes: number;
     app_allowlist: string[];
     app_denylist: string[];
+    skip_concealed?: boolean;
   };
 }
 
@@ -108,6 +112,11 @@ export interface ActionRequest {
   image_mime?: string;
   type?: string;
   args?: string[];
+  // Ask the agent to read the clipboard now instead of using what automatic
+  // monitoring last saw. Only meaningful when no payload is supplied.
+  fresh?: boolean;
+  // Which client is asking: "menubar", "raycast", or "mcp".
+  source?: string;
 }
 
 export interface ActionResponse {
@@ -120,7 +129,8 @@ export interface ActionResponse {
 async function makeRequest<T>(
   method: string,
   path: string,
-  body?: unknown
+  body?: unknown,
+  timing: { timeoutMs?: number; describeTimeout?: (timeoutMs: number) => string } = {}
 ): Promise<T> {
   return new Promise((resolve, reject) => {
     if (!existsSync(SOCKET_PATH)) {
@@ -139,10 +149,11 @@ async function makeRequest<T>(
 
     let timeout: ReturnType<typeof setTimeout> | undefined;
     let timedOut = false;
-    const timeoutMs = getIPCTimeoutMs();
+    const timeoutMs = timing.timeoutMs ?? getIPCTimeoutMs();
     const timeoutError = () =>
       new Error(
-        `daemon did not respond within ${formatTimeoutSeconds(timeoutMs)} — is clipboard-ai-agent running? Try \`cbai logs\``
+        timing.describeTimeout?.(timeoutMs) ??
+          `daemon did not respond within ${formatTimeoutSeconds(timeoutMs)} — is clipboard-ai-agent running? Try \`cbai logs\``
       );
 
     const req = request(options, (res) => {
@@ -217,8 +228,11 @@ export async function getStatus(): Promise<StatusResponse> {
   return makeRequest<StatusResponse>("GET", "/status");
 }
 
-export async function getClipboard(): Promise<ClipboardResponse> {
-  return makeRequest<ClipboardResponse>("GET", "/clipboard");
+// `fresh` asks the agent to read the clipboard now. Manual commands use it so
+// they work while automatic monitoring is paused, snoozed, or blocked for the
+// source application.
+export async function getClipboard(options: { fresh?: boolean } = {}): Promise<ClipboardResponse> {
+  return makeRequest<ClipboardResponse>("GET", options.fresh ? "/clipboard?fresh=true" : "/clipboard");
 }
 
 export async function getConfig(): Promise<ConfigResponse> {
@@ -250,10 +264,20 @@ export async function runAgentAction(
   action: string,
   input: ActionRequest = {}
 ): Promise<ActionResponse> {
-  return makeRequest<ActionResponse>("POST", "/action", {
-    action,
-    ...input,
-  });
+  return makeRequest<ActionResponse>(
+    "POST",
+    "/action",
+    {
+      action,
+      ...input,
+    },
+    {
+      timeoutMs: getActionTimeoutMs(),
+      describeTimeout: (timeoutMs) =>
+        `action "${action}" did not finish within ${formatTimeoutSeconds(timeoutMs)}. ` +
+        "Raise CBAI_ACTION_TIMEOUT_MS (and the action's timeout_ms) if the model needs longer.",
+    }
+  );
 }
 
 function getIPCTimeoutMs(): number {
@@ -262,6 +286,14 @@ function getIPCTimeoutMs(): number {
     return configured;
   }
   return DEFAULT_IPC_TIMEOUT_MS;
+}
+
+function getActionTimeoutMs(): number {
+  const configured = Number.parseInt(process.env.CBAI_ACTION_TIMEOUT_MS ?? "", 10);
+  if (Number.isFinite(configured) && configured > 0) {
+    return configured;
+  }
+  return DEFAULT_ACTION_TIMEOUT_MS;
 }
 
 function formatTimeoutSeconds(timeoutMs: number): string {

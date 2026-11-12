@@ -18,6 +18,11 @@ type Config struct {
 	Actions   map[string]ActionConfig   `toml:"actions" json:"actions"`
 	Settings  SettingsConfig            `toml:"settings" json:"settings"`
 	Privacy   PrivacyConfig             `toml:"privacy" json:"privacy"`
+
+	// UnknownKeys lists keys present in the config file that no setting
+	// consumes (usually typos). It is filled by LoadFromPath for the caller to
+	// report; it is never read from or written to the file.
+	UnknownKeys []string `toml:"-" json:"-"`
 }
 
 // ProviderConfig configures the LLM provider
@@ -73,6 +78,9 @@ type PrivacyConfig struct {
 	DefaultSnoozeMinutes int      `toml:"default_snooze_minutes" json:"default_snooze_minutes"`
 	AppAllowlist         []string `toml:"app_allowlist" json:"app_allowlist"`
 	AppDenylist          []string `toml:"app_denylist" json:"app_denylist"`
+	// SkipConcealed makes automatic monitoring ignore entries that the source
+	// application marked as concealed, transient, or auto-generated.
+	SkipConcealed bool `toml:"skip_concealed" json:"skip_concealed"`
 }
 
 var profileNamePattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
@@ -109,6 +117,7 @@ func Default() *Config {
 		},
 		Privacy: PrivacyConfig{
 			DefaultSnoozeMinutes: 15,
+			SkipConcealed:        true,
 		},
 	}
 }
@@ -126,8 +135,12 @@ func LoadFromPath(configPath string) (*Config, error) {
 		return cfg, nil
 	}
 
-	if _, err := toml.DecodeFile(configPath, cfg); err != nil {
+	metadata, err := toml.DecodeFile(configPath, cfg)
+	if err != nil {
 		return nil, err
+	}
+	for _, key := range metadata.Undecoded() {
+		cfg.UnknownKeys = append(cfg.UnknownKeys, key.String())
 	}
 
 	if err := cfg.validate(); err != nil {

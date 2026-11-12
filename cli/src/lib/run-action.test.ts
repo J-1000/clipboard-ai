@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
 import { createActionRegistry } from "./action-registry.js";
 import { runActionCommand, type RunActionDeps } from "./run-action.js";
 import type { AIClient, AIConfig, AIResponse } from "./ai.js";
@@ -60,6 +60,11 @@ describe("runActionCommand history", () => {
     },
   ]);
 
+  // The console spies are created per test and must be removed afterwards:
+  // bun:test reuses an existing spy, so a spy left in place here would carry
+  // these calls into whichever test file runs next.
+  let consoleSpies: Array<{ mockRestore: () => void }> = [];
+
   beforeEach(() => {
     mockGetConfig.mockReset();
     mockGetConfig.mockImplementation(() =>
@@ -71,15 +76,31 @@ describe("runActionCommand history", () => {
     mockCopyToClipboard.mockClear();
     mockAppendHistoryRecord.mockClear();
     mockAIConfigs.length = 0;
-    spyOn(console, "log").mockImplementation(() => {});
-    spyOn(console, "error").mockImplementation(() => {});
+    consoleSpies = [
+      spyOn(console, "log").mockImplementation(() => {}),
+      spyOn(console, "error").mockImplementation(() => {}),
+    ];
     delete process.env.CBAI_SENSITIVE_GUARD_HIT;
     delete process.env.CBAI_MODEL_OVERRIDE;
     delete process.env.CBAI_ENDPOINT_OVERRIDE;
+    delete process.env.CBAI_DAEMON_MODE;
+    delete process.env.CBAI_SOURCE;
+    delete process.env.CBAI_TRIGGER;
+    Object.defineProperty(process.stderr, "isTTY", {
+      value: false,
+      configurable: true,
+    });
     Object.defineProperty(process.stdout, "isTTY", {
       value: false,
       configurable: true,
     });
+  });
+
+  afterEach(() => {
+    for (const spy of consoleSpies) {
+      spy.mockRestore();
+    }
+    consoleSpies = [];
   });
 
   it("records successful runs", async () => {
@@ -157,7 +178,7 @@ describe("runActionCommand history", () => {
     await runActionCommand("summary", { registry, deps: deps() });
 
     expect(console.error).toHaveBeenCalledWith(
-      "Warning: clipboard looks like it contains a secret."
+      "Warning: clipboard looks like it contains a secret (credit_card)."
     );
     const call = mockAppendHistoryRecord.mock.calls[0][0];
     expect(call.input).toBe("[sensitive content omitted]");
@@ -260,11 +281,14 @@ describe("runActionCommand history", () => {
     writeSpy.mockRestore();
   });
 
-  it("uses buffered output when stdout is not a TTY", async () => {
+  it("prints only the result when stdout is not a TTY", async () => {
+    (console.log as unknown as { mockClear: () => void }).mockClear();
+    (console.error as unknown as { mockClear: () => void }).mockClear();
     const streamingRegistry = createActionRegistry([
       {
         id: "summary",
         description: "Summary",
+        progressMessage: "Summarizing clipboard content...",
         outputTitle: "Summary",
         run: async ({ ai }) => (await ai.generate("prompt")).content,
       },
@@ -273,8 +297,68 @@ describe("runActionCommand history", () => {
     await runActionCommand("summary", { registry: streamingRegistry, deps: deps() });
 
     expect(mockAIConfigs[0].onToken).toBeUndefined();
+    // stdout is what the agent returns to Raycast, the menubar app, and MCP, and
+    // what a shell pipeline consumes: it must be the result and nothing else.
+    expect((console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls).toEqual([
+      ["streamed output"],
+    ]);
+    expect(console.error).not.toHaveBeenCalled();
+  });
+
+  it("shows progress on stderr and a header on stdout when attached to a terminal", async () => {
+    (console.log as unknown as { mockClear: () => void }).mockClear();
+    (console.error as unknown as { mockClear: () => void }).mockClear();
+    Object.defineProperty(process.stdout, "isTTY", { value: true, configurable: true });
+    Object.defineProperty(process.stderr, "isTTY", { value: true, configurable: true });
+    const copyRegistry = createActionRegistry([
+      {
+        id: "summary",
+        description: "Summary",
+        progressMessage: "Summarizing clipboard content...",
+        outputTitle: "Summary",
+        run: async () => "the result",
+      },
+    ]);
+
+    // --copy disables streaming, so the buffered terminal layout is used.
+    await runActionCommand("summary", { registry: copyRegistry, deps: deps(), copy: true });
+
+    expect(console.error).toHaveBeenCalledWith("Summarizing clipboard content...\n");
     expect(console.log).toHaveBeenCalledWith("Summary:");
-    expect(console.log).toHaveBeenCalledWith("streamed output");
+    expect(console.log).toHaveBeenCalledWith("the result");
+    expect(console.error).toHaveBeenCalledWith("\n(Copied to clipboard)");
+    expect(console.log).not.toHaveBeenCalledWith("\n(Copied to clipboard)");
+  });
+
+  it("labels runs requested through the agent with the requesting client", async () => {
+    process.env.CBAI_DAEMON_MODE = "true";
+    process.env.CBAI_SOURCE = "menubar";
+
+    await runActionCommand("summary", { registry, deps: deps() });
+
+    const call = mockAppendHistoryRecord.mock.calls[0][0];
+    expect(call.source).toBe("menubar");
+    expect(call.trigger).toBe("menubar");
+  });
+
+  it("labels automatic clipboard triggers as daemon runs", async () => {
+    process.env.CBAI_DAEMON_MODE = "true";
+    process.env.CBAI_TRIGGER = "length > 200";
+
+    await runActionCommand("summary", { registry, deps: deps() });
+
+    const call = mockAppendHistoryRecord.mock.calls[0][0];
+    expect(call.source).toBe("daemon");
+    expect(call.trigger).toBe("length > 200");
+  });
+
+  it("ignores an unrecognised CBAI_SOURCE value", async () => {
+    process.env.CBAI_DAEMON_MODE = "true";
+    process.env.CBAI_SOURCE = "somebody-else";
+
+    await runActionCommand("summary", { registry, deps: deps() });
+
+    expect(mockAppendHistoryRecord.mock.calls[0][0].source).toBe("daemon");
   });
 
   it("keeps JSON-producing actions buffered on TTY", async () => {

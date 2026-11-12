@@ -9,7 +9,12 @@ import {
   type ProviderChainResponse,
   type ResolvedProviderProfile,
 } from "./client.js";
-import { appendHistoryRecord, type HistoryRetentionSettings, type RunSource } from "./history.js";
+import {
+  agentClientSource,
+  appendHistoryRecord,
+  type HistoryRetentionSettings,
+  type RunSource,
+} from "./history.js";
 import { getInput, type InputPayload } from "./input.js";
 import { enforceSafeMode } from "./safe-mode.js";
 import { scanSensitiveText } from "./sensitive-guard.js";
@@ -67,10 +72,18 @@ export interface RunActionOptions {
 const MAX_INPUT_CHARS = 100_000;
 
 export function capInputSize(text: string): string {
+  // text.length counts UTF-16 units and is never smaller than the number of
+  // characters, so this fast path is exact for the common case.
   if (text.length <= MAX_INPUT_CHARS) {
     return text;
   }
-  return `${text.slice(0, MAX_INPUT_CHARS)}\n…[truncated]`;
+  // Count and cut by code point so a surrogate pair (emoji, rare CJK) is never
+  // split, matching the agent's rune-based cap.
+  const chars = Array.from(text);
+  if (chars.length <= MAX_INPUT_CHARS) {
+    return text;
+  }
+  return `${chars.slice(0, MAX_INPUT_CHARS).join("")}\n…[truncated]`;
 }
 
 // promptActionFromConfig builds an action from a config-defined prompt template
@@ -158,8 +171,13 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
       process.exit(1);
     }
 
-    source = options.source ?? (process.env.CBAI_DAEMON_MODE === "true" ? "daemon" : "manual");
-    trigger = options.trigger ?? process.env.CBAI_TRIGGER ?? (source === "manual" ? "cli" : "daemon");
+    source =
+      options.source ??
+      (process.env.CBAI_DAEMON_MODE === "true" ? (agentClientSource() ?? "daemon") : "manual");
+    trigger =
+      options.trigger ??
+      process.env.CBAI_TRIGGER ??
+      (source === "manual" ? "cli" : source);
     const configuredAction = resolveConfiguredAction(config, actionName, action);
     const actionConfig = configuredAction?.config;
     const providerChain = await loadProviderChain(
@@ -186,17 +204,23 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
       const findings = deps.scanSensitiveText(guardInput);
       if (findings.length > 0) {
         guardHit = true;
+        const types = Array.from(new Set(findings.map((finding) => finding.type))).sort().join(", ");
         if (guardMode === "block" && !options.force) {
-          throw new Error("clipboard looks like it contains a secret — action skipped. Use --force to run the action anyway.");
+          throw new Error(
+            `clipboard looks like it contains a secret (${types}) — action skipped. Use --force to run the action anyway.`
+          );
         }
         if (guardMode === "warn" && !options.force) {
-          console.error("Warning: clipboard looks like it contains a secret.");
+          console.error(`Warning: clipboard looks like it contains a secret (${types}).`);
         }
       }
     }
 
-    if (action.progressMessage) {
-      console.log(`${action.progressMessage}\n`);
+    // Progress is status, not result: it goes to stderr, and only when a person
+    // is watching. stdout must carry nothing but the result when it is piped or
+    // captured by the agent.
+    if (action.progressMessage && process.stderr.isTTY) {
+      console.error(`${action.progressMessage}\n`);
     }
 
     const hasUsageLimits =
@@ -293,15 +317,18 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
       // image action that doesn't stream, or a plugin returning a plain string).
       // Treat run()'s return as authoritative instead of discarding it.
       process.stdout.write(`${output ?? ""}\n`);
-    } else {
+    } else if (process.stdout.isTTY) {
       console.log(`${action.outputTitle}:`);
       console.log("─".repeat(action.outputTitle.length));
+      console.log(output);
+    } else {
+      // Piped, redirected, or spawned by the agent: print the bare result.
       console.log(output);
     }
 
     if (options.copy) {
       deps.copyToClipboard(output);
-      console.log("\n(Copied to clipboard)");
+      console.error("\n(Copied to clipboard)");
     }
   } catch (err) {
     runError = (err as Error).message;

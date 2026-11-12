@@ -65,7 +65,14 @@ Returns agent status and clipboard preview.
 
 ### `GET /clipboard`
 
-Returns current clipboard payload.
+Returns the clipboard payload that automatic monitoring last read. That is
+empty while monitoring is paused or snoozed and after a copy from a blocked
+application.
+
+Add `?fresh=true` to read the clipboard at request time instead. A fresh read
+is meant for an explicit user action: it bypasses pause, snooze, and the
+application lists, does not change what monitoring holds, and never triggers
+actions.
 
 Text payload:
 
@@ -147,13 +154,19 @@ Request body:
   "action": "summarize",
   "args": [],
   "text": "optional input override",
-  "type": "text"
+  "type": "text",
+  "fresh": false,
+  "source": "raycast"
 }
 ```
 
 Behavior:
 
-- If `text`/`rtf`/`image_base64` are not provided, the agent uses current clipboard content.
+- If `text`/`rtf`/`image_base64` are not provided, the agent uses the clipboard
+  content that automatic monitoring last read, or reads the clipboard at
+  request time when `fresh` is `true` (see `GET /clipboard`).
+- `source` labels the run in history: `menubar`, `raycast`, or `mcp`. Any other
+  value, or none, is recorded as `api`.
 - If no content is available, response is:
 
 ```json
@@ -174,13 +187,26 @@ Success response:
 }
 ```
 
+`result` is exactly the action's output: no progress line, no title, and no
+trailing newline. `classify` and `extract` return a JSON document in this
+string, so it can be parsed directly.
+
+**Timeouts.** An action runs for at most 30 seconds, or for
+`actions.<name>.timeout_ms` when that is set. Wait longer than that on the
+client side; the bundled clients (`cbai mcp`, the menubar app, the Raycast
+extension) wait at least 60 seconds.
+
 **Error contract:** `/action` returns **HTTP 200** for *application* failures
 (the action ran but errored), with `success: false` and an `error` message — so
 clients should branch on the `success` field, not only the status code. *Protocol*
-errors (bad method, invalid JSON, unknown/invalid action name, body too large,
+errors (bad method, invalid JSON, malformed action name, body too large,
 rate-limited) return a non-2xx status with a JSON body `{"error": "..."}`.
-Unknown or malformed action names return `400`; a saturated action queue returns
-`429`.
+A malformed action name returns `400`; a saturated action queue returns `429`.
+
+An action name must start with a letter or digit and contain only letters,
+digits, `_`, and `-`. The agent does not keep a list of valid actions: built-in,
+plugin, and prompt actions are all resolved by the CLI, and a name it does not
+know is an application failure (`success: false`, `Unknown action "..."`).
 
 Action errors include the CLI's diagnostic output where available, so clients
 can distinguish provider, safe-mode, authentication, and configuration
@@ -229,6 +255,11 @@ Query parameters:
 
 Additional fields:
 
+- `prompt_tokens`, `completion_tokens` (per record) — token usage, present
+  when the provider reported it.
+- `source` (per record) — `manual` (typed in a terminal), `daemon` (automatic
+  clipboard trigger), `rerun`, or the client that requested the run through the
+  agent: `menubar`, `raycast`, `mcp`, `api`.
 - `replay_of` (per record) — present when the run was a replay (`cbai rerun`),
   set to the original run id.
 - `skipped_corrupt` (top level) — number of unparseable history lines skipped
