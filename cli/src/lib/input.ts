@@ -51,7 +51,8 @@ export async function getInput(): Promise<InputPayload> {
     };
   }
 
-  const clipboard = await getClipboard();
+  // A manual run: read the clipboard as it is right now.
+  const clipboard = await getClipboard({ fresh: true });
   return {
     text: clipboard.text,
     rtf: clipboard.rtf,

@@ -111,6 +111,9 @@ export interface ActionRequest {
   image_mime?: string;
   type?: string;
   args?: string[];
+  // Ask the agent to read the clipboard now instead of using what automatic
+  // monitoring last saw. Only meaningful when no payload is supplied.
+  fresh?: boolean;
 }
 
 export interface ActionResponse {
@@ -222,8 +225,11 @@ export async function getStatus(): Promise<StatusResponse> {
   return makeRequest<StatusResponse>("GET", "/status");
 }
 
-export async function getClipboard(): Promise<ClipboardResponse> {
-  return makeRequest<ClipboardResponse>("GET", "/clipboard");
+// `fresh` asks the agent to read the clipboard now. Manual commands use it so
+// they work while automatic monitoring is paused, snoozed, or blocked for the
+// source application.
+export async function getClipboard(options: { fresh?: boolean } = {}): Promise<ClipboardResponse> {
+  return makeRequest<ClipboardResponse>("GET", options.fresh ? "/clipboard?fresh=true" : "/clipboard");
 }
 
 export async function getConfig(): Promise<ConfigResponse> {
