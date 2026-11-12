@@ -28,7 +28,8 @@ clipboard-ai is a macOS-first lightweight agent that monitors your clipboard and
   fallbacks and daily token budgets
 - **Native menubar workflow**: Run common actions and inspect recent results
   without leaving the current application
-- **Extensible**: Add custom actions as TypeScript modules
+- **Extensible**: Add custom actions as a prompt in `config.toml`, or as
+  JavaScript plugin modules (`.js`, `.mjs`, `.cjs`)
 
 ## Quick Start
 
