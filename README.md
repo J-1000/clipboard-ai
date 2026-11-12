@@ -210,6 +210,17 @@ cbai explain -c
 cbai translate Spanish --copy
 ```
 
+### Output in scripts
+
+In a terminal, action commands show a progress line and a titled result. When
+stdout is piped or redirected, `cbai` prints only the result, and progress and
+status messages go to stderr, so the output can be used directly:
+
+```bash
+cbai summary > summary.txt
+cbai extract | jq .
+```
+
 ### --yes Flag
 
 All AI commands support `--yes` (or `-y`) to skip safe mode confirmation prompts:
