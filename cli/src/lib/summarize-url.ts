@@ -1,5 +1,5 @@
 import { lookup } from "dns/promises";
-import { isIP } from "net";
+import { BlockList, isIP } from "net";
 
 const FETCH_TIMEOUT_MS = 10_000;
 const MAX_FETCH_BYTES = 2 << 20; // 2 MB streaming cap
@@ -36,47 +36,56 @@ export function parseSingleURL(text: string): URL | null {
   }
 }
 
-// isBlockedAddress reports whether an IP literal is one we refuse to fetch from
-// to prevent SSRF against loopback, the cloud metadata endpoint, and internal
-// networks (link-local, RFC1918 private, CGNAT, reserved, IPv6 ULA, etc.).
+// Address ranges we refuse to fetch from, to prevent SSRF against loopback, the
+// cloud metadata endpoint, and internal networks. net.BlockList compares real
+// address bytes, so every textual form of an address is covered — including
+// IPv4-mapped IPv6 such as ::ffff:7f00:1, which is checked against the IPv4
+// rules.
+const NON_PUBLIC_ADDRESSES = new BlockList();
+for (const [network, prefix] of [
+  ["0.0.0.0", 8], // "this network"
+  ["10.0.0.0", 8], // private
+  ["100.64.0.0", 10], // carrier-grade NAT
+  ["127.0.0.0", 8], // loopback
+  ["169.254.0.0", 16], // link-local, incl. 169.254.169.254 metadata
+  ["172.16.0.0", 12], // private
+  ["192.0.0.0", 24], // IETF protocol assignments
+  ["192.0.2.0", 24], // documentation
+  ["192.168.0.0", 16], // private
+  ["198.18.0.0", 15], // benchmarking
+  ["198.51.100.0", 24], // documentation
+  ["203.0.113.0", 24], // documentation
+  ["224.0.0.0", 4], // multicast
+  ["240.0.0.0", 4], // reserved + broadcast
+] as const) {
+  NON_PUBLIC_ADDRESSES.addSubnet(network, prefix, "ipv4");
+}
+for (const [network, prefix] of [
+  ["::", 96], // unspecified, loopback, IPv4-compatible
+  ["64:ff9b::", 96], // NAT64 (embeds an IPv4 address)
+  ["64:ff9b:1::", 48], // local-use NAT64
+  ["100::", 64], // discard-only
+  ["2001:db8::", 32], // documentation
+  ["2002::", 16], // 6to4 (embeds an IPv4 address)
+  ["fc00::", 7], // unique local
+  ["fe80::", 10], // link-local
+  ["fec0::", 10], // site-local (deprecated)
+  ["ff00::", 8], // multicast
+] as const) {
+  NON_PUBLIC_ADDRESSES.addSubnet(network, prefix, "ipv6");
+}
+
+// isBlockedAddress reports whether an IP literal is one we refuse to fetch
+// from. Anything that is not an IP literal returns false; the caller resolves
+// hostnames first and checks each resulting address.
 export function isBlockedAddress(ip: string): boolean {
-  const kind = isIP(ip);
-  if (kind === 4) {
-    return isBlockedIPv4(ip);
+  const address = ip.split("%")[0]; // strip an IPv6 zone id
+  const family = isIP(address);
+  if (family === 4) {
+    return NON_PUBLIC_ADDRESSES.check(address, "ipv4");
   }
-  if (kind === 6) {
-    return isBlockedIPv6(ip);
-  }
-  // Not a literal IP — caller resolves DNS first.
-  return false;
-}
-
-function isBlockedIPv4(ip: string): boolean {
-  const parts = ip.split(".").map((p) => Number.parseInt(p, 10));
-  if (parts.length !== 4 || parts.some((n) => Number.isNaN(n) || n < 0 || n > 255)) {
-    return true; // malformed → block defensively
-  }
-  const [a, b] = parts;
-  if (a === 0) return true; // 0.0.0.0/8 "this network"
-  if (a === 10) return true; // private
-  if (a === 127) return true; // loopback
-  if (a === 169 && b === 254) return true; // link-local incl. 169.254.169.254 metadata
-  if (a === 172 && b >= 16 && b <= 31) return true; // private
-  if (a === 192 && b === 168) return true; // private
-  if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT
-  if (a >= 224) return true; // multicast + reserved + broadcast
-  return false;
-}
-
-function isBlockedIPv6(ip: string): boolean {
-  const addr = ip.toLowerCase().split("%")[0]; // strip zone id
-  if (addr === "::1" || addr === "::") return true; // loopback / unspecified
-  if (addr.startsWith("fe80")) return true; // link-local
-  if (addr.startsWith("fc") || addr.startsWith("fd")) return true; // unique local (fc00::/7)
-  // IPv4-mapped (::ffff:a.b.c.d) → validate the embedded v4 address.
-  const mapped = addr.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-  if (mapped) {
-    return isBlockedIPv4(mapped[1]);
+  if (family === 6) {
+    return NON_PUBLIC_ADDRESSES.check(address, "ipv6");
   }
   return false;
 }
