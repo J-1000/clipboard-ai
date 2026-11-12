@@ -73,14 +73,22 @@ fi
 echo "Clearing quarantine and installing..."
 xattr -d com.apple.quarantine "clipboard-ai-agent-darwin-$ASSET_ARCH" 2>/dev/null || true
 chmod +x "clipboard-ai-agent-darwin-$ASSET_ARCH"
+# /usr/local/bin does not exist on every Mac.
+sudo mkdir -p "$INSTALL_DIR"
 sudo cp "clipboard-ai-agent-darwin-$ASSET_ARCH" "$INSTALL_DIR/clipboard-ai-agent"
 sudo cp index.js "$INSTALL_DIR/cbai"
 sudo chmod +x "$INSTALL_DIR/cbai"
 
 mkdir -p "$CONFIG_DIR"
+# The directory holds the config (which may contain an API key), history, and
+# the agent socket; keep it private to this user.
+chmod 700 "$CONFIG_DIR"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ ! -f "$CONFIG_DIR/config.toml" && -f "$SCRIPT_DIR/../configs/default.toml" ]]; then
     cp "$SCRIPT_DIR/../configs/default.toml" "$CONFIG_DIR/config.toml"
+fi
+if [[ -f "$CONFIG_DIR/config.toml" ]]; then
+    chmod 600 "$CONFIG_DIR/config.toml"
 fi
 
 # Render the LaunchAgent with a PATH that can resolve node (see install.sh).

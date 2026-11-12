@@ -32,6 +32,9 @@ done
 # Create config directory
 echo "Creating config directory..."
 mkdir -p "$CONFIG_DIR"
+# The directory holds the config (which may contain an API key), history, and
+# the agent socket; keep it private to this user.
+chmod 700 "$CONFIG_DIR"
 
 # Copy default config if not exists
 if [[ ! -f "$CONFIG_DIR/config.toml" ]]; then
@@ -39,6 +42,7 @@ if [[ ! -f "$CONFIG_DIR/config.toml" ]]; then
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     cp "$SCRIPT_DIR/../configs/default.toml" "$CONFIG_DIR/config.toml"
 fi
+chmod 600 "$CONFIG_DIR/config.toml"
 
 # Resolve a version to stamp into both binaries so `cbai doctor`'s daemon/CLI
 # version match is meaningful for source installs (not just tagged releases).
@@ -52,6 +56,8 @@ cd "$SCRIPT_DIR/../agent"
 go build -ldflags "-X main.version=$CBAI_VERSION" -o clipboard-ai-agent ./cmd/clipboard-ai-agent/
 
 echo "Installing agent to $INSTALL_DIR..."
+# /usr/local/bin does not exist on every Mac.
+sudo mkdir -p "$INSTALL_DIR"
 sudo cp clipboard-ai-agent "$INSTALL_DIR/"
 rm clipboard-ai-agent
 
