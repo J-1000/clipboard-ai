@@ -33,6 +33,9 @@ type Options struct {
 	ModelOverride     string
 	EndpointOverride  string
 	Args              []string
+	// Source names the client that asked for a manual run through the agent
+	// (menubar, raycast, mcp, api). Empty for automatic clipboard triggers.
+	Source string
 }
 
 // ExecuteFunc allows tests to override the executor behavior.
@@ -113,6 +116,9 @@ func runExecuteWithOptions(ctx context.Context, action string, text string, opts
 	cmd.Env = append(os.Environ(), "CBAI_DAEMON_MODE=true")
 	if opts.Trigger != "" {
 		cmd.Env = append(cmd.Env, "CBAI_TRIGGER="+opts.Trigger)
+	}
+	if opts.Source != "" {
+		cmd.Env = append(cmd.Env, "CBAI_SOURCE="+opts.Source)
 	}
 	if opts.InputType != "" {
 		cmd.Env = append(cmd.Env, "CBAI_INPUT_TYPE="+opts.InputType)

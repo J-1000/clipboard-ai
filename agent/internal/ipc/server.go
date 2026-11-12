@@ -510,6 +510,9 @@ type ActionRequest struct {
 	Args        []string `json:"args,omitempty"`
 	// Fresh asks for an on-demand clipboard read when no payload is supplied.
 	Fresh bool `json:"fresh,omitempty"`
+	// Source names the calling client: menubar, raycast, or mcp. Anything else
+	// is recorded as "api".
+	Source string `json:"source,omitempty"`
 }
 
 // ActionResponse from triggering an action
@@ -551,6 +554,21 @@ func isKnownAction(cfg *config.Config, name string) bool {
 		}
 	}
 	return false
+}
+
+// normalizeSource maps a client-supplied source label onto the fixed set the
+// CLI records in history.
+func normalizeSource(source string) string {
+	switch strings.ToLower(strings.TrimSpace(source)) {
+	case "menubar":
+		return "menubar"
+	case "raycast":
+		return "raycast"
+	case "mcp":
+		return "mcp"
+	default:
+		return "api"
+	}
 }
 
 func isTrue(value string) bool {
@@ -657,6 +675,7 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 		InputType: inputType,
 		InputRTF:  inputRTF,
 		Args:      req.Args,
+		Source:    normalizeSource(req.Source),
 	}
 	cfg := s.configSnapshot()
 	if actionCfg, ok := cfg.Actions[req.Action]; ok {
