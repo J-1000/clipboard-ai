@@ -24,12 +24,14 @@ export interface AIResponse {
 export class AIClient {
   private client: OpenAI;
   private model: string;
+  private providerType: string;
   private maxTokens: number;
   private onToken?: (token: string) => void;
   private usage = { promptTokens: 0, completionTokens: 0 };
 
   constructor(config: AIConfig) {
     this.model = config.model;
+    this.providerType = config.type;
     this.maxTokens = config.maxTokens && config.maxTokens > 0 ? config.maxTokens : DEFAULT_MAX_TOKENS;
     this.onToken = config.onToken;
 
@@ -55,6 +57,21 @@ export class AIClient {
     return { ...this.usage };
   }
 
+  // OpenAI's current chat models reject `max_tokens` (they require
+  // `max_completion_tokens`) and any non-default `temperature`. Other
+  // OpenAI-compatible servers — Ollama, Anthropic's compatibility endpoint,
+  // local proxies — still expect the classic parameter names.
+  private samplingParams(temperature: number): {
+    temperature?: number;
+    max_tokens?: number;
+    max_completion_tokens?: number;
+  } {
+    if (this.providerType === "openai") {
+      return { max_completion_tokens: this.maxTokens };
+    }
+    return { temperature, max_tokens: this.maxTokens };
+  }
+
   private getBaseURL(config: AIConfig): string {
     if (config.endpoint) {
       return config.endpoint;
@@ -71,8 +88,7 @@ export class AIClient {
     const response = await this.client.chat.completions.create({
       model: this.model,
       messages,
-      temperature: 0.7,
-      max_tokens: this.maxTokens,
+      ...this.samplingParams(0.7),
     });
 
     warnIfTruncated(response.choices?.[0]?.finish_reason, this.maxTokens);
@@ -101,8 +117,7 @@ export class AIClient {
     const stream = await this.client.chat.completions.create({
       model: this.model,
       messages,
-      temperature: 0.7,
-      max_tokens: this.maxTokens,
+      ...this.samplingParams(0.7),
       stream: true,
     });
 
@@ -156,8 +171,7 @@ export class AIClient {
     const response = await this.client.chat.completions.create({
       model: this.model,
       messages,
-      temperature: 0.2,
-      max_tokens: this.maxTokens,
+      ...this.samplingParams(0.2),
     });
 
     warnIfTruncated(response.choices?.[0]?.finish_reason, this.maxTokens);
@@ -238,8 +252,7 @@ export class AIClient {
       const response = await this.client.chat.completions.create({
         model: this.model,
         messages,
-        temperature: 0.2,
-        max_tokens: this.maxTokens,
+        ...this.samplingParams(0.2),
         response_format: { type: "json_object" },
       });
       warnIfTruncated(response.choices?.[0]?.finish_reason, this.maxTokens);
