@@ -57,10 +57,10 @@ if [[ -f "$CONFIG_DIR/agent.log" || -f "$CONFIG_DIR/agent.err" ]]; then
     fi
 fi
 
-if [[ -f "$CONFIG_DIR/history.jsonl" ]]; then
+if [[ -f "$CONFIG_DIR/history.jsonl" || -f "$CONFIG_DIR/usage.jsonl" ]]; then
     echo "Note: history.jsonl contains clipboard content from past action runs."
-    if confirm "Remove action history (history.jsonl)?"; then
-        rm -f "$CONFIG_DIR/history.jsonl"
+    if confirm "Remove action history and usage records (history.jsonl, usage.jsonl)?"; then
+        rm -f "$CONFIG_DIR/history.jsonl" "$CONFIG_DIR/history.jsonl.lock" "$CONFIG_DIR/usage.jsonl"
     fi
 fi
 
