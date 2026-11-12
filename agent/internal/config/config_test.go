@@ -570,3 +570,9 @@ func TestGetDataDir(t *testing.T) {
 		t.Fatalf("expected dir '.clipboard-ai', got %q", filepath.Base(dir))
 	}
 }
+
+func TestDefault_SkipsConcealedClipboardEntries(t *testing.T) {
+	if !Default().Privacy.SkipConcealed {
+		t.Fatal("privacy.skip_concealed must default to true")
+	}
+}
