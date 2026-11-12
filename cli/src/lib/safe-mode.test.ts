@@ -55,6 +55,10 @@ describe("isCloudProvider", () => {
     expect(isCloudProvider("custom", "http://127.0.0.1:8080/v1")).toBe(false);
   });
 
+  it("returns false for an IPv6 loopback endpoint", () => {
+    expect(isCloudProvider("ollama", "http://[::1]:11434/v1")).toBe(false);
+  });
+
   it("returns true for custom remote endpoint", () => {
     expect(isCloudProvider("custom", "https://api.example.com/v1")).toBe(true);
   });
@@ -103,6 +107,13 @@ describe("enforceSafeMode", () => {
     await expect(enforceSafeMode(config)).rejects.toThrow(
       "safe mode: blocked cloud call to openai (requested via menubar; set safe_mode = false or route this action to a local provider)"
     );
+  });
+
+  it("fails with a clear message instead of prompting when stdin is not a terminal", async () => {
+    delete process.env.CBAI_DAEMON_MODE;
+    Object.defineProperty(process.stdin, "isTTY", { value: false, configurable: true });
+    const config = makeConfig({ type: "openai", safe_mode: true });
+    await expect(enforceSafeMode(config)).rejects.toThrow("stdin is not a terminal");
   });
 
   it("allows ollama regardless of safe mode", async () => {
