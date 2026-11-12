@@ -48,7 +48,9 @@ export async function runAction(
 ): Promise<ActionResponse> {
   return request<ActionResponse>("/action", {
     method: "POST",
-    body: JSON.stringify({ action, ...body }),
+    // source labels the run in history; fresh asks the agent to read the
+    // clipboard now (it is ignored when the body supplies its own text).
+    body: JSON.stringify({ action, source: "raycast", fresh: true, ...body }),
   });
 }
 
