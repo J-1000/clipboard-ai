@@ -196,11 +196,14 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
       const findings = deps.scanSensitiveText(guardInput);
       if (findings.length > 0) {
         guardHit = true;
+        const types = Array.from(new Set(findings.map((finding) => finding.type))).sort().join(", ");
         if (guardMode === "block" && !options.force) {
-          throw new Error("clipboard looks like it contains a secret — action skipped. Use --force to run the action anyway.");
+          throw new Error(
+            `clipboard looks like it contains a secret (${types}) — action skipped. Use --force to run the action anyway.`
+          );
         }
         if (guardMode === "warn" && !options.force) {
-          console.error("Warning: clipboard looks like it contains a secret.");
+          console.error(`Warning: clipboard looks like it contains a secret (${types}).`);
         }
       }
     }

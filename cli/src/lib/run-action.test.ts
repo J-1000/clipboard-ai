@@ -164,7 +164,7 @@ describe("runActionCommand history", () => {
     await runActionCommand("summary", { registry, deps: deps() });
 
     expect(console.error).toHaveBeenCalledWith(
-      "Warning: clipboard looks like it contains a secret."
+      "Warning: clipboard looks like it contains a secret (credit_card)."
     );
     const call = mockAppendHistoryRecord.mock.calls[0][0];
     expect(call.input).toBe("[sensitive content omitted]");
