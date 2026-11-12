@@ -23,6 +23,9 @@ type Content struct {
 	ImageMime string
 	Timestamp time.Time
 	Type      ContentType
+	// TextType classifies Text on its own (text, url, code). It differs from
+	// Type only for RTF content, where Type is "rtf".
+	TextType  ContentType
 	Signature string
 }
 
@@ -236,6 +239,7 @@ func (m *Monitor) readContent() (Content, bool) {
 		RTF:       rtf,
 		Timestamp: m.now(),
 		Type:      contentType,
+		TextType:  detectContentType(text),
 		Signature: signature,
 	}, true
 }

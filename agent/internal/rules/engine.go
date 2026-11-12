@@ -343,7 +343,15 @@ func (e *Engine) evaluateCondition(cond string, content clipboard.Content) bool 
 	// mime:type
 	if strings.HasPrefix(cond, "mime:") {
 		mimeType := strings.TrimPrefix(cond, "mime:")
-		return string(content.Type) == mimeType
+		if string(content.Type) == mimeType {
+			return true
+		}
+		// Styled text is reported as "rtf", but its plain text is still code, a
+		// URL, or prose; let mime:code / mime:url / mime:text match that too.
+		return content.Type == clipboard.ContentTypeRTF &&
+			content.TextType != "" &&
+			content.TextType != clipboard.ContentTypeUnknown &&
+			string(content.TextType) == mimeType
 	}
 
 	return false
