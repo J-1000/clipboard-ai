@@ -56,10 +56,15 @@ cd clipboard-ai
 
 The installer will:
 
-1. Build and install the Go daemon
-2. Build and install the CLI
-3. Set up the LaunchAgent for auto-start
-4. Create default configuration
+1. Stop before changing anything if Go or Bun is missing
+2. Create `~/.clipboard-ai` and a default configuration, both readable only by
+   your user
+3. Build and install the Go daemon (creating the install directory if needed)
+4. Build the CLI from the lockfile and install it
+5. Set up the LaunchAgent for auto-start, with a `PATH` that can find `node`
+
+Binaries go to `/usr/local/bin` by default, using `sudo`. Set `INSTALL_DIR` to
+install somewhere else.
 
 The native menubar app is built separately; see [Native menubar app](docs/menubar.md).
 
