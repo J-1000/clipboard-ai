@@ -75,6 +75,8 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: levelVar}))
 	slog.SetDefault(logger)
 
+	logUnknownConfigKeys(logger, cfg)
+
 	logger.Info("agent starting",
 		"version", version,
 		"provider.type", cfg.Provider.Type,
@@ -341,6 +343,7 @@ func main() {
 			!slices.Equal(previousCfg.Privacy.AppDenylist, nextCfg.Privacy.AppDenylist) {
 			monitor.Clear()
 		}
+		logUnknownConfigKeys(logger, nextCfg)
 		state.swap(nextCfg, nextRulesEngine)
 		server.SetConfig(nextCfg)
 
@@ -563,6 +566,14 @@ func watchConfigFile(ctx context.Context, configPath string, reloadCh chan<- str
 				logger.Warn("config reload skipped because reload queue is full")
 			}
 		}
+	}
+}
+
+// logUnknownConfigKeys warns about config keys nothing consumes, which are
+// almost always typos (for example `safemode` instead of `safe_mode`).
+func logUnknownConfigKeys(logger *slog.Logger, cfg *config.Config) {
+	for _, key := range cfg.UnknownKeys {
+		logger.Warn("unknown config key ignored", "key", key)
 	}
 }
 
