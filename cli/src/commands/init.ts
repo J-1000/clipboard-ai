@@ -48,6 +48,8 @@ default_snooze_minutes = 15
 # A non-empty allowlist blocks every unlisted app; the denylist always wins.
 app_allowlist = []
 app_denylist = []
+# Ignore entries that password managers mark as concealed or transient.
+skip_concealed = true
 
 [actions.summarize]
 enabled = true

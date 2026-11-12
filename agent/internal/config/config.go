@@ -73,6 +73,9 @@ type PrivacyConfig struct {
 	DefaultSnoozeMinutes int      `toml:"default_snooze_minutes" json:"default_snooze_minutes"`
 	AppAllowlist         []string `toml:"app_allowlist" json:"app_allowlist"`
 	AppDenylist          []string `toml:"app_denylist" json:"app_denylist"`
+	// SkipConcealed makes automatic monitoring ignore entries that the source
+	// application marked as concealed, transient, or auto-generated.
+	SkipConcealed bool `toml:"skip_concealed" json:"skip_concealed"`
 }
 
 var profileNamePattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
@@ -109,6 +112,7 @@ func Default() *Config {
 		},
 		Privacy: PrivacyConfig{
 			DefaultSnoozeMinutes: 15,
+			SkipConcealed:        true,
 		},
 	}
 }

@@ -82,6 +82,7 @@ export interface ConfigResponse {
     default_snooze_minutes: number;
     app_allowlist: string[];
     app_denylist: string[];
+    skip_concealed?: boolean;
   };
 }
 
