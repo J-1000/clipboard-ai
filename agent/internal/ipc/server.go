@@ -26,6 +26,7 @@ import (
 
 const maxActionRequestBodyBytes = 10 << 20
 const maxClipboardImageBytes = 25 << 20
+const maxHistoryLineBytes = 16 << 20
 
 // maxConcurrentActionRequests bounds in-flight /action executions so a burst of
 // HTTP requests can't spawn unbounded LLM-calling subprocesses. Excess requests
@@ -702,6 +703,9 @@ func readHistoryRecords(path string, limit int) ([]HistoryRecord, int, error) {
 	var records []HistoryRecord
 	skipped := 0
 	scanner := bufio.NewScanner(file)
+	// The default 64 KB line limit is too small once history_truncate_chars is
+	// raised or disabled; one long record must not break the whole endpoint.
+	scanner.Buffer(make([]byte, 0, 64*1024), maxHistoryLineBytes)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
