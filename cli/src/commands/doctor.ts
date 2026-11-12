@@ -11,6 +11,9 @@ import { defaultProviderEndpoint } from "../lib/provider-endpoints.js";
 import { green, red, yellow } from "../lib/colors.js";
 import { VERSION } from "../version.js";
 
+// A provider that never answers must not hang `cbai doctor`.
+const PROBE_TIMEOUT_MS = 5_000;
+
 export interface DoctorCommandDeps {
   getStatus: typeof defaultGetStatus;
   getConfig: typeof defaultGetConfig;
@@ -133,7 +136,7 @@ async function checkProvider(config: ConfigResponse): Promise<void> {
   try {
     if (config.provider.type === "ollama") {
       const tagsURL = new URL("/api/tags", endpoint).toString();
-      const response = await fetch(tagsURL);
+      const response = await fetch(tagsURL, { signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) });
       if (!response.ok) {
         fail("provider endpoint reachable", `HTTP ${response.status}`);
         return;
@@ -153,7 +156,10 @@ async function checkProvider(config: ConfigResponse): Promise<void> {
       return;
     }
 
-    const response = await fetch(endpoint, { method: "HEAD" });
+    const response = await fetch(endpoint, {
+      method: "HEAD",
+      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+    });
     if (response.ok || response.status < 500) {
       pass("provider endpoint reachable");
     } else {
