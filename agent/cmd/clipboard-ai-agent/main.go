@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -323,7 +324,14 @@ func main() {
 		controller.SetDedupeWindow(time.Duration(nextCfg.Settings.ClipboardDedupeWindow) * time.Millisecond)
 		actionGate.SetLimit(nextCfg.Settings.MaxConcurrentActions)
 		privacyController.UpdatePolicy(nextCfg.Privacy.AppAllowlist, nextCfg.Privacy.AppDenylist)
-		monitor.Clear()
+		// Content read under the old application policy may no longer be
+		// allowed, so drop it — but only when the policy actually changed.
+		// Clearing on every reload left manual actions with an empty clipboard
+		// until the next copy.
+		if !slices.Equal(previousCfg.Privacy.AppAllowlist, nextCfg.Privacy.AppAllowlist) ||
+			!slices.Equal(previousCfg.Privacy.AppDenylist, nextCfg.Privacy.AppDenylist) {
+			monitor.Clear()
+		}
 		state.swap(nextCfg, nextRulesEngine)
 		server.SetConfig(nextCfg)
 
