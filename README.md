@@ -695,8 +695,12 @@ and requests from the menubar app, Raycast, or MCP need an installed `cbai`
 ## CI/CD
 
 `.github/workflows/ci.yml` runs on every push and pull request. It executes the
-Go race/vulnerability checks, CLI tests/typecheck/build, Raycast lint/build and
-audit gates, and native menubar tests/release build.
+Go formatting, vet, race, and vulnerability checks; CLI tests, typecheck, and
+build; the agent/CLI contract check (`scripts/e2e-contract.sh`); Raycast lint,
+build, and audit gates; and native menubar tests and release build.
+
+Dependabot (`.github/dependabot.yml`) opens weekly update pull requests for the
+Go module, the CLI, the Raycast extension, and the GitHub Actions in use.
 
 A GitHub Actions **release** workflow (`.github/workflows/release.yml`) runs when
 a `v*` tag is pushed, producing macOS agent binaries (amd64 + arm64, built with
