@@ -372,7 +372,7 @@ When `settings.http_enabled = true`, the agent also exposes a localhost HTTP API
 ### Diagnostics
 
 - `cbai actions` lists built-in and plugin actions with aliases, descriptions, enabled state, and configured triggers.
-- `cbai doctor` checks daemon reachability, daemon/CLI version match, provider reachability, Ollama model availability, image-action model guidance, history file size, and plugin directory state.
+- `cbai doctor` checks daemon reachability, daemon/CLI version match, provider reachability, Ollama model availability, image-action model guidance, history file size, plugin directory state, and whether the LaunchAgent's `PATH` can find `node`. Provider probes give up after five seconds. It exits non-zero when any check fails.
 - If image actions are enabled and model vision support cannot be recognized, doctor reports `unknown — caption/ocr may fail`.
 
 ### Trigger Expressions
