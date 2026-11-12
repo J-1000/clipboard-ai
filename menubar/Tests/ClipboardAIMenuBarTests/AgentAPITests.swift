@@ -157,6 +157,9 @@ final class AgentAPITests: XCTestCase {
         XCTAssertEqual(try jsonObject(requests[0].body)["duration_minutes"] as? Int, 30)
         XCTAssertEqual(try jsonObject(requests[1].body)["action"] as? String, "translate")
         XCTAssertEqual(try jsonObject(requests[1].body)["args"] as? [String], ["German"])
+        // /controls keeps the short default; /action gets the long timeout.
+        XCTAssertNil(requests[0].timeoutSeconds)
+        XCTAssertEqual(requests[1].timeoutSeconds, AgentAPI.actionTimeoutSeconds)
     }
 
     func testReportsStructuredHTTPErrors() async throws {
