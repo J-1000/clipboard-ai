@@ -114,6 +114,9 @@ func runExecuteWithOptions(ctx context.Context, action string, text string, opts
 	cmdArgs := append([]string{"run", action, "--"}, opts.Args...)
 	cmd := exec.CommandContext(ctx, "cbai", cmdArgs...)
 	cmd.Env = append(os.Environ(), "CBAI_DAEMON_MODE=true")
+	// If the CLI leaves a child holding its output pipes open, don't wait on
+	// them forever once the process itself has been killed.
+	cmd.WaitDelay = 2 * time.Second
 	if opts.Trigger != "" {
 		cmd.Env = append(cmd.Env, "CBAI_TRIGGER="+opts.Trigger)
 	}
