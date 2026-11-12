@@ -269,3 +269,35 @@ func TestStart_PollsUntilContextCancelled(t *testing.T) {
 		t.Fatal("poll loop did not stop after context cancel")
 	}
 }
+
+func TestCheck_RecopiedImageKeepsCurrent(t *testing.T) {
+	var fires int
+	fake := &fakeClipboard{image: []byte{0x89, 0x50, 0x4e, 0x47}}
+	m := newTestMonitor(func(Content) { fires++ }, fake)
+
+	m.check()
+	m.check() // the same image copied again
+	if fires != 1 {
+		t.Fatalf("identical image fired %d time(s), want 1", fires)
+	}
+	if got := m.Current(); got.Type != ContentTypeImage || len(got.Image) == 0 {
+		t.Fatalf("re-copying the same image cleared the monitor: %#v", got)
+	}
+}
+
+func TestClear_IsSafeDuringChecks(t *testing.T) {
+	fake := &fakeClipboard{text: []byte("payload")}
+	m := newTestMonitor(nil, fake)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := 0; i < 200; i++ {
+			m.Clear()
+		}
+	}()
+	for i := 0; i < 200; i++ {
+		m.check()
+	}
+	<-done
+}
