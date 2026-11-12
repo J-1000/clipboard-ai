@@ -1,0 +1,34 @@
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /agent
+    schedule:
+      interval: weekly
+    groups:
+      go-minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      # v0.11 changes the Read API; migrate deliberately, not through a bot PR.
+      - dependency-name: golang.design/x/clipboard
+        update-types: [version-update:semver-minor]
+
+  - package-ecosystem: bun
+    directory: /cli
+    schedule:
+      interval: weekly
+    groups:
+      cli-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /integrations/raycast
+    schedule:
+      interval: weekly
+    groups:
+      raycast-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
