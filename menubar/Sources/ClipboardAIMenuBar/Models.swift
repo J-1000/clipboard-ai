@@ -118,12 +118,22 @@ struct ActionRequest: Encodable, Equatable, Sendable {
     let args: [String]
     let text: String?
     let type: String?
+    /// Asks the agent to read the clipboard now rather than use what automatic
+    /// monitoring last saw (which is empty while paused or snoozed).
+    let fresh: Bool?
 
-    init(action: String, args: [String] = [], text: String? = nil, type: String? = nil) {
+    init(
+        action: String,
+        args: [String] = [],
+        text: String? = nil,
+        type: String? = nil,
+        fresh: Bool? = nil
+    ) {
         self.action = action
         self.args = args
         self.text = text
         self.type = type
+        self.fresh = fresh
     }
 }
 
