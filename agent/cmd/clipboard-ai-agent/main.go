@@ -280,6 +280,7 @@ func main() {
 
 	// Create clipboard monitor
 	monitor := clipboard.NewMonitor(cfg.Settings.PollInterval, handler)
+	monitor.SetSkipConcealed(cfg.Privacy.SkipConcealed)
 	monitor.SetReadPolicy(func() bool {
 		app := privacy.FrontmostApplication()
 		decision := privacyController.Decision(app, time.Now())
@@ -324,6 +325,7 @@ func main() {
 		controller.SetDedupeWindow(time.Duration(nextCfg.Settings.ClipboardDedupeWindow) * time.Millisecond)
 		actionGate.SetLimit(nextCfg.Settings.MaxConcurrentActions)
 		privacyController.UpdatePolicy(nextCfg.Privacy.AppAllowlist, nextCfg.Privacy.AppDenylist)
+		monitor.SetSkipConcealed(nextCfg.Privacy.SkipConcealed)
 		// Content read under the old application policy may no longer be
 		// allowed, so drop it — but only when the policy actually changed.
 		// Clearing on every reload left manual actions with an empty clipboard
