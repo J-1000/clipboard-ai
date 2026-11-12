@@ -116,22 +116,24 @@ type ControlsRequest struct {
 
 // HistoryRecord mirrors CLI history records stored in history.jsonl.
 type HistoryRecord struct {
-	ID              string   `json:"id"`
-	Timestamp       string   `json:"timestamp"`
-	Action          string   `json:"action"`
-	Args            []string `json:"args"`
-	Source          string   `json:"source"`
-	Trigger         string   `json:"trigger"`
-	Provider        string   `json:"provider"`
-	ProviderProfile string   `json:"provider_profile,omitempty"`
-	Model           string   `json:"model"`
-	LatencyMs       int      `json:"latency_ms"`
-	Status          string   `json:"status"`
-	Copy            bool     `json:"copy"`
-	Input           string   `json:"input"`
-	Output          string   `json:"output,omitempty"`
-	Error           string   `json:"error,omitempty"`
-	ReplayOf        string   `json:"replay_of,omitempty"`
+	ID               string   `json:"id"`
+	Timestamp        string   `json:"timestamp"`
+	Action           string   `json:"action"`
+	Args             []string `json:"args"`
+	Source           string   `json:"source"`
+	Trigger          string   `json:"trigger"`
+	Provider         string   `json:"provider"`
+	ProviderProfile  string   `json:"provider_profile,omitempty"`
+	Model            string   `json:"model"`
+	LatencyMs        int      `json:"latency_ms"`
+	Status           string   `json:"status"`
+	Copy             bool     `json:"copy"`
+	Input            string   `json:"input"`
+	Output           string   `json:"output,omitempty"`
+	Error            string   `json:"error,omitempty"`
+	ReplayOf         string   `json:"replay_of,omitempty"`
+	PromptTokens     int      `json:"prompt_tokens,omitempty"`
+	CompletionTokens int      `json:"completion_tokens,omitempty"`
 }
 
 // HistoryResponse is returned by /history.
