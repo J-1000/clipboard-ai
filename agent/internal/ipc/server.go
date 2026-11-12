@@ -349,6 +349,12 @@ func (s *Server) handleClipboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	current := s.monitor.Current()
+	if isTrue(r.URL.Query().Get("fresh")) {
+		// An explicit, user-initiated read: look at the pasteboard now instead of
+		// relying on what automatic monitoring last saw (which is empty while
+		// paused, snoozed, or after a blocked application).
+		current = s.monitor.ReadNow()
+	}
 	resp := ClipboardResponse{
 		Text:      current.Text,
 		Type:      string(current.Type),
@@ -502,6 +508,8 @@ type ActionRequest struct {
 	ImageMime   string   `json:"image_mime,omitempty"`
 	Type        string   `json:"type,omitempty"`
 	Args        []string `json:"args,omitempty"`
+	// Fresh asks for an on-demand clipboard read when no payload is supplied.
+	Fresh bool `json:"fresh,omitempty"`
 }
 
 // ActionResponse from triggering an action
@@ -543,6 +551,15 @@ func isKnownAction(cfg *config.Config, name string) bool {
 		}
 	}
 	return false
+}
+
+func isTrue(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "true":
+		return true
+	default:
+		return false
+	}
 }
 
 // handleAction triggers an AI action
@@ -597,6 +614,9 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 
 	if inputText == "" && inputRTF == "" && req.ImageBase64 == "" {
 		current := s.monitor.Current()
+		if req.Fresh {
+			current = s.monitor.ReadNow()
+		}
 		inputText = current.Text
 		inputRTF = current.RTF
 		imageBytes = current.Image

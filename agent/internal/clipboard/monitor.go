@@ -123,6 +123,14 @@ func (m *Monitor) poll() {
 	m.check()
 }
 
+// SetReaders replaces the pasteboard accessors. It exists so tests in other
+// packages can exercise on-demand reads without touching the real clipboard.
+func (m *Monitor) SetReaders(text func() []byte, image func() []byte, rtf func() string) {
+	m.readText = text
+	m.readImage = image
+	m.readRTF = rtf
+}
+
 // SetReadPolicy installs a policy checked after changeCount advances but before
 // any clipboard payload is read.
 func (m *Monitor) SetReadPolicy(shouldRead func() bool) {
@@ -192,6 +200,16 @@ func (m *Monitor) readContent() (Content, bool) {
 		Type:      contentType,
 		Signature: signature,
 	}, true
+}
+
+// ReadNow reads the clipboard on demand for an explicit, user-initiated
+// request. It bypasses the read policy (pause, snooze, application lists) and
+// the concealed-entry check, does not change the monitor's stored state, and
+// never fires the handler. It returns an empty Content when the clipboard holds
+// nothing supported.
+func (m *Monitor) ReadNow() Content {
+	content, _ := m.readContent()
+	return content
 }
 
 func (m *Monitor) clear() {
