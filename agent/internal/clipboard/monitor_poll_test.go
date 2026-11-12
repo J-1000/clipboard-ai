@@ -270,6 +270,29 @@ func TestStart_PollsUntilContextCancelled(t *testing.T) {
 	}
 }
 
+func TestPoll_FirstPollStoresContentWithoutFiring(t *testing.T) {
+	var fires int
+	changeCount := 7
+	fake := &fakeClipboard{text: []byte("copied before the agent started")}
+	m := newTestMonitor(func(Content) { fires++ }, fake)
+	m.readChangeCount = func() int { return changeCount }
+
+	m.poll()
+	if fires != 0 {
+		t.Fatalf("first poll fired the handler %d time(s), want 0", fires)
+	}
+	if got := m.Current().Text; got != "copied before the agent started" {
+		t.Fatalf("first poll should still record current content, got %q", got)
+	}
+
+	changeCount++
+	fake.text = []byte("copied after start")
+	m.poll()
+	if fires != 1 {
+		t.Fatalf("second poll fired %d time(s), want 1", fires)
+	}
+}
+
 func TestReadNow_BypassesPolicyAndLeavesStateUntouched(t *testing.T) {
 	var fires int
 	fake := &fakeClipboard{text: []byte("on demand")}
