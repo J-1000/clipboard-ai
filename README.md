@@ -8,7 +8,9 @@ clipboard-ai is a macOS-first lightweight agent that monitors your clipboard and
 
 - Project status snapshot: see `STATUS.md`
 - Provider support: Ollama, OpenAI, Anthropic, and custom OpenAI-compatible endpoints
-- Safe mode: blocks daemon-triggered cloud calls and prompts on manual CLI calls (unless `--yes` is used)
+- Safe mode: blocks cloud calls made by the agent (automatic triggers and runs
+  requested by the menubar app, Raycast, MCP, or the HTTP API) and prompts on
+  manual CLI calls (unless `--yes` is used)
 - Trigger/clipboard length behavior: character-based (UTF-8 rune-aware), not byte-based
 - Clipboard types: text, RTF, images (image actions require vision-capable models)
 - Local HTTP API: optional authenticated localhost server for integrations
@@ -221,9 +223,15 @@ cbai explain -y
 
 When `safe_mode = true` in config, clipboard content won't be sent to cloud providers (OpenAI, Anthropic, or remote custom endpoints) without consent:
 
-- **Manual CLI usage**: Shows an interactive confirmation prompt before cloud calls
+- **Manual CLI usage**: Shows an interactive confirmation prompt before cloud calls.
+  When stdin is not a terminal (for example in a script), the command fails with
+  a message instead of waiting for an answer; pass `--yes` to allow the call.
 - **Daemon-triggered (automatic)**: Blocks cloud calls entirely and sends a macOS notification
-- **Local providers** (Ollama, localhost endpoints): Always allowed regardless of safe mode
+- **Runs requested through the agent** (menubar app, Raycast, MCP, HTTP API):
+  Blocked like automatic runs, because there is no terminal to prompt on. The
+  error names the requesting client and suggests turning off safe mode or
+  routing the action to a local provider.
+- **Local providers** (Ollama, `localhost`, `127.0.0.1`, `[::1]` endpoints): Always allowed regardless of safe mode
 - **`--yes` flag**: Skips the confirmation prompt
 
 ### Configuration
