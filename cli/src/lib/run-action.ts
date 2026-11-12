@@ -72,10 +72,18 @@ export interface RunActionOptions {
 const MAX_INPUT_CHARS = 100_000;
 
 export function capInputSize(text: string): string {
+  // text.length counts UTF-16 units and is never smaller than the number of
+  // characters, so this fast path is exact for the common case.
   if (text.length <= MAX_INPUT_CHARS) {
     return text;
   }
-  return `${text.slice(0, MAX_INPUT_CHARS)}\n…[truncated]`;
+  // Count and cut by code point so a surrogate pair (emoji, rare CJK) is never
+  // split, matching the agent's rune-based cap.
+  const chars = Array.from(text);
+  if (chars.length <= MAX_INPUT_CHARS) {
+    return text;
+  }
+  return `${chars.slice(0, MAX_INPUT_CHARS).join("")}\n…[truncated]`;
 }
 
 // promptActionFromConfig builds an action from a config-defined prompt template
