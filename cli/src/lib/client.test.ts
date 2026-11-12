@@ -120,6 +120,19 @@ describe("IPC Client", () => {
       expect(clipboard.type).toBe("text");
       expect(clipboard.length).toBe(11);
     });
+
+    it("requests an on-demand read when fresh is set", async () => {
+      const urls: string[] = [];
+      server = await startMockServer(({ url }) => {
+        urls.push(url);
+        return { body: { text: "", type: "text", timestamp: "2024-01-01T00:00:00Z", length: 0 } };
+      });
+
+      await getClipboard();
+      await getClipboard({ fresh: true });
+
+      expect(urls).toEqual(["/clipboard", "/clipboard?fresh=true"]);
+    });
   });
 
   describe("getConfig", () => {
