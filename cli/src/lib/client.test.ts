@@ -249,6 +249,40 @@ describe("IPC Client", () => {
     });
   });
 
+  describe("action timeout", () => {
+    afterEach(() => {
+      delete process.env.CBAI_ACTION_TIMEOUT_MS;
+      // The silent server never answers, so drop its half-open connection or
+      // the shared afterEach would wait on server.close() until it times out.
+      server?.closeAllConnections?.();
+    });
+
+    function startSilentServer(): Promise<void> {
+      return new Promise<void>((resolve) => {
+        mkdirSync(dirname(TEST_SOCKET), { recursive: true });
+        if (existsSync(TEST_SOCKET)) {
+          unlinkSync(TEST_SOCKET);
+        }
+        server = createServer(() => {
+          // Never answers.
+        });
+        server.listen(TEST_SOCKET, () => resolve());
+      });
+    }
+
+    it("waits longer than the ordinary IPC timeout for /action", async () => {
+      process.env.CBAI_IPC_TIMEOUT_MS = "50";
+      process.env.CBAI_ACTION_TIMEOUT_MS = "400";
+      await startSilentServer();
+
+      const started = Date.now();
+      await expect(runAgentAction("summary", { text: "hi" })).rejects.toThrow(
+        'action "summary" did not finish within 0.4s'
+      );
+      expect(Date.now() - started).toBeGreaterThanOrEqual(350);
+    });
+  });
+
   describe("error handling", () => {
     it("rejects when agent is not running (ENOENT)", async () => {
       // Don't start any server — socket doesn't exist
