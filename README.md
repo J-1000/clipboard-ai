@@ -260,6 +260,8 @@ default_snooze_minutes = 15
 # Bundle identifiers or display names; the denylist always wins.
 app_allowlist = []
 app_denylist = ["1Password", "com.example.BankingApp"]
+# Skip entries that password managers mark as concealed or transient.
+skip_concealed = true
 
 [actions.summarize]
 enabled = true
@@ -301,6 +303,8 @@ application allow/deny lists are applied after reload.
 
 Invalid TOML, invalid settings, or invalid trigger regexes are rejected; the agent keeps the last valid config and sends a notification when notifications are enabled. Send `SIGHUP` to `clipboard-ai-agent` to force a reload manually.
 
+Keys that no setting uses (usually typos such as `safemode`) do not make the config invalid; the agent logs `unknown config key ignored` for each one at startup and on reload. Check `cbai logs` after editing.
+
 Changes to `settings.http_enabled`, `settings.http_addr`, and
 `settings.poll_interval` are logged as restart-required because the HTTP server
 and clipboard poller are created at startup. `privacy.start_paused` is also a
@@ -316,6 +320,10 @@ startup default; use `cbai pause` or `cbai resume` to change the live state.
 - Applications may be identified by display name or bundle identifier. A
   blocked clipboard payload is never read into the agent, and pausing or
   snoozing clears the agent's retained clipboard value.
+- Entries that the source application marks as concealed, transient, or
+  auto-generated (the [nspasteboard.org](https://nspasteboard.org) convention
+  used by password managers) are skipped without reading their content. Set
+  `privacy.skip_concealed = false` to turn that off.
 - These controls apply to automatic monitoring. A manual action (`cbai
   <action>`, a menubar quick action, a Raycast command) reads the clipboard at
   the moment you run it, also while monitoring is paused or snoozed.
@@ -350,10 +358,16 @@ When `settings.http_enabled = true`, the agent also exposes a localhost HTTP API
 - `mime:code` - Detected as code
 - `mime:image` - Detected as image
 - `mime:rtf` - Detected as RTF
+- `mime:url` - A single URL
+- `mime:text` - Plain prose (not code, not a URL)
 - `A OR B` - Either condition
 - `A AND B` - Both conditions
 - `NOT A` - Negate a condition/expression
 - `(A OR B) AND C` - Grouped expressions with parentheses
+
+Styled text is reported as `rtf`, and its plain text is classified as well, so
+`mime:code`, `mime:url`, and `mime:text` also match content copied from
+applications that put rich text on the clipboard.
 
 **Quoting `regex:`/`contains:` operands.** Their operands are opaque, but an
 unquoted operand still stops at a `)` or an `AND`/`OR` keyword. If your pattern
@@ -435,7 +449,9 @@ evaluates the effective profile endpoint, so remote profiles are cloud calls.
 - `block`: skip the action unless manual CLI usage includes `--force`
 - `off`: disable the guard
 
-Detected inputs are not written to history; history records keep metadata and replace content with a placeholder. Initial detectors cover AWS access keys, API-key assignments, JWTs, private-key headers, and Luhn-valid credit-card numbers.
+Detected inputs are not written to history; history records keep metadata and replace content with a placeholder. Warnings name what was found, for example `(password, url_credentials)`.
+
+Detectors cover AWS access and secret keys, OpenAI and Anthropic keys, GitHub, GitLab, Slack, Stripe, Google, and npm tokens, generic `api_key` and `password` assignments, bearer tokens, JWTs, URLs with embedded credentials, private-key headers, and credit-card numbers (card layout, issuer prefix, and Luhn checksum).
 
 ### Action History
 
@@ -510,12 +526,15 @@ cbai run reverse
 cbai run rev
 ```
 
+Plugin actions are also available by their id through the HTTP API and MCP;
+no `[actions.*]` config entry is needed.
+
 ### Supported Providers
 
 | Provider | Config | Notes |
 |----------|--------|-------|
 | Ollama | `type = "ollama"` | Local, no API key needed |
-| OpenAI | `type = "openai"` | Requires `api_key` |
+| OpenAI | `type = "openai"` | Requires `api_key`; requests send `max_completion_tokens` and the default temperature |
 | Anthropic | `type = "anthropic"` | Requires `api_key`; uses Anthropic's OpenAI SDK compatibility endpoint |
 | Custom | Set `endpoint` | Any OpenAI-compatible API |
 
@@ -550,21 +569,25 @@ clipboard-ai/
 ├── agent/                    # Go daemon
 │   ├── cmd/clipboard-ai-agent/
 │   └── internal/
+│       ├── automation/       # Dedupe, cooldowns, concurrency
 │       ├── clipboard/        # Clipboard monitoring
 │       ├── config/           # TOML config loading
 │       ├── executor/         # Action execution (spawns CLI)
-│       ├── ipc/              # Unix socket server
+│       ├── guard/            # Sensitive-data detection
+│       ├── ipc/              # Unix socket and HTTP servers
 │       ├── notify/           # macOS notifications
+│       ├── privacy/          # Pause, snooze, application policy
 │       └── rules/            # Trigger engine
 ├── cli/                      # TypeScript CLI (the only action runtime)
 │   └── src/
 │       ├── commands/         # CLI commands
-│       └── lib/              # IPC client, AI client, safe mode, built-in actions
+│       ├── lib/              # IPC client, AI client, safe mode, built-in actions
+│       └── mcp/              # MCP stdio server
 ├── menubar/                  # Native SwiftUI status-item client
 ├── integrations/raycast/     # Raycast extension (HTTP API client)
 ├── configs/                  # Default configuration
 ├── docs/                     # HTTP, MCP, menubar, integration, and security docs
-└── scripts/                  # Install/uninstall scripts
+└── scripts/                  # Install/uninstall scripts, end-to-end contract check
 ```
 
 ## Development

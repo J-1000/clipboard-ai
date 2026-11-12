@@ -199,10 +199,14 @@ extension) wait at least 60 seconds.
 **Error contract:** `/action` returns **HTTP 200** for *application* failures
 (the action ran but errored), with `success: false` and an `error` message — so
 clients should branch on the `success` field, not only the status code. *Protocol*
-errors (bad method, invalid JSON, unknown/invalid action name, body too large,
+errors (bad method, invalid JSON, malformed action name, body too large,
 rate-limited) return a non-2xx status with a JSON body `{"error": "..."}`.
-Unknown or malformed action names return `400`; a saturated action queue returns
-`429`.
+A malformed action name returns `400`; a saturated action queue returns `429`.
+
+An action name must start with a letter or digit and contain only letters,
+digits, `_`, and `-`. The agent does not keep a list of valid actions: built-in,
+plugin, and prompt actions are all resolved by the CLI, and a name it does not
+know is an application failure (`success: false`, `Unknown action "..."`).
 
 Action errors include the CLI's diagnostic output where available, so clients
 can distinguish provider, safe-mode, authentication, and configuration
@@ -251,6 +255,8 @@ Query parameters:
 
 Additional fields:
 
+- `prompt_tokens`, `completion_tokens` (per record) — token usage, present
+  when the provider reported it.
 - `source` (per record) — `manual` (typed in a terminal), `daemon` (automatic
   clipboard trigger), `rerun`, or the client that requested the run through the
   agent: `menubar`, `raycast`, `mcp`, `api`.

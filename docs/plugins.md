@@ -33,3 +33,14 @@ Run it with:
 ```bash
 cbai run reverse
 ```
+
+## Using plugins from other clients
+
+A plugin is available by its id through `POST /action` and through MCP (`cbai
+mcp` lists it as a tool). No `[actions.<id>]` entry in `config.toml` is
+required; add one only to give the plugin a trigger, a provider profile, or a
+timeout.
+
+When the agent runs the CLI on behalf of such a client, the "Loaded N plugin
+action(s)" notice is not printed, because the CLI's stderr is what the client
+receives as the error message if the action fails.

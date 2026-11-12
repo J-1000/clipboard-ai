@@ -34,6 +34,9 @@ A full Raycast extension lives in `integrations/raycast/`. It includes commands 
 - summarize clipboard
 - explain clipboard
 - translate clipboard
+- classify clipboard
+- extract structured data
+- summarize a URL
 - recent action history
 
 Enable the local HTTP API first:
