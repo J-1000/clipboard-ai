@@ -589,8 +589,10 @@ swift build -c release
 ### Running Tests
 
 ```bash
-# Go agent: race test and reachable-vulnerability scan
+# Go agent: formatting, vet, race test, and reachable-vulnerability scan
 cd agent
+test -z "$(gofmt -l .)"
+go vet ./...
 go test -race ./...
 go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
 
