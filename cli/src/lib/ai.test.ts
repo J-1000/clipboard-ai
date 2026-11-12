@@ -284,6 +284,33 @@ describe("AIClient", () => {
     });
   });
 
+  describe("generateJSON fallback", () => {
+    it("retries as a plain completion when the provider rejects response_format", async () => {
+      mockCreate.mockRejectedValueOnce(Object.assign(new Error("unsupported"), { status: 400 }));
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: '{"a":1}' } }],
+        model: "test-model",
+      });
+
+      expect(await client.extractData("x")).toBe('{"a":1}');
+      expect(mockCreate).toHaveBeenCalledTimes(2);
+      const retry = mockCreate.mock.calls[1][0] as Record<string, unknown>;
+      expect(retry.response_format).toBeUndefined();
+    });
+
+    it("does not retry authentication or network failures", async () => {
+      mockCreate.mockRejectedValueOnce(Object.assign(new Error("bad key"), { status: 401 }));
+      await expect(client.extractData("x")).rejects.toThrow("bad key");
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+
+      mockCreate.mockClear();
+      mockCreate.mockRejectedValueOnce(new Error("Connection error."));
+      await expect(client.extractData("x")).rejects.toThrow("Connection error.");
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+    });
+
+  });
+
   describe("provider-specific parameters", () => {
     it("sends max_completion_tokens and no temperature to OpenAI", async () => {
       const openai = new AIClient({
