@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
 import { createActionRegistry } from "./action-registry.js";
 import { runActionCommand, type RunActionDeps } from "./run-action.js";
 import type { AIClient, AIConfig, AIResponse } from "./ai.js";
@@ -60,6 +60,11 @@ describe("runActionCommand history", () => {
     },
   ]);
 
+  // The console spies are created per test and must be removed afterwards:
+  // bun:test reuses an existing spy, so a spy left in place here would carry
+  // these calls into whichever test file runs next.
+  let consoleSpies: Array<{ mockRestore: () => void }> = [];
+
   beforeEach(() => {
     mockGetConfig.mockReset();
     mockGetConfig.mockImplementation(() =>
@@ -71,8 +76,10 @@ describe("runActionCommand history", () => {
     mockCopyToClipboard.mockClear();
     mockAppendHistoryRecord.mockClear();
     mockAIConfigs.length = 0;
-    spyOn(console, "log").mockImplementation(() => {});
-    spyOn(console, "error").mockImplementation(() => {});
+    consoleSpies = [
+      spyOn(console, "log").mockImplementation(() => {}),
+      spyOn(console, "error").mockImplementation(() => {}),
+    ];
     delete process.env.CBAI_SENSITIVE_GUARD_HIT;
     delete process.env.CBAI_MODEL_OVERRIDE;
     delete process.env.CBAI_ENDPOINT_OVERRIDE;
@@ -87,6 +94,13 @@ describe("runActionCommand history", () => {
       value: false,
       configurable: true,
     });
+  });
+
+  afterEach(() => {
+    for (const spy of consoleSpies) {
+      spy.mockRestore();
+    }
+    consoleSpies = [];
   });
 
   it("records successful runs", async () => {
