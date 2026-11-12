@@ -6,6 +6,7 @@ import (
 	"crypto/subtle"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // HTTPServer exposes the IPC API over localhost with token auth.
@@ -27,8 +28,9 @@ func NewHTTPServer(addr string, api *Server) *HTTPServer {
 // Start begins listening on the configured address.
 func (s *HTTPServer) Start(ctx context.Context) error {
 	server := &http.Server{
-		Addr:    s.addr,
-		Handler: s.authMiddleware(s.api.Handler()),
+		Addr:              s.addr,
+		Handler:           s.authMiddleware(s.api.Handler()),
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	go func() {
