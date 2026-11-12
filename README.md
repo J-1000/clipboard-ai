@@ -490,6 +490,9 @@ Detectors cover AWS access and secret keys, OpenAI and Anthropic keys, GitHub, G
 - `cbai history` shows recent runs (newest first)
 - `cbai rerun <id>` replays a previous run with the recorded input and arguments
 - Records persist token usage (`prompt_tokens`/`completion_tokens`) and latency when the provider reports them
+- Each record has a `source`: `manual` (typed in a terminal), `daemon`
+  (automatic clipboard trigger), `rerun`, or the client that requested the run
+  through the agent: `menubar`, `raycast`, `mcp`, or `api`
 
 ### Usage Statistics
 
