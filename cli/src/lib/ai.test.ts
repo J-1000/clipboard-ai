@@ -255,6 +255,35 @@ describe("AIClient", () => {
     });
   });
 
+  describe("token usage", () => {
+    it("counts tokens used by JSON actions", async () => {
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: '{"category":"code","confidence":0.9,"reasoning":"r"}' } }],
+        model: "test-model",
+        usage: { prompt_tokens: 11, completion_tokens: 7 },
+      });
+
+      await client.classify("func main() {}");
+
+      expect(client.getUsage()).toEqual({ promptTokens: 11, completionTokens: 7 });
+    });
+
+    it("counts tokens reported at the end of a stream", async () => {
+      async function* withUsage() {
+        yield { choices: [{ delta: { content: "hi" } }], model: "stream-model" };
+        yield { choices: [], model: "stream-model", usage: { prompt_tokens: 4, completion_tokens: 2 } };
+      }
+      mockCreate.mockResolvedValueOnce(withUsage());
+
+      const result = await client.generateStream("test", undefined, () => {});
+
+      expect(result.usage).toEqual({ promptTokens: 4, completionTokens: 2 });
+      expect(client.getUsage()).toEqual({ promptTokens: 4, completionTokens: 2 });
+      const call = mockCreate.mock.calls[0][0] as Record<string, unknown>;
+      expect(call.stream_options).toEqual({ include_usage: true });
+    });
+  });
+
   describe("provider-specific parameters", () => {
     it("sends max_completion_tokens and no temperature to OpenAI", async () => {
       const openai = new AIClient({
