@@ -38,8 +38,8 @@ clipboard-ai is a macOS-first lightweight agent that monitors your clipboard and
 - [Go 1.26.11](https://go.dev/dl/) (for building the agent)
 - Swift 6 / Xcode 16 (only when building the native menubar app)
 - [Bun](https://bun.sh/) — required to **build** the CLI (the build uses
-  `bun build`). [Node.js](https://nodejs.org/) is required at **runtime** (the
-  installed `cbai` is a `#!/usr/bin/env node` script).
+  `bun build`). [Node.js](https://nodejs.org/) 22 or newer is required at
+  **runtime** (the installed `cbai` is a `#!/usr/bin/env node` script).
 - [Ollama](https://ollama.ai/) (recommended for local LLM)
 
 ### Installation
