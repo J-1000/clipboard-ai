@@ -34,3 +34,14 @@ func TestScanIgnoresInvalidCreditCardCandidate(t *testing.T) {
 		t.Fatalf("expected no findings, got %#v", findings)
 	}
 }
+
+func TestTypesReturnsSortedDistinctTypes(t *testing.T) {
+	findings := []Finding{{Type: "password"}, {Type: "api_key"}, {Type: "password"}}
+	got := Types(findings)
+	if len(got) != 2 || got[0] != "api_key" || got[1] != "password" {
+		t.Fatalf("Types() = %v, want [api_key password]", got)
+	}
+	if got := Types(nil); len(got) != 0 {
+		t.Fatalf("Types(nil) = %v, want empty", got)
+	}
+}
