@@ -330,12 +330,20 @@ function usageFrom(
   };
 }
 
-// validateJSON ensures a model response is parseable JSON, returning a clear
-// error (rather than raw text) when it isn't.
+// Small models often wrap JSON in a Markdown code fence; unwrap it.
+function stripCodeFence(content: string): string {
+  const trimmed = content.trim();
+  const fenced = trimmed.match(/^```[a-zA-Z]*\s*\n([\s\S]*?)\n?```$/);
+  return fenced ? fenced[1].trim() : trimmed;
+}
+
+// validateJSON ensures a model response is parseable JSON, returning the JSON
+// text (without any code fence) or a clear error when it isn't JSON.
 function validateJSON(content: string, label: string): string {
+  const candidate = stripCodeFence(content);
   try {
-    JSON.parse(content);
-    return content;
+    JSON.parse(candidate);
+    return candidate;
   } catch {
     throw new Error(`${label} did not return valid JSON`);
   }
