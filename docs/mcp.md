@@ -48,6 +48,11 @@ are returned as tool errors, not protocol crashes. Tool calls retain normal
 clipboard-ai behavior: safe mode, the sensitive-data guard, provider fallbacks,
 daily token limits, history, and action concurrency are all enforced.
 
+A tool call waits up to 120 seconds for the agent. Set
+`CBAI_ACTION_TIMEOUT_MS` in the MCP server's environment to change that, and
+raise `actions.<name>.timeout_ms` if a model needs more than the agent's
+30-second default.
+
 Because tools may send clipboard or explicit text to an LLM provider, MCP tool
 annotations mark them as non-read-only and open-world operations. Review the
 effective provider configuration with `cbai config` before connecting a host.

@@ -29,7 +29,9 @@ Last updated: 2026-08-18
   input cap are Unicode-rune-aware.
 - Automatic text and RTF inputs use a capped private stdin envelope rather than
   child environment variables. Image execution uses a temporary file.
-- CLI diagnostics are preserved through the agent and `/action`, including
+- The CLI writes only the action result to stdout when it is not attached to a
+  terminal, so `/action` returns the bare result. Its stderr is preserved
+  through the agent and `/action` as the failure diagnostic, including
   safe-mode, provider, authentication, and configuration failures.
 - Automatic retries are limited to transient timeouts, connection failures,
   rate limits, and temporary HTTP failures. Deterministic failures are not
@@ -82,6 +84,8 @@ Pushes and pull requests run all of the following:
   remains in the current upstream Raycast dependency range.
 - Menubar: Swift tests, including a real Unix-socket round trip and HTTP parser
   cases, plus a release build.
+- Contract: `scripts/e2e-contract.sh` runs the real agent and CLI bundle
+  against a stub provider and checks what `POST /action` returns.
 
 Tagged release automation uses frozen installs, builds native arm64 and x86_64
 agent and menubar artifacts, packages valid `.app` bundles, smoke-tests the

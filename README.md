@@ -373,7 +373,8 @@ Fetching a URL makes a network request to that site even when safe mode is enabl
 - `settings.clipboard_dedupe_window_ms`: suppresses duplicate clipboard text reprocessing within a time window
 - `actions.<name>.model`: per-action model override
 - `actions.<name>.endpoint`: per-action OpenAI-compatible endpoint override
-- `actions.<name>.timeout_ms`: per-action execution timeout override
+- `actions.<name>.timeout_ms`: per-action execution timeout override, for
+  automatic triggers and for runs requested through the agent
 - `actions.<name>.retry_count`: retry attempts after first failure
 - `actions.<name>.retry_backoff_ms`: wait time between retries
 - `actions.<name>.cooldown_ms`: minimum interval between action invocations
@@ -607,6 +608,10 @@ npm audit --audit-level=high
 cd ../../menubar
 swift test
 swift build -c release
+
+# Agent and CLI together (builds both, uses an isolated HOME and a stub provider)
+cd ..
+./scripts/e2e-contract.sh
 ```
 
 ### Running locally

@@ -174,6 +174,15 @@ Success response:
 }
 ```
 
+`result` is exactly the action's output: no progress line, no title, and no
+trailing newline. `classify` and `extract` return a JSON document in this
+string, so it can be parsed directly.
+
+**Timeouts.** An action runs for at most 30 seconds, or for
+`actions.<name>.timeout_ms` when that is set. Wait longer than that on the
+client side; the bundled clients (`cbai mcp`, the menubar app, the Raycast
+extension) wait at least 60 seconds.
+
 **Error contract:** `/action` returns **HTTP 200** for *application* failures
 (the action ran but errored), with `success: false` and an `error` message — so
 clients should branch on the `success` field, not only the status code. *Protocol*
