@@ -76,6 +76,10 @@ describe("runActionCommand history", () => {
     delete process.env.CBAI_SENSITIVE_GUARD_HIT;
     delete process.env.CBAI_MODEL_OVERRIDE;
     delete process.env.CBAI_ENDPOINT_OVERRIDE;
+    Object.defineProperty(process.stderr, "isTTY", {
+      value: false,
+      configurable: true,
+    });
     Object.defineProperty(process.stdout, "isTTY", {
       value: false,
       configurable: true,
@@ -260,11 +264,14 @@ describe("runActionCommand history", () => {
     writeSpy.mockRestore();
   });
 
-  it("uses buffered output when stdout is not a TTY", async () => {
+  it("prints only the result when stdout is not a TTY", async () => {
+    (console.log as unknown as { mockClear: () => void }).mockClear();
+    (console.error as unknown as { mockClear: () => void }).mockClear();
     const streamingRegistry = createActionRegistry([
       {
         id: "summary",
         description: "Summary",
+        progressMessage: "Summarizing clipboard content...",
         outputTitle: "Summary",
         run: async ({ ai }) => (await ai.generate("prompt")).content,
       },
@@ -273,8 +280,12 @@ describe("runActionCommand history", () => {
     await runActionCommand("summary", { registry: streamingRegistry, deps: deps() });
 
     expect(mockAIConfigs[0].onToken).toBeUndefined();
-    expect(console.log).toHaveBeenCalledWith("Summary:");
-    expect(console.log).toHaveBeenCalledWith("streamed output");
+    // stdout is what the agent returns to Raycast, the menubar app, and MCP, and
+    // what a shell pipeline consumes: it must be the result and nothing else.
+    expect((console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls).toEqual([
+      ["streamed output"],
+    ]);
+    expect(console.error).not.toHaveBeenCalled();
   });
 
   it("keeps JSON-producing actions buffered on TTY", async () => {

@@ -195,8 +195,11 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
       }
     }
 
-    if (action.progressMessage) {
-      console.log(`${action.progressMessage}\n`);
+    // Progress is status, not result: it goes to stderr, and only when a person
+    // is watching. stdout must carry nothing but the result when it is piped or
+    // captured by the agent.
+    if (action.progressMessage && process.stderr.isTTY) {
+      console.error(`${action.progressMessage}\n`);
     }
 
     const hasUsageLimits =
@@ -293,15 +296,18 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
       // image action that doesn't stream, or a plugin returning a plain string).
       // Treat run()'s return as authoritative instead of discarding it.
       process.stdout.write(`${output ?? ""}\n`);
-    } else {
+    } else if (process.stdout.isTTY) {
       console.log(`${action.outputTitle}:`);
       console.log("─".repeat(action.outputTitle.length));
+      console.log(output);
+    } else {
+      // Piped, redirected, or spawned by the agent: print the bare result.
       console.log(output);
     }
 
     if (options.copy) {
       deps.copyToClipboard(output);
-      console.log("\n(Copied to clipboard)");
+      console.error("\n(Copied to clipboard)");
     }
   } catch (err) {
     runError = (err as Error).message;
