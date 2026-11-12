@@ -642,6 +642,9 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 	if actionCfg, ok := cfg.Actions[req.Action]; ok {
 		opts.ModelOverride = actionCfg.Model
 		opts.EndpointOverride = actionCfg.Endpoint
+		if actionCfg.TimeoutMs > 0 {
+			opts.Timeout = time.Duration(actionCfg.TimeoutMs) * time.Millisecond
+		}
 	}
 	if len(imageBytes) > 0 {
 		path, err := executor.WriteTempImage(imageBytes)
