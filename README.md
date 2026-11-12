@@ -412,6 +412,10 @@ prevents the daemon from starting.
 
 `summarize_url` fetches a single HTTP(S) URL from clipboard text, extracts readable text from `text/html` or `text/plain` responses, and summarizes it. The fetch has a 10 second timeout and 2 MB response limit.
 
+It refuses `localhost` and any URL whose host is, or resolves to, a loopback,
+private, link-local, or other non-public address (including IPv4-mapped IPv6
+forms such as `[::ffff:127.0.0.1]`), and it does not follow redirects.
+
 Fetching a URL makes a network request to that site even when safe mode is enabled. Safe mode controls LLM provider calls; it does not block URL fetching. Keep `actions.summarize_url` disabled unless that network behavior is acceptable.
 
 ### Reliability Controls
