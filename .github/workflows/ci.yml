@@ -19,7 +19,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: agent/go.mod
           cache-dependency-path: agent/go.sum
@@ -64,7 +64,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: agent/go.mod
           cache-dependency-path: agent/go.sum
