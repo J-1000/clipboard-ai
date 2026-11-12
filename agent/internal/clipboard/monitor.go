@@ -48,11 +48,14 @@ type Handler func(content Content)
 type Monitor struct {
 	pollInterval           time.Duration
 	handler                Handler
-	lastSignature          string
 	lastChangeCount        int
 	changeCountInitialized bool
-	mu                     sync.RWMutex
-	current                Content
+
+	// mu guards lastSignature and current: Clear() is called from the IPC and
+	// config-reload goroutines while the poll goroutine reads and writes both.
+	mu            sync.RWMutex
+	lastSignature string
+	current       Content
 
 	// Read/clock seams. Defaulted to the real clipboard in NewMonitor so the
 	// poll/dedupe logic can be exercised with fakes and no GUI/cgo dependency.
@@ -126,46 +129,74 @@ func (m *Monitor) SetReadPolicy(shouldRead func() bool) {
 	m.shouldRead = shouldRead
 }
 
-// check reads the clipboard and fires handler if changed
+// check reads the clipboard and fires the handler if the content changed.
 func (m *Monitor) check() {
-	if content, ok := m.checkImage(); ok {
-		m.update(content)
+	m.checkAndUpdate(true)
+}
+
+// checkAndUpdate reads the clipboard and stores the content if it changed.
+// The handler is called only when fire is true.
+func (m *Monitor) checkAndUpdate(fire bool) {
+	content, ok := m.readContent()
+	if !ok {
+		m.clear()
 		return
+	}
+
+	m.mu.Lock()
+	if content.Signature == m.lastSignature {
+		m.mu.Unlock()
+		return
+	}
+	m.lastSignature = content.Signature
+	m.current = content
+	m.mu.Unlock()
+
+	if fire && m.handler != nil {
+		m.handler(content)
+	}
+}
+
+// readContent reads the pasteboard once and classifies what it holds. ok is
+// false when the pasteboard has no supported content. It does not touch the
+// monitor's stored state.
+func (m *Monitor) readContent() (Content, bool) {
+	if data := m.readImage(); len(data) > 0 {
+		return Content{
+			Image:     data,
+			ImageMime: "image/png",
+			Timestamp: m.now(),
+			Type:      ContentTypeImage,
+			Signature: hashBytes(data),
+		}, true
 	}
 
 	data := m.readText()
 	text := string(data)
 	rtf := m.readRTF()
 	if len(data) == 0 && rtf == "" {
-		m.clear()
-		return
+		return Content{}, false
 	}
+
 	contentType := detectContentType(text)
 	signature := text
-
 	if rtf != "" {
 		signature = rtf
 		contentType = ContentTypeRTF
 	}
 
-	if signature == m.lastSignature {
-		return
-	}
-
-	content := Content{
+	return Content{
 		Text:      text,
 		RTF:       rtf,
 		Timestamp: m.now(),
 		Type:      contentType,
 		Signature: signature,
-	}
-
-	m.update(content)
+	}, true
 }
 
 func (m *Monitor) clear() {
-	m.lastSignature = ""
 	m.mu.Lock()
+	m.lastSignature = ""
 	m.current = Content{}
 	m.mu.Unlock()
 }
@@ -173,38 +204,6 @@ func (m *Monitor) clear() {
 // Clear removes all clipboard payload held by the monitor.
 func (m *Monitor) Clear() {
 	m.clear()
-}
-
-func (m *Monitor) checkImage() (Content, bool) {
-	data := m.readImage()
-	if len(data) == 0 {
-		return Content{}, false
-	}
-
-	signature := hashBytes(data)
-	if signature == m.lastSignature {
-		return Content{}, false
-	}
-
-	return Content{
-		Image:     data,
-		ImageMime: "image/png",
-		Timestamp: m.now(),
-		Type:      ContentTypeImage,
-		Signature: signature,
-	}, true
-}
-
-func (m *Monitor) update(content Content) {
-	m.lastSignature = content.Signature
-
-	m.mu.Lock()
-	m.current = content
-	m.mu.Unlock()
-
-	if m.handler != nil {
-		m.handler(content)
-	}
 }
 
 func hashBytes(data []byte) string {
