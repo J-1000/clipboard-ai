@@ -19,6 +19,16 @@ if [[ "$(uname)" != "Darwin" ]]; then
     exit 1
 fi
 
+# Both toolchains are required. Check before touching anything, so a missing
+# tool cannot leave a LaunchAgent that points at a binary that was never built.
+for tool in go bun; do
+    if ! command -v "$tool" &> /dev/null; then
+        echo "Error: '$tool' is required to build clipboard-ai from source." >&2
+        echo "       Go: https://go.dev/dl/   Bun: https://bun.sh/" >&2
+        exit 1
+    fi
+done
+
 # Create config directory
 echo "Creating config directory..."
 mkdir -p "$CONFIG_DIR"
@@ -39,38 +49,22 @@ CBAI_VERSION="$(git -C "$SCRIPT_DIR/.." describe --tags --always 2>/dev/null || 
 echo "Building clipboard-ai-agent..."
 cd "$SCRIPT_DIR/../agent"
 
-if command -v go &> /dev/null; then
-    go build -ldflags "-X main.version=$CBAI_VERSION" -o clipboard-ai-agent ./cmd/clipboard-ai-agent/
+go build -ldflags "-X main.version=$CBAI_VERSION" -o clipboard-ai-agent ./cmd/clipboard-ai-agent/
 
-    echo "Installing agent to $INSTALL_DIR..."
-    sudo cp clipboard-ai-agent "$INSTALL_DIR/"
-    rm clipboard-ai-agent
-else
-    echo "Warning: Go not found, skipping agent build"
-    echo "Please install the agent binary manually"
-fi
+echo "Installing agent to $INSTALL_DIR..."
+sudo cp clipboard-ai-agent "$INSTALL_DIR/"
+rm clipboard-ai-agent
 
 # Build and install CLI
 echo "Building cbai CLI..."
 cd "$SCRIPT_DIR/../cli"
 
-if command -v bun &> /dev/null; then
-    bun install
-    bun build src/index.ts --outdir dist --target node --define "__CBAI_VERSION__=\"$CBAI_VERSION\""
+bun install --frozen-lockfile
+bun build src/index.ts --outdir dist --target node --define "__CBAI_VERSION__=\"$CBAI_VERSION\""
 
-    echo "Installing CLI to $INSTALL_DIR..."
-    sudo cp dist/index.js "$INSTALL_DIR/cbai"
-    sudo chmod +x "$INSTALL_DIR/cbai"
-elif command -v npm &> /dev/null; then
-    npm install
-    npm run build
-
-    echo "Installing CLI to $INSTALL_DIR..."
-    sudo cp dist/index.js "$INSTALL_DIR/cbai"
-    sudo chmod +x "$INSTALL_DIR/cbai"
-else
-    echo "Warning: Neither bun nor npm found, skipping CLI build"
-fi
+echo "Installing CLI to $INSTALL_DIR..."
+sudo cp dist/index.js "$INSTALL_DIR/cbai"
+sudo chmod +x "$INSTALL_DIR/cbai"
 
 # The installed `cbai` is a `#!/usr/bin/env node` script. bun/npm above are only
 # *build-time* tools; at runtime the daemon needs the interpreter named by the
