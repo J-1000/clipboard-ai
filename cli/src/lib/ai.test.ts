@@ -311,6 +311,26 @@ describe("AIClient", () => {
 
   });
 
+  describe("fenced JSON", () => {
+    it("accepts JSON wrapped in a Markdown code fence", async () => {
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: '```json\n{"name":"John"}\n```' } }],
+        model: "test-model",
+      });
+
+      expect(await client.extractData("x")).toBe('{"name":"John"}');
+    });
+
+    it("accepts a bare fence and surrounding whitespace", async () => {
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: '\n```\n{"category":"code","confidence":1,"reasoning":"r"}\n```\n' } }],
+        model: "test-model",
+      });
+
+      expect(JSON.parse(await client.classify("x")).category).toBe("code");
+    });
+  });
+
   describe("provider-specific parameters", () => {
     it("sends max_completion_tokens and no temperature to OpenAI", async () => {
       const openai = new AIClient({
