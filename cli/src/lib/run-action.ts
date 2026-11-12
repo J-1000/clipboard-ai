@@ -9,7 +9,12 @@ import {
   type ProviderChainResponse,
   type ResolvedProviderProfile,
 } from "./client.js";
-import { appendHistoryRecord, type HistoryRetentionSettings, type RunSource } from "./history.js";
+import {
+  agentClientSource,
+  appendHistoryRecord,
+  type HistoryRetentionSettings,
+  type RunSource,
+} from "./history.js";
 import { getInput, type InputPayload } from "./input.js";
 import { enforceSafeMode } from "./safe-mode.js";
 import { scanSensitiveText } from "./sensitive-guard.js";
@@ -158,8 +163,13 @@ export async function runActionCommand(actionName: string, options: RunActionOpt
       process.exit(1);
     }
 
-    source = options.source ?? (process.env.CBAI_DAEMON_MODE === "true" ? "daemon" : "manual");
-    trigger = options.trigger ?? process.env.CBAI_TRIGGER ?? (source === "manual" ? "cli" : "daemon");
+    source =
+      options.source ??
+      (process.env.CBAI_DAEMON_MODE === "true" ? (agentClientSource() ?? "daemon") : "manual");
+    trigger =
+      options.trigger ??
+      process.env.CBAI_TRIGGER ??
+      (source === "manual" ? "cli" : source);
     const configuredAction = resolveConfiguredAction(config, actionName, action);
     const actionConfig = configuredAction?.config;
     const providerChain = await loadProviderChain(

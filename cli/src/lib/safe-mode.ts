@@ -1,5 +1,6 @@
 import { createInterface } from "readline";
 import type { ConfigResponse } from "./client.js";
+import { agentClientSource } from "./history.js";
 
 export function isCloudProvider(providerType: string, endpoint?: string): boolean {
   if (endpoint) {
@@ -58,11 +59,13 @@ export async function enforceSafeMode(
 
   const provider = config.provider.type || config.provider.endpoint;
 
-  // Daemon-triggered — cannot prompt, block entirely
+  // Run by the agent — there is no terminal to prompt on, so block entirely.
   if (process.env.CBAI_DAEMON_MODE === "true") {
-    throw new Error(
-      `safe mode: blocked cloud call to ${provider} (daemon auto-triggered)`
-    );
+    const client = agentClientSource();
+    const reason = client
+      ? `requested via ${client}; set safe_mode = false or route this action to a local provider`
+      : "daemon auto-triggered";
+    throw new Error(`safe mode: blocked cloud call to ${provider} (${reason})`);
   }
 
   // --yes flag skips prompt

@@ -3,7 +3,18 @@ import { existsSync } from "fs";
 import { homedir } from "os";
 import { dirname, join } from "path";
 
-export type RunSource = "manual" | "daemon" | "rerun";
+// "manual" = typed in a terminal, "daemon" = automatic clipboard trigger,
+// "rerun" = cbai rerun; the rest are manual runs requested through the agent.
+export type RunSource = "manual" | "daemon" | "rerun" | "menubar" | "raycast" | "mcp" | "api";
+
+const AGENT_CLIENT_SOURCES: readonly RunSource[] = ["menubar", "raycast", "mcp", "api"];
+
+// agentClientSource returns the client named by CBAI_SOURCE when the agent ran
+// this process on behalf of an interactive client, or undefined for an
+// automatic clipboard trigger.
+export function agentClientSource(value: string | undefined = process.env.CBAI_SOURCE): RunSource | undefined {
+  return AGENT_CLIENT_SOURCES.find((source) => source === value);
+}
 export type RunStatus = "success" | "error";
 
 export interface ActionRunRecord {
