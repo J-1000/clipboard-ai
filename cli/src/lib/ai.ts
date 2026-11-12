@@ -240,29 +240,37 @@ export class AIClient {
     return content;
   }
 
-  // generateJSON requests a JSON object via response_format, gracefully falling
-  // back to a plain completion when the provider doesn't support it.
+  // generateJSON requests a JSON object via response_format, falling back to a
+  // plain completion only when the provider rejects that parameter.
   async generateJSON(prompt: string, systemPrompt?: string): Promise<AIResponse> {
     const messages = completionMessages(prompt, systemPrompt);
+    let response;
     try {
-      const response = await this.client.chat.completions.create({
+      response = await this.client.chat.completions.create({
         model: this.model,
         messages,
         ...this.samplingParams(0.2),
         response_format: { type: "json_object" },
       });
-      warnIfTruncated(response.choices?.[0]?.finish_reason, this.maxTokens);
-      const usage = usageFrom(response.usage);
-      this.accumulateUsage(usage);
-      return {
-        content: completionContent(response),
-        model: response.model,
-        usage,
-      };
-    } catch {
-      // Provider may reject response_format; fall back to a plain completion.
-      return this.generate(prompt, systemPrompt);
+    } catch (err) {
+      // "Bad request"-class statuses mean the provider does not support
+      // response_format. Anything else (auth, rate limit, network, server
+      // error) would fail again, so let it surface instead of retrying.
+      const status = (err as { status?: unknown }).status;
+      if (status === 400 || status === 404 || status === 422 || status === 501) {
+        return this.generate(prompt, systemPrompt);
+      }
+      throw err;
     }
+
+    warnIfTruncated(response.choices?.[0]?.finish_reason, this.maxTokens);
+    const usage = usageFrom(response.usage);
+    this.accumulateUsage(usage);
+    return {
+      content: completionContent(response),
+      model: response.model,
+      usage,
+    };
   }
 
   async captionImage(imageBase64: string, imageMime?: string): Promise<string> {
