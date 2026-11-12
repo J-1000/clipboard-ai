@@ -128,36 +128,43 @@ func main() {
 
 		// Evaluate rules
 		matches := rulesEngine.Evaluate(content)
-		for _, match := range matches {
-			guardHit := false
-			// Scan the RTF payload too: a styled paste can carry a secret that
-			// isn't in the plain-text representation.
-			guardInput := content.Text
-			if content.RTF != "" {
-				guardInput += "\n" + content.RTF
-			}
-			if guardInput != "" && cfg.Settings.SensitiveGuard != "off" {
-				findings := guard.Scan(guardInput)
-				if len(findings) > 0 {
-					guardHit = true
-					logger.Warn("sensitive clipboard content detected",
-						"action", match.ActionName,
-						"mode", cfg.Settings.SensitiveGuard,
-						"findings", len(findings),
-					)
-					if cfg.Settings.Notifications {
-						message := "clipboard looks like it contains a secret"
-						if cfg.Settings.SensitiveGuard == "block" {
-							message += " — action skipped"
-						}
-						notify.SendWithSubtitle("clipboard-ai", "Sensitive content", message)
+		if len(matches) == 0 {
+			return
+		}
+
+		// Scan once per clipboard change, not once per matching action. The RTF
+		// payload is scanned too: a styled paste can carry a secret that isn't in
+		// the plain-text representation.
+		guardHit := false
+		guardInput := content.Text
+		if content.RTF != "" {
+			guardInput += "\n" + content.RTF
+		}
+		if guardInput != "" && cfg.Settings.SensitiveGuard != "off" {
+			if findings := guard.Scan(guardInput); len(findings) > 0 {
+				guardHit = true
+				types := guard.Types(findings)
+				blocked := cfg.Settings.SensitiveGuard == "block"
+				logger.Warn("sensitive clipboard content detected",
+					"mode", cfg.Settings.SensitiveGuard,
+					"findings", len(findings),
+					"types", types,
+					"matched_actions", len(matches),
+				)
+				if cfg.Settings.Notifications {
+					message := "clipboard looks like it contains a secret (" + strings.Join(types, ", ") + ")"
+					if blocked {
+						message += " — action skipped"
 					}
-					if cfg.Settings.SensitiveGuard == "block" {
-						continue
-					}
+					notify.SendWithSubtitle("clipboard-ai", "Sensitive content", message)
+				}
+				if blocked {
+					return
 				}
 			}
+		}
 
+		for _, match := range matches {
 			cooldown := time.Duration(match.Config.CooldownMs) * time.Millisecond
 			if !controller.AllowAction(match.ActionName, cooldown, now) {
 				logger.Debug("skipped action due to cooldown",

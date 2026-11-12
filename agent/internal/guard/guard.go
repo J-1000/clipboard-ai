@@ -2,6 +2,7 @@ package guard
 
 import (
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -133,4 +134,19 @@ func luhnValid(digits string) bool {
 	}
 
 	return sum > 0 && sum%10 == 0
+}
+
+// Types returns the distinct finding types, sorted, for logs and notifications.
+func Types(findings []Finding) []string {
+	seen := make(map[string]struct{}, len(findings))
+	types := make([]string, 0, len(findings))
+	for _, finding := range findings {
+		if _, ok := seen[finding.Type]; ok {
+			continue
+		}
+		seen[finding.Type] = struct{}{}
+		types = append(types, finding.Type)
+	}
+	sort.Strings(types)
+	return types
 }
