@@ -813,6 +813,33 @@ func TestHandleAction_TrimsTrailingNewlineFromResult(t *testing.T) {
 	}
 }
 
+func TestHandleAction_AppliesConfiguredTimeout(t *testing.T) {
+	s := newTestServer()
+	cfg := config.Default()
+	cfg.Actions["summarize"] = config.ActionConfig{Enabled: true, Trigger: "length > 200", TimeoutMs: 90000}
+	s.SetConfig(cfg)
+
+	var gotOpts executor.Options
+	executor.SetExecuteWithOptionsFunc(func(ctx context.Context, action string, text string, opts executor.Options) executor.Result {
+		gotOpts = opts
+		return executor.Result{Action: action, Output: "ok"}
+	})
+	defer executor.ResetExecuteFunc()
+
+	body, _ := json.Marshal(ActionRequest{Action: "summarize", Text: "hello"})
+	s.handleAction(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/action", bytes.NewBuffer(body)))
+	if gotOpts.Timeout != 90*time.Second {
+		t.Fatalf("timeout = %v, want the configured 90s", gotOpts.Timeout)
+	}
+
+	// An action without a configured timeout leaves the executor default in place.
+	body, _ = json.Marshal(ActionRequest{Action: "explain", Text: "hello"})
+	s.handleAction(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/action", bytes.NewBuffer(body)))
+	if gotOpts.Timeout != 0 {
+		t.Fatalf("timeout = %v, want 0 so the executor default applies", gotOpts.Timeout)
+	}
+}
+
 func TestHandleAction_RejectsMalformedActionName(t *testing.T) {
 	s := newTestServer()
 	executor.SetExecuteWithOptionsFunc(func(ctx context.Context, action string, text string, opts executor.Options) executor.Result {
