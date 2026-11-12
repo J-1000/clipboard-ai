@@ -711,8 +711,12 @@ release is currently published.
 ## Uninstalling
 
 ```bash
-./scripts/uninstall.sh
+./scripts/uninstall.sh         # asks before removing logs, history, and config
+./scripts/uninstall.sh --all   # removes everything without asking
 ```
+
+The binaries and the LaunchAgent are always removed. The native menubar app is
+not installed by the script, so delete it yourself if you built or copied it.
 
 ## License
 
